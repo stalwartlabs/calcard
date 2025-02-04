@@ -228,15 +228,15 @@ impl TryFrom<&[u8]> for VCardAdrType {
     }
 }
 
-pub enum VCardBdayCalscale {
+pub enum VCardCalscale {
     Gregorian, // [RFC6350, Section 5.8]
 }
 
-impl TryFrom<&[u8]> for VCardBdayCalscale {
+impl TryFrom<&[u8]> for VCardCalscale {
     type Error = ();
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         hashify::tiny_map_ignore_case!(value,
-            "gregorian" => VCardBdayCalscale::Gregorian,
+            "gregorian" => VCardCalscale::Gregorian,
         )
         .ok_or(())
     }

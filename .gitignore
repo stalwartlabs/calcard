@@ -2,3 +2,4 @@ _ignore
 Cargo.lock
 target
 .DS_Store
+resources/rfcs
