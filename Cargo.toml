@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 hashify = "0.2.6"
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.138"
