@@ -1,58 +1,74 @@
-use std::{
-    borrow::Cow,
-    iter::{Enumerate, Peekable},
-    slice::Iter,
-};
+use std::borrow::Cow;
 
-pub struct Parser<'x> {
-    input: &'x [u8],
-    iter: Peekable<Enumerate<Iter<'x, u8>>>,
-    strict: bool,
-    stop_colon: bool,
-    stop_semicolon: bool,
-    stop_comma: bool,
-    stop_equal: bool,
-    stop_slash: bool,
-    unfold_qp: bool,
-    unquote: bool,
-}
+use crate::parser::Parser;
 
 pub(crate) struct Token<'x> {
-    text: Cow<'x, [u8]>,
-    start: usize,
-    end: usize,
-    stop_char: u8,
+    pub(crate) text: Cow<'x, [u8]>,
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+    pub(crate) stop_char: StopChar,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub(crate) enum StopChar {
+    Colon,
+    Semicolon,
+    Comma,
+    Equal,
+    Slash,
+    Dot,
+    Lf,
 }
 
 impl<'x> Parser<'x> {
-    pub fn new(input: &'x [u8]) -> Self {
-        Self {
-            input,
-            iter: input.iter().enumerate().peekable(),
-            strict: false,
-            stop_colon: true,
-            stop_semicolon: true,
-            stop_comma: true,
-            stop_equal: true,
-            stop_slash: false,
-            unfold_qp: false,
-            unquote: true,
-        }
-    }
-
-    pub fn strict(mut self) -> Self {
-        self.strict = true;
-        self
-    }
-
-    pub fn qp_value(&mut self) {
-        self.stop_colon = false;
+    pub fn expect_iana_token(&mut self) {
+        self.stop_colon = true;
         self.stop_semicolon = true;
+        self.stop_comma = true;
+        self.stop_equal = true;
+        self.stop_slash = false;
+        self.unfold_qp = false;
+        self.unquote = true;
+    }
+
+    pub fn expect_qp_value(&mut self) {
+        self.stop_colon = false;
         self.stop_comma = false;
         self.stop_equal = false;
         self.stop_slash = false;
-        self.unfold_qp = true;
         self.unquote = false;
+        self.unfold_qp = true;
+        self.stop_semicolon = true;
+    }
+
+    pub fn expect_single_value(&mut self) {
+        self.stop_colon = false;
+        self.stop_comma = false;
+        self.stop_equal = false;
+        self.stop_slash = false;
+        self.stop_semicolon = false;
+        self.unquote = false;
+        self.unfold_qp = false;
+    }
+
+    pub fn expect_multi_value(&mut self) {
+        self.stop_colon = false;
+        self.stop_comma = false;
+        self.stop_equal = false;
+        self.stop_slash = false;
+        self.stop_semicolon = true;
+        self.unquote = false;
+        self.unfold_qp = false;
+    }
+
+    pub fn expect_param_value(&mut self) {
+        self.stop_colon = true;
+        self.stop_semicolon = true;
+        self.stop_comma = true;
+        self.stop_equal = false;
+        self.stop_slash = false;
+        self.unfold_qp = false;
+        self.unquote = true;
     }
 
     fn try_unfold(&mut self) -> bool {
@@ -69,14 +85,14 @@ impl<'x> Parser<'x> {
         let mut offset_start = usize::MAX;
         let mut offset_end = usize::MAX;
         let mut in_quote = false;
-        let last_char;
+        let stop_char;
         let mut buf: Vec<u8> = vec![];
 
         'outer: loop {
             let (idx, ch) = if let Some(next) = self.iter.next() {
                 next
             } else if offset_start != usize::MAX {
-                last_char = b'\n';
+                stop_char = StopChar::Lf;
                 break;
             } else {
                 return None;
@@ -110,7 +126,7 @@ impl<'x> Parser<'x> {
                             buf.extend_from_slice(&self.input[offset_start..=offset_end]);
                         }
                     } else if offset_start != usize::MAX {
-                        last_char = b'\n';
+                        stop_char = StopChar::Lf;
                         break;
                     }
                 }
@@ -128,7 +144,7 @@ impl<'x> Parser<'x> {
                                         break;
                                     }
                                 } else {
-                                    last_char = b'\n';
+                                    stop_char = StopChar::Lf;
                                     offset_end = idx - 1;
                                     break 'outer;
                                 }
@@ -159,23 +175,27 @@ impl<'x> Parser<'x> {
                     in_quote = !in_quote;
                 }
                 b':' if !in_quote && self.stop_colon => {
-                    last_char = b':';
+                    stop_char = StopChar::Colon;
                     break;
                 }
                 b';' if !in_quote && self.stop_semicolon => {
-                    last_char = b';';
+                    stop_char = StopChar::Semicolon;
                     break;
                 }
                 b',' if !in_quote && self.stop_comma => {
-                    last_char = b',';
+                    stop_char = StopChar::Comma;
                     break;
                 }
                 b'=' if !in_quote && self.stop_equal => {
-                    last_char = b'=';
+                    stop_char = StopChar::Equal;
                     break;
                 }
                 b'/' if !in_quote && self.stop_slash => {
-                    last_char = b'/';
+                    stop_char = StopChar::Slash;
+                    break;
+                }
+                b'.' if !in_quote && self.stop_dot => {
+                    stop_char = StopChar::Dot;
                     break;
                 }
                 _ => {
@@ -197,14 +217,14 @@ impl<'x> Parser<'x> {
                     text: Cow::Borrowed(&self.input[offset_start..=offset_end]),
                     start: offset_start,
                     end: offset_end,
-                    stop_char: last_char,
+                    stop_char,
                 })
             } else {
                 Some(Token {
                     text: Cow::Borrowed(b"".as_ref()),
                     start: offset_start,
                     end: offset_end,
-                    stop_char: last_char,
+                    stop_char,
                 })
             }
         } else {
@@ -212,8 +232,72 @@ impl<'x> Parser<'x> {
                 text: Cow::Owned(buf),
                 start: offset_start,
                 end: offset_end,
-                stop_char: last_char,
+                stop_char,
             })
         }
+    }
+
+    pub(crate) fn single_value(&mut self, last_stop_char: StopChar) -> Option<Token<'x>> {
+        if last_stop_char != StopChar::Lf {
+            self.expect_single_value();
+            {
+                self.token()
+            }
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn seek_lf(&mut self) -> bool {
+        loop {
+            match self.token() {
+                Some(Token {
+                    stop_char: StopChar::Lf,
+                    ..
+                }) => return true,
+                None => return false,
+                _ => {}
+            }
+        }
+    }
+
+    pub(crate) fn seek_value_or_eol(&mut self) -> StopChar {
+        loop {
+            match self.token() {
+                Some(Token {
+                    stop_char: StopChar::Colon,
+                    ..
+                }) => return StopChar::Colon,
+                Some(Token {
+                    stop_char: StopChar::Lf,
+                    ..
+                })
+                | None => return StopChar::Lf,
+                _ => {}
+            }
+        }
+    }
+
+    pub(crate) fn seek_param_value_or_eol(&mut self) -> StopChar {
+        loop {
+            match self.token() {
+                Some(Token {
+                    stop_char: stop_char @ (StopChar::Colon | StopChar::Semicolon | StopChar::Equal),
+                    ..
+                }) => return stop_char,
+                Some(Token {
+                    stop_char: StopChar::Lf,
+                    ..
+                })
+                | None => return StopChar::Lf,
+                _ => {}
+            }
+        }
+    }
+}
+
+impl Token<'_> {
+    pub fn into_string(self) -> String {
+        String::from_utf8(self.text.into_owned()).unwrap_or_default()
     }
 }

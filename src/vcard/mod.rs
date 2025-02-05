@@ -1,3 +1,8 @@
+use crate::tokenizer::Token;
+
+pub mod parser;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VCardProperty {
     Source,        // [RFC6350, Section 6.1.3]
     Kind,          // [RFC6350, Section 6.1.4]
@@ -110,7 +115,8 @@ impl TryFrom<&[u8]> for VCardProperty {
     }
 }
 
-pub enum VCardParameters {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VCardParameter {
     Language,    // [RFC6350, Section 5.1]
     Value,       // [RFC6350, Section 5.2]
     Pref,        // [RFC6350, Section 5.3]
@@ -137,38 +143,39 @@ pub enum VCardParameters {
     ServiceType, // [RFC9554, Section 4.9]
     Username,    // [RFC9554, Section 4.10]
     Jsptr,       // [RFC9555, Section 3.3.2]
+    Other(String),
 }
 
-impl TryFrom<&[u8]> for VCardParameters {
+impl TryFrom<&[u8]> for VCardParameter {
     type Error = ();
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         hashify::tiny_map_ignore_case!(value,
-            "LANGUAGE" => VCardParameters::Language,
-            "VALUE" => VCardParameters::Value,
-            "PREF" => VCardParameters::Pref,
-            "ALTID" => VCardParameters::Altid,
-            "PID" => VCardParameters::Pid,
-            "TYPE" => VCardParameters::Type,
-            "MEDIATYPE" => VCardParameters::Mediatype,
-            "CALSCALE" => VCardParameters::Calscale,
-            "SORT-AS" => VCardParameters::SortAs,
-            "GEO" => VCardParameters::Geo,
-            "TZ" => VCardParameters::Tz,
-            "INDEX" => VCardParameters::Index,
-            "LEVEL" => VCardParameters::Level,
-            "GROUP" => VCardParameters::Group,
-            "CC" => VCardParameters::Cc,
-            "AUTHOR" => VCardParameters::Author,
-            "AUTHOR-NAME" => VCardParameters::AuthorName,
-            "CREATED" => VCardParameters::Created,
-            "DERIVED" => VCardParameters::Derived,
-            "LABEL" => VCardParameters::Label,
-            "PHONETIC" => VCardParameters::Phonetic,
-            "PROP-ID" => VCardParameters::PropId,
-            "SCRIPT" => VCardParameters::Script,
-            "SERVICE-TYPE" => VCardParameters::ServiceType,
-            "USERNAME" => VCardParameters::Username,
-            "JSPTR" => VCardParameters::Jsptr,
+            "LANGUAGE" => VCardParameter::Language,
+            "VALUE" => VCardParameter::Value,
+            "PREF" => VCardParameter::Pref,
+            "ALTID" => VCardParameter::Altid,
+            "PID" => VCardParameter::Pid,
+            "TYPE" => VCardParameter::Type,
+            "MEDIATYPE" => VCardParameter::Mediatype,
+            "CALSCALE" => VCardParameter::Calscale,
+            "SORT-AS" => VCardParameter::SortAs,
+            "GEO" => VCardParameter::Geo,
+            "TZ" => VCardParameter::Tz,
+            "INDEX" => VCardParameter::Index,
+            "LEVEL" => VCardParameter::Level,
+            "GROUP" => VCardParameter::Group,
+            "CC" => VCardParameter::Cc,
+            "AUTHOR" => VCardParameter::Author,
+            "AUTHOR-NAME" => VCardParameter::AuthorName,
+            "CREATED" => VCardParameter::Created,
+            "DERIVED" => VCardParameter::Derived,
+            "LABEL" => VCardParameter::Label,
+            "PHONETIC" => VCardParameter::Phonetic,
+            "PROP-ID" => VCardParameter::PropId,
+            "SCRIPT" => VCardParameter::Script,
+            "SERVICE-TYPE" => VCardParameter::ServiceType,
+            "USERNAME" => VCardParameter::Username,
+            "JSPTR" => VCardParameter::Jsptr,
         )
         .ok_or(())
     }
@@ -188,12 +195,12 @@ pub enum VCardValueDataTypes {
     Unknown,       // [RFC7095, Section 8.2]
     Uri,           // [RFC6350, Section 4.2]
     UtcOffset,     // [RFC6350, Section 4.7]
+    Other(String),
 }
 
-impl TryFrom<&[u8]> for VCardValueDataTypes {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
+impl From<Token<'_>> for VCardValueDataTypes {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
             "BOOLEAN" => VCardValueDataTypes::Boolean,
             "DATE" => VCardValueDataTypes::Date,
             "DATE-AND-OR-TIME" => VCardValueDataTypes::DateAndOrTime,
@@ -208,105 +215,29 @@ impl TryFrom<&[u8]> for VCardValueDataTypes {
             "URI" => VCardValueDataTypes::Uri,
             "UTC-OFFSET" => VCardValueDataTypes::UtcOffset,
         )
-        .ok_or(())
+        .unwrap_or_else(|| VCardValueDataTypes::Other(token.into_string()))
     }
 }
 
-pub enum VCardAdrType {
-    Billing,  // [RFC9554, Section 5.1]
-    Delivery, // [RFC9554, Section 5.2]
-}
-
-impl TryFrom<&[u8]> for VCardAdrType {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "billing" => VCardAdrType::Billing,
-            "delivery" => VCardAdrType::Delivery,
-        )
-        .ok_or(())
-    }
-}
-
-pub enum VCardCalscale {
-    Gregorian, // [RFC6350, Section 5.8]
-}
-
-impl TryFrom<&[u8]> for VCardCalscale {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "gregorian" => VCardCalscale::Gregorian,
-        )
-        .ok_or(())
-    }
-}
-
-pub enum VCardExpertiseLevel {
+pub enum VCardLevel {
     Beginner, // [RFC6715, Section 3.2]
     Average,  // [RFC6715, Section 3.2]
     Expert,   // [RFC6715, Section 3.2]
+    High,     // [RFC6715, Section 3.2]
+    Medium,   // [RFC6715, Section 3.2]
+    Low,      // [RFC6715, Section 3.2]
 }
 
-impl TryFrom<&[u8]> for VCardExpertiseLevel {
+impl TryFrom<&[u8]> for VCardLevel {
     type Error = ();
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         hashify::tiny_map_ignore_case!(value,
-            "beginner" => VCardExpertiseLevel::Beginner,
-            "average" => VCardExpertiseLevel::Average,
-            "expert" => VCardExpertiseLevel::Expert,
-        )
-        .ok_or(())
-    }
-}
-
-pub enum VCardHobbyLevel {
-    High,   // [RFC6715, Section 3.2]
-    Medium, // [RFC6715, Section 3.2]
-    Low,    // [RFC6715, Section 3.2]
-}
-
-impl TryFrom<&[u8]> for VCardHobbyLevel {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "high" => VCardHobbyLevel::High,
-            "medium" => VCardHobbyLevel::Medium,
-            "low" => VCardHobbyLevel::Low,
-        )
-        .ok_or(())
-    }
-}
-
-pub enum VCardInterestLevel {
-    High,   // [RFC6715, Section 3.2]
-    Medium, // [RFC6715, Section 3.2]
-    Low,    // [RFC6715, Section 3.2]
-}
-
-impl TryFrom<&[u8]> for VCardInterestLevel {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "high" => VCardInterestLevel::High,
-            "medium" => VCardInterestLevel::Medium,
-            "low" => VCardInterestLevel::Low,
-        )
-        .ok_or(())
-    }
-}
-
-pub enum VCardLocationType {
-    Work, // [RFC6350, Section 5.6]
-    Home, // [RFC6350, Section 5.6]
-}
-
-impl TryFrom<&[u8]> for VCardLocationType {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "work" => VCardLocationType::Work,
-            "home" => VCardLocationType::Home,
+            "beginner" => VCardLevel::Beginner,
+            "average" => VCardLevel::Average,
+            "expert" => VCardLevel::Expert,
+            "high" => VCardLevel::High,
+            "medium" => VCardLevel::Medium,
+            "low" => VCardLevel::Low,
         )
         .ok_or(())
     }
@@ -332,7 +263,11 @@ impl TryFrom<&[u8]> for VCardNPhonetic {
     }
 }
 
-pub enum VCardRelatedType {
+pub enum VCardType {
+    Work,         // [RFC6350, Section 5.6]
+    Home,         // [RFC6350, Section 5.6]
+    Billing,      // [RFC9554, Section 5.1]
+    Delivery,     // [RFC9554, Section 5.2]
     Contact,      // [RFC6350, Section 6.6.6]
     Acquaintance, // [RFC6350, Section 6.6.6]
     Friend,       // [RFC6350, Section 6.6.6]
@@ -353,62 +288,62 @@ pub enum VCardRelatedType {
     Me,           // [RFC6350, Section 6.6.6]
     Agent,        // [RFC6350, Section 6.6.6]
     Emergency,    // [RFC6350, Section 6.6.6]
+    Text,         // [RFC6350, Section 6.4.1]
+    Voice,        // [RFC6350, Section 6.4.1]
+    Fax,          // [RFC6350, Section 6.4.1]
+    Cell,         // [RFC6350, Section 6.4.1]
+    Video,        // [RFC6350, Section 6.4.1]
+    Pager,        // [RFC6350, Section 6.4.1]
+    Textphone,    // [RFC6350, Section 6.4.1]
+    MainNumber,   // [RFC7852]
+    Other(String),
 }
 
-impl TryFrom<&[u8]> for VCardRelatedType {
+impl TryFrom<&[u8]> for VCardType {
     type Error = ();
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         hashify::tiny_map_ignore_case!(value,
-            "contact" => VCardRelatedType::Contact,
-            "acquaintance" => VCardRelatedType::Acquaintance,
-            "friend" => VCardRelatedType::Friend,
-            "met" => VCardRelatedType::Met,
-            "co-worker" => VCardRelatedType::CoWorker,
-            "colleague" => VCardRelatedType::Colleague,
-            "co-resident" => VCardRelatedType::CoResident,
-            "neighbor" => VCardRelatedType::Neighbor,
-            "child" => VCardRelatedType::Child,
-            "parent" => VCardRelatedType::Parent,
-            "sibling" => VCardRelatedType::Sibling,
-            "spouse" => VCardRelatedType::Spouse,
-            "kin" => VCardRelatedType::Kin,
-            "muse" => VCardRelatedType::Muse,
-            "crush" => VCardRelatedType::Crush,
-            "date" => VCardRelatedType::Date,
-            "sweetheart" => VCardRelatedType::Sweetheart,
-            "me" => VCardRelatedType::Me,
-            "agent" => VCardRelatedType::Agent,
-            "emergency" => VCardRelatedType::Emergency,
+            "work" => VCardType::Work,
+            "home" => VCardType::Home,
+            "billing" => VCardType::Billing,
+            "delivery" => VCardType::Delivery,
+            "contact" => VCardType::Contact,
+            "acquaintance" => VCardType::Acquaintance,
+            "friend" => VCardType::Friend,
+            "met" => VCardType::Met,
+            "co-worker" => VCardType::CoWorker,
+            "colleague" => VCardType::Colleague,
+            "co-resident" => VCardType::CoResident,
+            "neighbor" => VCardType::Neighbor,
+            "child" => VCardType::Child,
+            "parent" => VCardType::Parent,
+            "sibling" => VCardType::Sibling,
+            "spouse" => VCardType::Spouse,
+            "kin" => VCardType::Kin,
+            "muse" => VCardType::Muse,
+            "crush" => VCardType::Crush,
+            "date" => VCardType::Date,
+            "sweetheart" => VCardType::Sweetheart,
+            "me" => VCardType::Me,
+            "agent" => VCardType::Agent,
+            "emergency" => VCardType::Emergency,
+            "text" => VCardType::Text,
+            "voice" => VCardType::Voice,
+            "fax" => VCardType::Fax,
+            "cell" => VCardType::Cell,
+            "video" => VCardType::Video,
+            "pager" => VCardType::Pager,
+            "textphone" => VCardType::Textphone,
+            "main-number" => VCardType::MainNumber,
         )
         .ok_or(())
     }
 }
 
-pub enum VCardTelType {
-    Text,       // [RFC6350, Section 6.4.1]
-    Voice,      // [RFC6350, Section 6.4.1]
-    Fax,        // [RFC6350, Section 6.4.1]
-    Cell,       // [RFC6350, Section 6.4.1]
-    Video,      // [RFC6350, Section 6.4.1]
-    Pager,      // [RFC6350, Section 6.4.1]
-    Textphone,  // [RFC6350, Section 6.4.1]
-    MainNumber, // [RFC7852]
-}
-
-impl TryFrom<&[u8]> for VCardTelType {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "text" => VCardTelType::Text,
-            "voice" => VCardTelType::Voice,
-            "fax" => VCardTelType::Fax,
-            "cell" => VCardTelType::Cell,
-            "video" => VCardTelType::Video,
-            "pager" => VCardTelType::Pager,
-            "textphone" => VCardTelType::Textphone,
-            "main-number" => VCardTelType::MainNumber,
-        )
-        .ok_or(())
+impl From<Token<'_>> for VCardType {
+    fn from(token: Token<'_>) -> Self {
+        VCardType::try_from(token.text.as_ref())
+            .unwrap_or_else(|_| VCardType::Other(token.into_string()))
     }
 }
 

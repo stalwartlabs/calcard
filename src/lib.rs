@@ -1,8 +1,41 @@
 pub mod icalendar;
 pub mod jscalendar;
 pub mod jscontact;
+pub mod parser;
 pub mod tokenizer;
 pub mod vcard;
+
+pub(crate) trait VecMap<K, V> {
+    fn insert(&mut self, key: K, value: V);
+    fn insert_unique(&mut self, key: K, value: V);
+    fn get_mut_or_default(&mut self, key: K) -> &mut V
+    where
+        V: Default;
+}
+
+impl<K: PartialEq, V> VecMap<K, V> for Vec<(K, V)> {
+    fn insert(&mut self, key: K, value: V) {
+        self.push((key, value));
+    }
+
+    fn insert_unique(&mut self, key: K, value: V) {
+        if !self.iter().any(|(k, _)| k == &key) {
+            self.push((key, value));
+        }
+    }
+
+    fn get_mut_or_default(&mut self, key: K) -> &mut V
+    where
+        V: Default,
+    {
+        if let Some(idx) = self.iter().position(|(k, _)| k == &key) {
+            &mut self[idx].1
+        } else {
+            self.push((key, V::default()));
+            &mut self.last_mut().unwrap().1
+        }
+    }
+}
 
 /*
 #[cfg(test)]
