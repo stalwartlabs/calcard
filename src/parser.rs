@@ -1,11 +1,12 @@
 use std::{
     iter::{Enumerate, Peekable},
     slice::Iter,
+    str::FromStr,
 };
 
 use crate::{
-    jscontact::{JSContact, Value},
     tokenizer::{StopChar, Token},
+    vcard::{VCard, VCardPartialDateTime},
 };
 
 pub enum ParseError {
@@ -14,7 +15,7 @@ pub enum ParseError {
 }
 
 pub enum Entry {
-    VCard(JSContact),
+    VCard(VCard),
 }
 
 pub type Result<T> = std::result::Result<T, ParseError>;
@@ -81,23 +82,57 @@ impl<'x> Parser<'x> {
     }
 }
 
-impl Value {
-    pub(crate) fn try_uint(token: Token<'_>) -> Self {
-        std::str::from_utf8(token.text.as_ref())
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .map(Value::UInt)
-            .unwrap_or_else(|| Value::Text(token.into_string()))
-    }
-    pub(crate) fn bool(token: Token<'_>) -> Self {
-        Value::Boolean(token.text.as_ref().eq_ignore_ascii_case(b"TRUE"))
+impl Token<'_> {
+    pub(crate) fn into_uri_bytes(self) -> std::result::Result<Vec<u8>, String> {
+        todo!()
     }
 
-    pub(crate) fn try_timestamp(token: Token<'_>) -> Self {
-        todo!("parse timestamp")
+    pub(crate) fn into_boolean(self) -> bool {
+        todo!()
     }
 
-    pub(crate) fn text(token: Token<'_>) -> Self {
-        Value::Text(token.into_string())
+    pub(crate) fn into_date(self) -> std::result::Result<VCardPartialDateTime, String> {
+        todo!()
+    }
+
+    pub(crate) fn into_date_and_or_datetime(
+        self,
+    ) -> std::result::Result<VCardPartialDateTime, String> {
+        todo!()
+    }
+
+    pub(crate) fn into_date_time(self) -> std::result::Result<VCardPartialDateTime, String> {
+        todo!()
+    }
+
+    pub(crate) fn into_float(self) -> std::result::Result<f64, String> {
+        todo!()
+    }
+
+    pub(crate) fn into_integer(self) -> std::result::Result<i64, String> {
+        todo!()
+    }
+
+    pub(crate) fn into_time(self) -> std::result::Result<VCardPartialDateTime, String> {
+        todo!()
+    }
+
+    pub(crate) fn into_offset(self) -> std::result::Result<i16, String> {
+        todo!()
+    }
+
+    pub(crate) fn into_timestamp(self) -> std::result::Result<i64, String> {
+        todo!()
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct Timestamp(pub i64);
+
+impl FromStr for Timestamp {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        todo!()
     }
 }

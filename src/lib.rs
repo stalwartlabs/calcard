@@ -1,6 +1,4 @@
 pub mod icalendar;
-pub mod jscalendar;
-pub mod jscontact;
 pub mod parser;
 pub mod tokenizer;
 pub mod vcard;

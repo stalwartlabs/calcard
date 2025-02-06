@@ -2,7 +2,21 @@ use crate::tokenizer::Token;
 
 pub mod parser;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct VCard {
+    pub kind: Option<VCardKind>,
+    pub entries: Vec<VCardEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VCardEntry {
+    group: Option<String>,
+    name: VCardProperty,
+    params: Vec<VCardParameter>,
+    values: Vec<VCardValue>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VCardProperty {
     Source,        // [RFC6350, Section 6.1.3]
     Kind,          // [RFC6350, Section 6.1.4]
@@ -54,6 +68,7 @@ pub enum VCardProperty {
     Pronouns,      // [RFC9554, Section 3.4]
     Socialprofile, // [RFC9554, Section 3.5]
     Jsprop,        // [RFC9555, Section 3.2.1]
+    Other(String),
 }
 
 impl TryFrom<&[u8]> for VCardProperty {
@@ -115,73 +130,81 @@ impl TryFrom<&[u8]> for VCardProperty {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum VCardValue {
+    Text(String),
+    Uri(UriType),
+    Date(VCardPartialDateTime),
+    Time(VCardPartialDateTime),
+    DateTime(VCardPartialDateTime),
+    DateAndOrTime(VCardPartialDateTime),
+    Timestamp(i64),
+    Boolean(bool),
+    Float(f64),
+    UtcOffset(i16),
+    Integer(i64),
+    LanguageTag(String),
+    Other(OtherValue),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OtherValue {
+    pub typ_: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UriType {
+    Text(String),
+    Data(Vec<u8>),
+}
+
+impl Eq for VCardValue {}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct VCardPartialDateTime {
+    year: Option<u16>,
+    month: Option<u16>,
+    day: Option<u16>,
+    hour: Option<u16>,
+    minute: Option<u16>,
+    second: Option<u16>,
+    timezone: Option<i16>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VCardParameter {
-    Language,    // [RFC6350, Section 5.1]
-    Value,       // [RFC6350, Section 5.2]
-    Pref,        // [RFC6350, Section 5.3]
-    Altid,       // [RFC6350, Section 5.4]
-    Pid,         // [RFC6350, Section 5.5]
-    Type,        // [RFC6350, Section 5.6]
-    Mediatype,   // [RFC6350, Section 5.7]
-    Calscale,    // [RFC6350, Section 5.8]
-    SortAs,      // [RFC6350, Section 5.9]
-    Geo,         // [RFC6350, Section 5.10]
-    Tz,          // [RFC6350, Section 5.11]
-    Index,       // [RFC6715, Section 3.1]
-    Level,       // [RFC6715, Section 3.2]
-    Group,       // [RFC7095, Section 8.1]
-    Cc,          // [RFC8605, Section 3.1]
-    Author,      // [RFC9554, Section 4.1]
-    AuthorName,  // [RFC9554, Section 4.2]
-    Created,     // [RFC9554, Section 4.3]
-    Derived,     // [RFC9554, Section 4.4]
-    Label,       // [RFC6350, Section 6.3.1][RFC9554, Section 4.5]
-    Phonetic,    // [RFC9554, Section 4.6]
-    PropId,      // [RFC9554, Section 4.7]
-    Script,      // [RFC9554, Section 4.8]
-    ServiceType, // [RFC9554, Section 4.9]
-    Username,    // [RFC9554, Section 4.10]
-    Jsptr,       // [RFC9555, Section 3.3.2]
-    Other(String),
+    Language(String),             // [RFC6350, Section 5.1]
+    Value(Vec<VCardValueType>),   // [RFC6350, Section 5.2]
+    Pref(u32),                    // [RFC6350, Section 5.3]
+    Altid(String),                // [RFC6350, Section 5.4]
+    Pid(Vec<String>),             // [RFC6350, Section 5.5]
+    Type(Vec<VCardType>),         // [RFC6350, Section 5.6]
+    Mediatype(String),            // [RFC6350, Section 5.7]
+    Calscale(VCardCalendarScale), // [RFC6350, Section 5.8]
+    SortAs(String),               // [RFC6350, Section 5.9]
+    Geo(String),                  // [RFC6350, Section 5.10]
+    Tz(String),                   // [RFC6350, Section 5.11]
+    Index(u32),                   // [RFC6715, Section 3.1]
+    Level(VCardLevel),            // [RFC6715, Section 3.2]
+    Group(String),                // [RFC7095, Section 8.1]
+    Cc(String),                   // [RFC8605, Section 3.1]
+    Author(String),               // [RFC9554, Section 4.1]
+    AuthorName(String),           // [RFC9554, Section 4.2]
+    Created(i64),                 // [RFC9554, Section 4.3]
+    Derived(bool),                // [RFC9554, Section 4.4]
+    Label(String),                // [RFC6350, Section 6.3.1][RFC9554, Section 4.5]
+    Phonetic(VCardPhonetic),      // [RFC9554, Section 4.6]
+    PropId(String),               // [RFC9554, Section 4.7]
+    Script(String),               // [RFC9554, Section 4.8]
+    ServiceType(String),          // [RFC9554, Section 4.9]
+    Username(String),             // [RFC9554, Section 4.10]
+    Jsptr(String),                // [RFC9555, Section 3.3.2]
+    Other(Vec<String>),
 }
 
-impl TryFrom<&[u8]> for VCardParameter {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "LANGUAGE" => VCardParameter::Language,
-            "VALUE" => VCardParameter::Value,
-            "PREF" => VCardParameter::Pref,
-            "ALTID" => VCardParameter::Altid,
-            "PID" => VCardParameter::Pid,
-            "TYPE" => VCardParameter::Type,
-            "MEDIATYPE" => VCardParameter::Mediatype,
-            "CALSCALE" => VCardParameter::Calscale,
-            "SORT-AS" => VCardParameter::SortAs,
-            "GEO" => VCardParameter::Geo,
-            "TZ" => VCardParameter::Tz,
-            "INDEX" => VCardParameter::Index,
-            "LEVEL" => VCardParameter::Level,
-            "GROUP" => VCardParameter::Group,
-            "CC" => VCardParameter::Cc,
-            "AUTHOR" => VCardParameter::Author,
-            "AUTHOR-NAME" => VCardParameter::AuthorName,
-            "CREATED" => VCardParameter::Created,
-            "DERIVED" => VCardParameter::Derived,
-            "LABEL" => VCardParameter::Label,
-            "PHONETIC" => VCardParameter::Phonetic,
-            "PROP-ID" => VCardParameter::PropId,
-            "SCRIPT" => VCardParameter::Script,
-            "SERVICE-TYPE" => VCardParameter::ServiceType,
-            "USERNAME" => VCardParameter::Username,
-            "JSPTR" => VCardParameter::Jsptr,
-        )
-        .ok_or(())
-    }
-}
-
-pub enum VCardValueDataTypes {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VCardValueType {
     Boolean,       // [RFC6350, Section 4.4]
     Date,          // [RFC6350, Section 4.3.1]
     DateAndOrTime, // [RFC6350, Section 4.3.4]
@@ -192,33 +215,56 @@ pub enum VCardValueDataTypes {
     Text,          // [RFC6350, Section 4.1]
     Time,          // [RFC6350, Section 4.3.2]
     Timestamp,     // [RFC6350, Section 4.3.5]
-    Unknown,       // [RFC7095, Section 8.2]
     Uri,           // [RFC6350, Section 4.2]
     UtcOffset,     // [RFC6350, Section 4.7]
     Other(String),
 }
 
-impl From<Token<'_>> for VCardValueDataTypes {
+impl From<Token<'_>> for VCardValueType {
     fn from(token: Token<'_>) -> Self {
         hashify::tiny_map_ignore_case!(token.text.as_ref(),
-            "BOOLEAN" => VCardValueDataTypes::Boolean,
-            "DATE" => VCardValueDataTypes::Date,
-            "DATE-AND-OR-TIME" => VCardValueDataTypes::DateAndOrTime,
-            "DATE-TIME" => VCardValueDataTypes::DateTime,
-            "FLOAT" => VCardValueDataTypes::Float,
-            "INTEGER" => VCardValueDataTypes::Integer,
-            "LANGUAGE-TAG" => VCardValueDataTypes::LanguageTag,
-            "TEXT" => VCardValueDataTypes::Text,
-            "TIME" => VCardValueDataTypes::Time,
-            "TIMESTAMP" => VCardValueDataTypes::Timestamp,
-            "UNKNOWN" => VCardValueDataTypes::Unknown,
-            "URI" => VCardValueDataTypes::Uri,
-            "UTC-OFFSET" => VCardValueDataTypes::UtcOffset,
+            "BOOLEAN" => VCardValueType::Boolean,
+            "DATE" => VCardValueType::Date,
+            "DATE-AND-OR-TIME" => VCardValueType::DateAndOrTime,
+            "DATE-TIME" => VCardValueType::DateTime,
+            "FLOAT" => VCardValueType::Float,
+            "INTEGER" => VCardValueType::Integer,
+            "LANGUAGE-TAG" => VCardValueType::LanguageTag,
+            "TEXT" => VCardValueType::Text,
+            "TIME" => VCardValueType::Time,
+            "TIMESTAMP" => VCardValueType::Timestamp,
+            "URI" => VCardValueType::Uri,
+            "UTC-OFFSET" => VCardValueType::UtcOffset,
         )
-        .unwrap_or_else(|| VCardValueDataTypes::Other(token.into_string()))
+        .unwrap_or_else(|| VCardValueType::Other(token.into_string()))
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum VCardCalendarScale {
+    #[default]
+    Gregorian,
+    Chinese,
+    IslamicCivil,
+    Hebrew,
+    Ethiopic,
+    Other(String),
+}
+
+impl From<Token<'_>> for VCardCalendarScale {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+            "gregorian" => VCardCalendarScale::Gregorian,
+            "chinese" => VCardCalendarScale::Chinese,
+            "islamic-civil" => VCardCalendarScale::IslamicCivil,
+            "hebrew" => VCardCalendarScale::Hebrew,
+            "ethiopic" => VCardCalendarScale::Ethiopic,
+        )
+        .unwrap_or_else(|| VCardCalendarScale::Other(token.into_string()))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VCardLevel {
     Beginner, // [RFC6715, Section 3.2]
     Average,  // [RFC6715, Section 3.2]
@@ -243,26 +289,28 @@ impl TryFrom<&[u8]> for VCardLevel {
     }
 }
 
-pub enum VCardNPhonetic {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VCardPhonetic {
     Ipa,    // [RFC9554, Section 4.6]
     Jyut,   // [RFC9554, Section 4.6]
     Piny,   // [RFC9554, Section 4.6]
     Script, // [RFC9554, Section 4.6]
+    Other(String),
 }
 
-impl TryFrom<&[u8]> for VCardNPhonetic {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "ipa" => VCardNPhonetic::Ipa,
-            "jyut" => VCardNPhonetic::Jyut,
-            "piny" => VCardNPhonetic::Piny,
-            "script" => VCardNPhonetic::Script,
+impl From<Token<'_>> for VCardPhonetic {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+            "ipa" => VCardPhonetic::Ipa,
+            "jyut" => VCardPhonetic::Jyut,
+            "piny" => VCardPhonetic::Piny,
+            "script" => VCardPhonetic::Script,
         )
-        .ok_or(())
+        .unwrap_or_else(|| VCardPhonetic::Other(token.into_string()))
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VCardType {
     Work,         // [RFC6350, Section 5.6]
     Home,         // [RFC6350, Section 5.6]
@@ -371,6 +419,7 @@ impl TryFrom<&[u8]> for VCardGramGender {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VCardKind {
     Individual,  // [RFC6350, Section 6.1.4]
     Group,       // [RFC6350, Section 6.1.4]
@@ -392,5 +441,70 @@ impl TryFrom<&[u8]> for VCardKind {
             "device" => VCardKind::Device,
         )
         .ok_or(())
+    }
+}
+
+pub(crate) enum ValueSeparator {
+    None,
+    Comma,
+    Semicolon,
+}
+
+impl VCardProperty {
+    // Returns the default value type and whether the property is multi-valued.
+    pub(crate) fn default_types(&self) -> (VCardValueType, ValueSeparator) {
+        match self {
+            VCardProperty::Source => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::Kind => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Xml => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Fn => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::N => (VCardValueType::Text, ValueSeparator::Semicolon),
+            VCardProperty::Nickname => (VCardValueType::Text, ValueSeparator::Comma),
+            VCardProperty::Photo => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::Bday => (VCardValueType::DateAndOrTime, ValueSeparator::None),
+            VCardProperty::Anniversary => (VCardValueType::DateAndOrTime, ValueSeparator::None),
+            VCardProperty::Gender => (VCardValueType::Text, ValueSeparator::Semicolon),
+            VCardProperty::Adr => (VCardValueType::Text, ValueSeparator::Semicolon),
+            VCardProperty::Tel => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Email => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Impp => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::Lang => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Tz => (VCardValueType::UtcOffset, ValueSeparator::None),
+            VCardProperty::Geo => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::Title => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Role => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Logo => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::Org => (VCardValueType::Text, ValueSeparator::Semicolon),
+            VCardProperty::Member => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::Related => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::Categories => (VCardValueType::Uri, ValueSeparator::Comma),
+            VCardProperty::Note => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Prodid => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Rev => (VCardValueType::Timestamp, ValueSeparator::None),
+            VCardProperty::Sound => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::Uid => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::Clientpidmap => (VCardValueType::Text, ValueSeparator::Semicolon),
+            VCardProperty::Url => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::Version => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Key => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::Fburl => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::Caladruri => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::Caluri => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::Birthplace => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Deathplace => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Deathdate => (VCardValueType::DateAndOrTime, ValueSeparator::None),
+            VCardProperty::Expertise => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Hobby => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Interest => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::OrgDirectory => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::ContactUri => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::Created => (VCardValueType::Timestamp, ValueSeparator::None),
+            VCardProperty::Gramgender => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Language => (VCardValueType::LanguageTag, ValueSeparator::None),
+            VCardProperty::Pronouns => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Socialprofile => (VCardValueType::Uri, ValueSeparator::None),
+            VCardProperty::Jsprop => (VCardValueType::Text, ValueSeparator::None),
+            VCardProperty::Other(_) => (VCardValueType::Text, ValueSeparator::Semicolon),
+        }
     }
 }

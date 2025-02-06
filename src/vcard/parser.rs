@@ -1,22 +1,23 @@
+use std::{borrow::Cow, str::FromStr};
+
 use crate::{
-    jscontact::{CalendarScale, JSContact, Kind, PhoneticSystem, Property, VCardParams, Value},
-    parser::Parser,
-    tokenizer::StopChar,
-    VecMap,
+    parser::{Parser, Timestamp},
+    tokenizer::{StopChar, Token},
+    vcard::VCardProperty,
 };
 
-use super::{VCardLevel, VCardParameter, VCardType, VCardValueDataTypes};
+use super::{
+    OtherValue, UriType, VCard, VCardEntry, VCardParameter, VCardType, VCardValue, VCardValueType,
+    ValueSeparator,
+};
 
-struct Params<'x> {
-    vcard: &'x mut JSContact,
+struct Params {
+    params: Vec<VCardParameter>,
     stop_char: StopChar,
-    group_name: Option<String>,
-    params: VCardParams,
-    types: Vec<VCardType>,
-    data_types: Vec<VCardValueDataTypes>,
-    levels: Vec<VCardLevel>,
+    data_types: Vec<VCardValueType>,
     charset: Option<String>,
     encoding: Option<Encoding>,
+    group_name: Option<String>,
 }
 
 enum Encoding {
@@ -24,9 +25,9 @@ enum Encoding {
     Base64,
 }
 
-impl Parser<'_> {
-    pub fn vcard(&mut self) -> crate::parser::Result<JSContact> {
-        let mut vcard = JSContact::default();
+impl<'x> Parser<'x> {
+    pub fn vcard(&mut self) -> crate::parser::Result<VCard> {
+        let mut vcard = VCard::default();
 
         loop {
             // Fetch property name
@@ -37,13 +38,10 @@ impl Parser<'_> {
             };
 
             let mut params = Params {
-                group_name: None,
-                params: VCardParams::default(),
-                vcard: &mut vcard,
+                params: Vec::new(),
                 stop_char: token.stop_char,
                 data_types: Vec::new(),
-                types: Vec::new(),
-                levels: Vec::new(),
+                group_name: None,
                 encoding: None,
                 charset: None,
             };
@@ -77,87 +75,104 @@ impl Parser<'_> {
             }
 
             // Parse property
-            hashify::fnc_map_ignore_case!(name.as_ref(),
-                b"KIND" => {
-                    if let Some(token) = self.single_value(params.stop_char) {
-                        params.vcard.items.insert(
-                            Property::Kind,
-                            Value::Kind(
-                                Kind::try_from(token.text.as_ref())
-                                    .unwrap_or_else(|_| Kind::Other(token.into_string())),
-                            ),
-                        );
-                    }
-                },
-                b"SOURCE" => {
-                    if let Some(token) = self.single_value(params.stop_char) {
-                        //params.vcard.directories.0.insert()
-                    }
-                },
+            let mut entry = VCardEntry {
+                group: params.group_name,
+                name: VCardProperty::try_from(name.as_ref()).unwrap_or_else(|_| {
+                    VCardProperty::Other(String::from_utf8(name.into_owned()).unwrap_or_default())
+                }),
+                params: params.params,
+                values: Vec::new(),
+            };
 
-                /*
-                b"XML" => { self.Xml(); },
-                b"FN" => { self.Fn(); },
-                b"N" => { self.N(); },
-                b"NICKNAME" => { self.Nickname(); },
-                b"PHOTO" => { self.Photo(); },
-                b"BDAY" => { self.Bday(); },
-                b"ANNIVERSARY" => { self.Anniversary(); },
-                b"GENDER" => { self.Gender(); },
-                b"ADR" => { self.Adr(); },
-                b"TEL" => { self.Tel(); },
-                b"EMAIL" => { self.Email(); },
-                b"IMPP" => { self.Impp(); },
-                b"LANG" => { self.Lang(); },
-                b"TZ" => { self.Tz(); },
-                b"GEO" => { self.Geo(); },
-                b"TITLE" => { self.Title(); },
-                b"ROLE" => { self.Role(); },
-                b"LOGO" => { self.Logo(); },
-                b"ORG" => { self.Org(); },
-                b"MEMBER" => { self.Member(); },
-                b"RELATED" => { self.Related(); },
-                b"CATEGORIES" => { self.Categories(); },
-                b"NOTE" => { self.Note(); },
-                b"PRODID" => { self.Prodid(); },
-                b"REV" => { self.Rev(); },
-                b"SOUND" => { self.Sound(); },
-                b"UID" => { self.Uid(); },
-                b"CLIENTPIDMAP" => { self.Clientpidmap(); },
-                b"URL" => { self.Url(); },
-                b"VERSION" => { self.Version(); },
-                b"KEY" => { self.Key(); },
-                b"FBURL" => { self.Fburl(); },
-                b"CALADRURI" => { self.Caladruri(); },
-                b"CALURI" => { self.Caluri(); },
-                b"BIRTHPLACE" => { self.Birthplace(); },
-                b"DEATHPLACE" => { self.Deathplace(); },
-                b"DEATHDATE" => { self.Deathdate(); },
-                b"EXPERTISE" => { self.Expertise(); },
-                b"HOBBY" => { self.Hobby(); },
-                b"INTEREST" => { self.Interest(); },
-                b"ORG-DIRECTORY" => { self.OrgDirectory(); },
-                b"CONTACT-URI" => { self.ContactUri(); },
-                b"CREATED" => { self.Created(); },
-                b"GRAMGENDER" => { self.Gramgender(); },
-                b"LANGUAGE" => { self.Language(); },
-                b"PRONOUNS" => { self.Pronouns(); },
-                b"SOCIALPROFILE" => { self.Socialprofile(); },
-                b"JSPROP" => { self.Jsprop(); },*/
-                b"END" => {
-                    self.seek_lf();
-                    break;
-                },
-                _ => {
-                    self.unknown(params);
+            let todos = "";
+            /*
+            - Gramgender
+            - Decode base64 and qp
+            - Decode URI
+
+            */
+
+            // Parse value
+            if params.stop_char != StopChar::Lf {
+                let (default_type, multi_value) = entry.name.default_types();
+                match multi_value {
+                    ValueSeparator::None => {
+                        self.expect_single_value();
+                    }
+                    ValueSeparator::Comma => {
+                        self.expect_multi_value_comma();
+                    }
+                    ValueSeparator::Semicolon => {
+                        self.expect_multi_value_semicolon();
+                    }
                 }
-            );
+
+                let mut data_types = params.data_types.drain(..);
+                while let Some(token) = self.token() {
+                    let eol = token.stop_char == StopChar::Lf;
+                    let value = match data_types.next().unwrap_or_else(|| default_type.clone()) {
+                        VCardValueType::Boolean => VCardValue::Boolean(token.into_boolean()),
+                        VCardValueType::Date => token
+                            .into_date()
+                            .map(VCardValue::Date)
+                            .unwrap_or_else(VCardValue::Text),
+                        VCardValueType::DateAndOrTime => token
+                            .into_date_and_or_datetime()
+                            .map(VCardValue::DateAndOrTime)
+                            .unwrap_or_else(VCardValue::Text),
+                        VCardValueType::DateTime => token
+                            .into_date_time()
+                            .map(VCardValue::DateTime)
+                            .unwrap_or_else(VCardValue::Text),
+                        VCardValueType::Float => token
+                            .into_float()
+                            .map(VCardValue::Float)
+                            .unwrap_or_else(VCardValue::Text),
+                        VCardValueType::Integer => token
+                            .into_integer()
+                            .map(VCardValue::Integer)
+                            .unwrap_or_else(VCardValue::Text),
+                        VCardValueType::LanguageTag => VCardValue::LanguageTag(token.into_string()),
+                        VCardValueType::Text => VCardValue::Text(token.into_string()),
+                        VCardValueType::Time => token
+                            .into_time()
+                            .map(VCardValue::Time)
+                            .unwrap_or_else(VCardValue::Text),
+                        VCardValueType::Timestamp => token
+                            .into_timestamp()
+                            .map(VCardValue::Timestamp)
+                            .unwrap_or_else(VCardValue::Text),
+                        VCardValueType::Uri => VCardValue::Uri(
+                            token
+                                .into_uri_bytes()
+                                .map(UriType::Data)
+                                .unwrap_or_else(UriType::Text),
+                        ),
+                        VCardValueType::UtcOffset => token
+                            .into_offset()
+                            .map(VCardValue::UtcOffset)
+                            .unwrap_or_else(VCardValue::Text),
+                        VCardValueType::Other(typ_) => VCardValue::Other(OtherValue {
+                            typ_,
+                            value: token.into_string(),
+                        }),
+                    };
+
+                    entry.values.push(value);
+
+                    if eol {
+                        break;
+                    }
+                }
+            }
+
+            vcard.entries.push(entry);
         }
 
         Ok(vcard)
     }
 
-    fn parameters(&mut self, params: &mut Params<'_>) {
+    fn parameters(&mut self, params: &mut Params) {
         while params.stop_char == StopChar::Semicolon {
             self.expect_iana_token();
             let token = match self.token() {
@@ -197,11 +212,11 @@ impl Parser<'_> {
                 }
             }
 
-            let mut text_param_name = None;
-            let param_values = &mut params.params.0;
+            let param_values = &mut params.params;
+
             hashify::fnc_map_ignore_case!(param_name.as_ref(),
                 b"LANGUAGE" => {
-                    text_param_name = VCardParameter::Language.into();
+                    param_values.push(VCardParameter::Language(self.buf_to_string()));
                 },
                 b"VALUE" => {
                     params.data_types.extend(
@@ -211,118 +226,87 @@ impl Parser<'_> {
                     );
                 },
                 b"PREF" => {
-                    param_values.get_mut_or_default(VCardParameter::Pref).extend(
-                        self.token_buf
-                            .drain(..)
-                            .map(Value::try_uint),
-                    );
+                    param_values.push(VCardParameter::Pref(self.buf_to_other().unwrap_or_default()));
                 },
                 b"ALTID" => {
-                    text_param_name = VCardParameter::Altid.into();
+                    param_values.push(VCardParameter::Altid(self.buf_to_string()));
                 },
                 b"PID" => {
-                    text_param_name = VCardParameter::Pid.into();
+                    param_values.push(VCardParameter::Pid(
+                        self.token_buf
+                            .drain(..)
+                            .map(|token| token.into_string())
+                            .collect(),
+                    ));
                 },
                 b"TYPE" => {
-                    params.types.extend(
-                        self.token_buf
-                            .drain(..)
-                            .map(Into::into),
-                    );
+                    param_values.push(VCardParameter::Type(self.buf_parse_many()));
                 },
                 b"MEDIATYPE" => {
-                    text_param_name = VCardParameter::Mediatype.into();
+                    param_values.push(VCardParameter::Mediatype(self.buf_to_string()));
                 },
                 b"CALSCALE" => {
-                    param_values
-                        .get_mut_or_default(VCardParameter::Calscale)
-                        .extend(self.token_buf.drain(..).map(|token| {
-                            Value::CalendarScale(
-                                CalendarScale::try_from(token.text.as_ref())
-                                    .unwrap_or_else(|_| CalendarScale::Other(token.into_string())),
-                            )
-                        }));
+                    if let Some(value) = self.buf_parse_one() {
+                        param_values.push(VCardParameter::Calscale(value));
+                    }
                 },
                 b"SORT-AS" => {
-                    text_param_name = VCardParameter::SortAs.into();
+                    param_values.push(VCardParameter::SortAs(self.buf_to_string()));
                 },
                 b"GEO" => {
-                    text_param_name = VCardParameter::Geo.into();
+                    param_values.push(VCardParameter::Geo(self.buf_to_string()));
                 },
                 b"TZ" => {
-                    text_param_name = VCardParameter::Tz.into();
+                    param_values.push(VCardParameter::Tz(self.buf_to_string()));
                 },
                 b"INDEX" => {
-                    param_values.get_mut_or_default(VCardParameter::Index).extend(
-                        self.token_buf
-                            .drain(..)
-                            .map(Value::try_uint),
-                    );
+                    param_values.push(VCardParameter::Index(self.buf_to_other().unwrap_or_default()));
                 },
                 b"LEVEL" => {
-                    for token in self.token_buf.drain(..) {
-                        if let Ok(level) = VCardLevel::try_from(token.text.as_ref()) {
-                            params.levels.push(level);
-                        }
+                    if let Some(value) = self.buf_try_parse_one() {
+                        param_values.push(VCardParameter::Level(value));
                     }
                 },
                 b"GROUP" => {
-                    param_values.get_mut_or_default(VCardParameter::Group).extend(
-                        self.token_buf
-                            .drain(..)
-                            .map(Value::try_uint),
-                    );
+                    param_values.push(VCardParameter::Group(self.buf_to_string()));
                 },
                 b"CC" => {
-                    text_param_name = VCardParameter::Cc.into();
+                    param_values.push(VCardParameter::Cc(self.buf_to_string()));
                 },
                 b"AUTHOR" => {
-                    text_param_name = VCardParameter::Author.into();
+                    param_values.push(VCardParameter::Author(self.buf_to_string()));
                 },
                 b"AUTHOR-NAME" => {
-                    text_param_name = VCardParameter::AuthorName.into();
+                    param_values.push(VCardParameter::AuthorName(self.buf_to_string()));
                 },
                 b"CREATED" => {
-                    param_values.get_mut_or_default(VCardParameter::Created).extend(
-                        self.token_buf
-                            .drain(..)
-                            .map(Value::try_timestamp),
-                    );
+                    param_values.push(VCardParameter::Created(self.buf_to_other::<Timestamp>().unwrap_or_default().0));
                 },
                 b"DERIVED" => {
-                    param_values.get_mut_or_default(VCardParameter::Derived).extend(
-                        self.token_buf
-                            .drain(..)
-                            .map(Value::bool),
-                    );
+                    param_values.push(VCardParameter::Derived(self.buf_to_bool()));
                 },
                 b"LABEL" => {
-                    text_param_name = VCardParameter::Label.into();
+                    param_values.push(VCardParameter::Label(self.buf_to_string()));
                 },
                 b"PHONETIC" => {
-                    param_values
-                        .get_mut_or_default(VCardParameter::Phonetic)
-                        .extend(self.token_buf.drain(..).map(|token| {
-                            Value::Phonetic(
-                                PhoneticSystem::try_from(token.text.as_ref())
-                                    .unwrap_or_else(|_| PhoneticSystem::Other(token.into_string())),
-                            )
-                        }));
+                    if let Some(value) = self.buf_parse_one() {
+                        param_values.push(VCardParameter::Phonetic(value));
+                    }
                 },
                 b"PROP-ID" => {
-                    text_param_name = VCardParameter::PropId.into();
+                    param_values.push(VCardParameter::PropId(self.buf_to_string()));
                 },
                 b"SCRIPT" => {
-                    text_param_name = VCardParameter::Script.into();
+                    param_values.push(VCardParameter::Script(self.buf_to_string()));
                 },
                 b"SERVICE-TYPE" => {
-                    text_param_name = VCardParameter::ServiceType.into();
+                    param_values.push(VCardParameter::ServiceType(self.buf_to_string()));
                 },
                 b"USERNAME" => {
-                    text_param_name = VCardParameter::Username.into();
+                    param_values.push(VCardParameter::Username(self.buf_to_string()));
                 },
                 b"JSPTR" => {
-                    text_param_name = VCardParameter::Jsptr.into();
+                    param_values.push(VCardParameter::Jsptr(self.buf_to_string()));
                 },
                 b"CHARSET" => {
                     for token in self.token_buf.drain(..) {
@@ -337,29 +321,98 @@ impl Parser<'_> {
                 _ => {
                     match VCardType::try_from(param_name.as_ref()) {
                         Ok(typ) if self.token_buf.is_empty() => {
-                            params.types.push(typ);
+                            if let Some(types) = param_values.iter_mut().find_map(|param| {
+                                if let VCardParameter::Type(types) = param {
+                                    Some(types)
+                                } else {
+                                    None
+                                }
+                            }) {
+                                types.push(typ);
+                            } else {
+                                param_values.push(VCardParameter::Type(vec![typ]));
+                            }
                         },
                         _ => {
-                            param_values
-                            .get_mut_or_default(VCardParameter::Other(
-                                String::from_utf8(param_name.into_owned()).unwrap_or_default(),
-                            ))
-                            .extend(self.token_buf.drain(..).map(Value::text));
+                            param_values.push(VCardParameter::Other(
+                                self.token_buf
+                                    .drain(..)
+                                    .map(|token| token.into_string())
+                                    .collect(),
+                            ));
                         }
                     }
                 }
             );
+        }
+    }
 
-            if let Some(text_param_name) = text_param_name {
-                param_values
-                    .get_mut_or_default(text_param_name)
-                    .extend(self.token_buf.drain(..).map(Value::text));
+    fn buf_to_string(&mut self) -> String {
+        match self.token_buf.len() {
+            0 => String::new(),
+            1 => self.token_buf.pop().unwrap().into_string(),
+            _ => {
+                let from_offset = self.token_buf.first().unwrap().start;
+                let to_offset = self.token_buf.last().unwrap().end;
+
+                if self
+                    .token_buf
+                    .iter()
+                    .all(|t| matches!(t.text, Cow::Borrowed(_)))
+                {
+                    self.token_buf.clear();
+                    self.input
+                        .get(from_offset..to_offset)
+                        .map(|slice| String::from_utf8_lossy(slice).into_owned())
+                        .unwrap_or_default()
+                } else {
+                    let mut string = String::with_capacity(to_offset - from_offset);
+                    for token in self.token_buf.drain(..) {
+                        string
+                            .push_str(std::str::from_utf8(token.text.as_ref()).unwrap_or_default());
+                    }
+                    string
+                }
             }
         }
     }
 
-    fn unknown(&mut self, params: Params<'_>) {
-        todo!()
+    fn buf_to_other<T: FromStr>(&mut self) -> Option<T> {
+        let result = self.token_buf.first().and_then(|token| {
+            std::str::from_utf8(token.text.as_ref())
+                .ok()
+                .and_then(|s| s.parse().ok())
+        });
+        self.token_buf.clear();
+        result
+    }
+
+    fn buf_to_bool(&mut self) -> bool {
+        let result = self
+            .token_buf
+            .pop()
+            .is_some_and(|token| token.text.as_ref().eq_ignore_ascii_case(b"TRUE"));
+        self.token_buf.clear();
+        result
+    }
+
+    fn buf_parse_many<T: From<Token<'x>>>(&mut self) -> Vec<T> {
+        self.token_buf.drain(..).map(T::from).collect()
+    }
+
+    fn buf_parse_one<T: From<Token<'x>>>(&mut self) -> Option<T> {
+        let result = self.token_buf.pop().map(T::from);
+        self.token_buf.clear();
+        result
+    }
+
+    fn buf_try_parse_one<T: for<'y> TryFrom<&'y [u8]>>(&mut self) -> Option<T> {
+        let result = self
+            .token_buf
+            .first()
+            .and_then(|t| T::try_from(t.text.as_ref()).ok());
+        self.token_buf.clear();
+        result
     }
 }
 

@@ -21,7 +21,7 @@ pub(crate) enum StopChar {
 }
 
 impl<'x> Parser<'x> {
-    pub fn expect_iana_token(&mut self) {
+    pub(crate) fn expect_iana_token(&mut self) {
         self.stop_colon = true;
         self.stop_semicolon = true;
         self.stop_comma = true;
@@ -31,7 +31,7 @@ impl<'x> Parser<'x> {
         self.unquote = true;
     }
 
-    pub fn expect_qp_value(&mut self) {
+    pub(crate) fn expect_qp_value(&mut self) {
         self.stop_colon = false;
         self.stop_comma = false;
         self.stop_equal = false;
@@ -41,7 +41,7 @@ impl<'x> Parser<'x> {
         self.stop_semicolon = true;
     }
 
-    pub fn expect_single_value(&mut self) {
+    pub(crate) fn expect_single_value(&mut self) {
         self.stop_colon = false;
         self.stop_comma = false;
         self.stop_equal = false;
@@ -51,7 +51,17 @@ impl<'x> Parser<'x> {
         self.unfold_qp = false;
     }
 
-    pub fn expect_multi_value(&mut self) {
+    pub(crate) fn expect_multi_value_comma(&mut self) {
+        self.stop_colon = false;
+        self.stop_comma = true;
+        self.stop_equal = false;
+        self.stop_slash = false;
+        self.stop_semicolon = false;
+        self.unquote = false;
+        self.unfold_qp = false;
+    }
+
+    pub(crate) fn expect_multi_value_semicolon(&mut self) {
         self.stop_colon = false;
         self.stop_comma = false;
         self.stop_equal = false;
@@ -61,7 +71,7 @@ impl<'x> Parser<'x> {
         self.unfold_qp = false;
     }
 
-    pub fn expect_param_value(&mut self) {
+    pub(crate) fn expect_param_value(&mut self) {
         self.stop_colon = true;
         self.stop_semicolon = true;
         self.stop_comma = true;
@@ -234,17 +244,6 @@ impl<'x> Parser<'x> {
                 end: offset_end,
                 stop_char,
             })
-        }
-    }
-
-    pub(crate) fn single_value(&mut self, last_stop_char: StopChar) -> Option<Token<'x>> {
-        if last_stop_char != StopChar::Lf {
-            self.expect_single_value();
-            {
-                self.token()
-            }
-        } else {
-            None
         }
     }
 
