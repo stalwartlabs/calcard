@@ -1,5 +1,10 @@
 use std::{borrow::Cow, str::FromStr};
 
+use mail_parser::decoders::{
+    base64::base64_decode, charsets::map::charset_decoder,
+    quoted_printable::quoted_printable_decode,
+};
+
 use crate::{
     parser::{Parser, Timestamp},
     tokenizer::{StopChar, Token},
@@ -7,8 +12,8 @@ use crate::{
 };
 
 use super::{
-    OtherValue, UriType, VCard, VCardEntry, VCardParameter, VCardType, VCardValue, VCardValueType,
-    ValueSeparator,
+    VCard, VCardBinary, VCardEntry, VCardParameter, VCardType, VCardValue, VCardValueType,
+    ValueSeparator, ValueType,
 };
 
 struct Params {
@@ -20,16 +25,17 @@ struct Params {
     group_name: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Encoding {
     QuotedPrintable,
     Base64,
 }
 
 impl<'x> Parser<'x> {
-    pub fn vcard(&mut self) -> crate::parser::Result<VCard> {
+    pub fn vcard(&mut self) -> VCard {
         let mut vcard = VCard::default();
 
-        loop {
+        'outer: loop {
             // Fetch property name
             self.expect_iana_token();
             let mut token = match self.token() {
@@ -75,22 +81,26 @@ impl<'x> Parser<'x> {
             }
 
             // Parse property
+            let name = match VCardProperty::try_from(name.as_ref()) {
+                Ok(name) => name,
+                Err(_) => {
+                    if !name.is_empty() {
+                        VCardProperty::Other(Token::new(name).into_string())
+                    } else {
+                        // Invalid line, skip
+                        if params.stop_char != StopChar::Lf {
+                            self.seek_lf();
+                        }
+                        continue;
+                    }
+                }
+            };
             let mut entry = VCardEntry {
                 group: params.group_name,
-                name: VCardProperty::try_from(name.as_ref()).unwrap_or_else(|_| {
-                    VCardProperty::Other(String::from_utf8(name.into_owned()).unwrap_or_default())
-                }),
+                name,
                 params: params.params,
                 values: Vec::new(),
             };
-
-            let todos = "";
-            /*
-            - Gramgender
-            - Decode base64 and qp
-            - Decode URI
-
-            */
 
             // Parse value
             if params.stop_char != StopChar::Lf {
@@ -105,24 +115,105 @@ impl<'x> Parser<'x> {
                     ValueSeparator::Semicolon => {
                         self.expect_multi_value_semicolon();
                     }
+                    ValueSeparator::Eof => {
+                        self.expect_single_value();
+                        self.token();
+                        break 'outer;
+                    }
+                }
+                match params.encoding {
+                    Some(Encoding::Base64) if multi_value != ValueSeparator::None => {
+                        self.expect_single_value();
+                    }
+                    Some(Encoding::QuotedPrintable) => {
+                        self.unfold_qp = true;
+                    }
+                    _ => {}
                 }
 
-                let mut data_types = params.data_types.drain(..);
-                while let Some(token) = self.token() {
+                let mut data_types = params.data_types.iter();
+                let mut token_idx = 0;
+                while let Some(mut token) = self.token() {
                     let eol = token.stop_char == StopChar::Lf;
-                    let value = match data_types.next().unwrap_or_else(|| default_type.clone()) {
+
+                    // Decode old vCard
+                    if let Some(encoding) = params.encoding {
+                        let bytes = match encoding {
+                            Encoding::QuotedPrintable => base64_decode(&token.text),
+                            Encoding::Base64 => quoted_printable_decode(&token.text),
+                        };
+                        if let Some(bytes) = bytes {
+                            if let Some(decoded) = params.charset.as_ref().and_then(|charset| {
+                                charset_decoder(charset.as_bytes()).map(|decoder| decoder(&bytes))
+                            }) {
+                                token.text = Cow::Owned(decoded.into_bytes());
+                            } else if std::str::from_utf8(&bytes).is_ok() {
+                                token.text = Cow::Owned(bytes);
+                            } else {
+                                entry.values.push(VCardValue::Binary(VCardBinary {
+                                    data: bytes,
+                                    content_type: None,
+                                }));
+                                if eol {
+                                    break;
+                                } else {
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+
+                    let default_type = match &default_type {
+                        ValueType::Vcard(default_type) => default_type,
+                        ValueType::Kind if token_idx == 0 => {
+                            if let Ok(gram_gender) = token.text.as_ref().try_into() {
+                                entry.values.push(VCardValue::Kind(gram_gender));
+                                if eol {
+                                    break;
+                                } else {
+                                    continue;
+                                }
+                            }
+                            &VCardValueType::Text
+                        }
+                        ValueType::Sex if token_idx == 0 => {
+                            if let Ok(gram_gender) = token.text.as_ref().try_into() {
+                                entry.values.push(VCardValue::Sex(gram_gender));
+                                if eol {
+                                    break;
+                                } else {
+                                    continue;
+                                }
+                            }
+                            &VCardValueType::Text
+                        }
+                        ValueType::GramGender if token_idx == 0 => {
+                            if let Ok(gram_gender) = token.text.as_ref().try_into() {
+                                entry.values.push(VCardValue::GramGender(gram_gender));
+                                if eol {
+                                    break;
+                                } else {
+                                    continue;
+                                }
+                            }
+                            &VCardValueType::Text
+                        }
+                        _ => &VCardValueType::Text,
+                    };
+
+                    let value = match data_types.next().unwrap_or(default_type) {
                         VCardValueType::Boolean => VCardValue::Boolean(token.into_boolean()),
                         VCardValueType::Date => token
                             .into_date()
-                            .map(VCardValue::Date)
+                            .map(VCardValue::PartialDateTime)
                             .unwrap_or_else(VCardValue::Text),
                         VCardValueType::DateAndOrTime => token
                             .into_date_and_or_datetime()
-                            .map(VCardValue::DateAndOrTime)
+                            .map(VCardValue::PartialDateTime)
                             .unwrap_or_else(VCardValue::Text),
                         VCardValueType::DateTime => token
                             .into_date_time()
-                            .map(VCardValue::DateTime)
+                            .map(VCardValue::PartialDateTime)
                             .unwrap_or_else(VCardValue::Text),
                         VCardValueType::Float => token
                             .into_float()
@@ -132,30 +223,25 @@ impl<'x> Parser<'x> {
                             .into_integer()
                             .map(VCardValue::Integer)
                             .unwrap_or_else(VCardValue::Text),
-                        VCardValueType::LanguageTag => VCardValue::LanguageTag(token.into_string()),
+                        VCardValueType::LanguageTag => VCardValue::Text(token.into_string()),
                         VCardValueType::Text => VCardValue::Text(token.into_string()),
                         VCardValueType::Time => token
                             .into_time()
-                            .map(VCardValue::Time)
+                            .map(VCardValue::PartialDateTime)
                             .unwrap_or_else(VCardValue::Text),
                         VCardValueType::Timestamp => token
                             .into_timestamp()
-                            .map(VCardValue::Timestamp)
+                            .map(VCardValue::PartialDateTime)
                             .unwrap_or_else(VCardValue::Text),
-                        VCardValueType::Uri => VCardValue::Uri(
-                            token
-                                .into_uri_bytes()
-                                .map(UriType::Data)
-                                .unwrap_or_else(UriType::Text),
-                        ),
+                        VCardValueType::Uri => token
+                            .into_uri_bytes()
+                            .map(VCardValue::Binary)
+                            .unwrap_or_else(VCardValue::Text),
                         VCardValueType::UtcOffset => token
                             .into_offset()
-                            .map(VCardValue::UtcOffset)
+                            .map(VCardValue::PartialDateTime)
                             .unwrap_or_else(VCardValue::Text),
-                        VCardValueType::Other(typ_) => VCardValue::Other(OtherValue {
-                            typ_,
-                            value: token.into_string(),
-                        }),
+                        VCardValueType::Other(_) => VCardValue::Text(token.into_string()),
                     };
 
                     entry.values.push(value);
@@ -163,13 +249,20 @@ impl<'x> Parser<'x> {
                     if eol {
                         break;
                     }
+
+                    token_idx += 1;
                 }
+            }
+
+            // Add types
+            if !params.data_types.is_empty() {
+                entry.params.push(VCardParameter::Value(params.data_types));
             }
 
             vcard.entries.push(entry);
         }
 
-        Ok(vcard)
+        vcard
     }
 
     fn parameters(&mut self, params: &mut Params) {
@@ -194,6 +287,7 @@ impl<'x> Parser<'x> {
                     params.stop_char = self.seek_param_value_or_eol();
                 }
                 if params.stop_char == StopChar::Equal {
+                    self.expect_param_value();
                     while !matches!(
                         params.stop_char,
                         StopChar::Lf | StopChar::Colon | StopChar::Semicolon
@@ -240,7 +334,18 @@ impl<'x> Parser<'x> {
                     ));
                 },
                 b"TYPE" => {
-                    param_values.push(VCardParameter::Type(self.buf_parse_many()));
+                    let types = self.buf_parse_many();
+                    if let Some(types_) = param_values.iter_mut().find_map(|param| {
+                        if let VCardParameter::Type(types) = param {
+                            Some(types)
+                        } else {
+                            None
+                        }
+                    }) {
+                        types_.extend(types);
+                    } else {
+                        param_values.push(VCardParameter::Type(types));
+                    }
                 },
                 b"MEDIATYPE" => {
                     param_values.push(VCardParameter::Mediatype(self.buf_to_string()));
@@ -334,12 +439,14 @@ impl<'x> Parser<'x> {
                             }
                         },
                         _ => {
-                            param_values.push(VCardParameter::Other(
-                                self.token_buf
-                                    .drain(..)
-                                    .map(|token| token.into_string())
-                                    .collect(),
-                            ));
+                            if !param_name.is_empty() {
+                                param_values.push(VCardParameter::Other(
+                                    [Token::new(param_name).into_string()]
+                                        .into_iter()
+                                        .chain(self.token_buf.drain(..).map(|token| token.into_string()))
+                                        .collect(),
+                                ));
+                            }
                         }
                     }
                 }

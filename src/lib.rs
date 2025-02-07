@@ -3,6 +3,7 @@ pub mod parser;
 pub mod tokenizer;
 pub mod vcard;
 
+/*
 pub(crate) trait VecMap<K, V> {
     fn insert(&mut self, key: K, value: V);
     fn insert_unique(&mut self, key: K, value: V);
@@ -35,7 +36,7 @@ impl<K: PartialEq, V> VecMap<K, V> for Vec<(K, V)> {
     }
 }
 
-/*
+
 #[cfg(test)]
 #[allow(clippy::too_many_lines)]
 mod test {

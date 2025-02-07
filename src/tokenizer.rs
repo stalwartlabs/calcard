@@ -31,16 +31,6 @@ impl<'x> Parser<'x> {
         self.unquote = true;
     }
 
-    pub(crate) fn expect_qp_value(&mut self) {
-        self.stop_colon = false;
-        self.stop_comma = false;
-        self.stop_equal = false;
-        self.stop_slash = false;
-        self.unquote = false;
-        self.unfold_qp = true;
-        self.stop_semicolon = true;
-    }
-
     pub(crate) fn expect_single_value(&mut self) {
         self.stop_colon = false;
         self.stop_comma = false;
@@ -135,7 +125,7 @@ impl<'x> Parser<'x> {
                         if buf.is_empty() && offset_start != usize::MAX {
                             buf.extend_from_slice(&self.input[offset_start..=offset_end]);
                         }
-                    } else if offset_start != usize::MAX {
+                    } else {
                         stop_char = StopChar::Lf;
                         break;
                     }
@@ -295,8 +285,18 @@ impl<'x> Parser<'x> {
     }
 }
 
-impl Token<'_> {
+impl<'x> Token<'x> {
+    pub fn new(text: Cow<'x, [u8]>) -> Self {
+        Self {
+            text,
+            start: 0,
+            end: 0,
+            stop_char: StopChar::Lf,
+        }
+    }
+
     pub fn into_string(self) -> String {
-        String::from_utf8(self.text.into_owned()).unwrap_or_default()
+        String::from_utf8(self.text.into_owned())
+            .unwrap_or_else(|err| String::from_utf8_lossy(&err.into_bytes()).into_owned())
     }
 }

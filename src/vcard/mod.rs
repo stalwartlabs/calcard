@@ -1,10 +1,10 @@
 use crate::tokenizer::Token;
 
 pub mod parser;
+pub mod writer;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct VCard {
-    pub kind: Option<VCardKind>,
     pub entries: Vec<VCardEntry>,
 }
 
@@ -18,6 +18,8 @@ pub struct VCardEntry {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VCardProperty {
+    Begin,
+    End,
     Source,        // [RFC6350, Section 6.1.3]
     Kind,          // [RFC6350, Section 6.1.4]
     Xml,           // [RFC6350, Section 6.1.5]
@@ -75,6 +77,8 @@ impl TryFrom<&[u8]> for VCardProperty {
     type Error = ();
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         hashify::tiny_map_ignore_case!(value,
+            "BEGIN" => VCardProperty::Begin,
+            "END" => VCardProperty::End,
             "SOURCE" => VCardProperty::Source,
             "KIND" => VCardProperty::Kind,
             "XML" => VCardProperty::Xml,
@@ -130,46 +134,98 @@ impl TryFrom<&[u8]> for VCardProperty {
     }
 }
 
+impl VCardProperty {
+    pub fn as_str(&self) -> &str {
+        match self {
+            VCardProperty::Source => "SOURCE",
+            VCardProperty::Kind => "KIND",
+            VCardProperty::Xml => "XML",
+            VCardProperty::Fn => "FN",
+            VCardProperty::N => "N",
+            VCardProperty::Nickname => "NICKNAME",
+            VCardProperty::Photo => "PHOTO",
+            VCardProperty::Bday => "BDAY",
+            VCardProperty::Anniversary => "ANNIVERSARY",
+            VCardProperty::Gender => "GENDER",
+            VCardProperty::Adr => "ADR",
+            VCardProperty::Tel => "TEL",
+            VCardProperty::Email => "EMAIL",
+            VCardProperty::Impp => "IMPP",
+            VCardProperty::Lang => "LANG",
+            VCardProperty::Tz => "TZ",
+            VCardProperty::Geo => "GEO",
+            VCardProperty::Title => "TITLE",
+            VCardProperty::Role => "ROLE",
+            VCardProperty::Logo => "LOGO",
+            VCardProperty::Org => "ORG",
+            VCardProperty::Member => "MEMBER",
+            VCardProperty::Related => "RELATED",
+            VCardProperty::Categories => "CATEGORIES",
+            VCardProperty::Note => "NOTE",
+            VCardProperty::Prodid => "PRODID",
+            VCardProperty::Rev => "REV",
+            VCardProperty::Sound => "SOUND",
+            VCardProperty::Uid => "UID",
+            VCardProperty::Clientpidmap => "CLIENTPIDMAP",
+            VCardProperty::Url => "URL",
+            VCardProperty::Version => "VERSION",
+            VCardProperty::Key => "KEY",
+            VCardProperty::Fburl => "FBURL",
+            VCardProperty::Caladruri => "CALADRURI",
+            VCardProperty::Caluri => "CALURI",
+            VCardProperty::Birthplace => "BIRTHPLACE",
+            VCardProperty::Deathplace => "DEATHPLACE",
+            VCardProperty::Deathdate => "DEATHDATE",
+            VCardProperty::Expertise => "EXPERTISE",
+            VCardProperty::Hobby => "HOBBY",
+            VCardProperty::Interest => "INTEREST",
+            VCardProperty::OrgDirectory => "ORG-DIRECTORY",
+            VCardProperty::ContactUri => "CONTACT-URI",
+            VCardProperty::Created => "CREATED",
+            VCardProperty::Gramgender => "GRAMGENDER",
+            VCardProperty::Language => "LANGUAGE",
+            VCardProperty::Pronouns => "PRONOUNS",
+            VCardProperty::Socialprofile => "SOCIALPROFILE",
+            VCardProperty::Jsprop => "JSPROP",
+            VCardProperty::Begin => "BEGIN",
+            VCardProperty::End => "END",
+            VCardProperty::Other(ref s) => s,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum VCardValue {
     Text(String),
-    Uri(UriType),
-    Date(VCardPartialDateTime),
-    Time(VCardPartialDateTime),
-    DateTime(VCardPartialDateTime),
-    DateAndOrTime(VCardPartialDateTime),
-    Timestamp(i64),
-    Boolean(bool),
-    Float(f64),
-    UtcOffset(i16),
     Integer(i64),
-    LanguageTag(String),
-    Other(OtherValue),
+    Float(f64),
+    Boolean(bool),
+    PartialDateTime(VCardPartialDateTime),
+    Binary(VCardBinary),
+    Sex(VCardSex),
+    GramGender(VCardGramGender),
+    Kind(VCardKind),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OtherValue {
-    pub typ_: String,
-    pub value: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum UriType {
-    Text(String),
-    Data(Vec<u8>),
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct VCardBinary {
+    pub content_type: Option<String>,
+    pub data: Vec<u8>,
 }
 
 impl Eq for VCardValue {}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct VCardPartialDateTime {
-    year: Option<u16>,
-    month: Option<u16>,
-    day: Option<u16>,
-    hour: Option<u16>,
-    minute: Option<u16>,
-    second: Option<u16>,
-    timezone: Option<i16>,
+    pub year: Option<u16>,
+    pub month: Option<u16>,
+    pub day: Option<u16>,
+    pub hour: Option<u16>,
+    pub minute: Option<u16>,
+    pub second: Option<u16>,
+    pub tz_hour: Option<u16>,
+    pub tz_minute: Option<u16>,
+    pub tz_minus: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -220,6 +276,26 @@ pub enum VCardValueType {
     Other(String),
 }
 
+impl VCardValueType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            VCardValueType::Boolean => "BOOLEAN",
+            VCardValueType::Date => "DATE",
+            VCardValueType::DateAndOrTime => "DATE-AND-OR-TIME",
+            VCardValueType::DateTime => "DATE-TIME",
+            VCardValueType::Float => "FLOAT",
+            VCardValueType::Integer => "INTEGER",
+            VCardValueType::LanguageTag => "LANGUAGE-TAG",
+            VCardValueType::Text => "TEXT",
+            VCardValueType::Time => "TIME",
+            VCardValueType::Timestamp => "TIMESTAMP",
+            VCardValueType::Uri => "URI",
+            VCardValueType::UtcOffset => "UTC-OFFSET",
+            VCardValueType::Other(ref s) => s,
+        }
+    }
+}
+
 impl From<Token<'_>> for VCardValueType {
     fn from(token: Token<'_>) -> Self {
         hashify::tiny_map_ignore_case!(token.text.as_ref(),
@@ -249,6 +325,19 @@ pub enum VCardCalendarScale {
     Hebrew,
     Ethiopic,
     Other(String),
+}
+
+impl VCardCalendarScale {
+    pub fn as_str(&self) -> &str {
+        match self {
+            VCardCalendarScale::Gregorian => "GREGORIAN",
+            VCardCalendarScale::Chinese => "CHINESE",
+            VCardCalendarScale::IslamicCivil => "ISLAMIC-CIVIL",
+            VCardCalendarScale::Hebrew => "HEBREW",
+            VCardCalendarScale::Ethiopic => "ETHIOPIC",
+            VCardCalendarScale::Other(ref s) => s,
+        }
+    }
 }
 
 impl From<Token<'_>> for VCardCalendarScale {
@@ -289,6 +378,19 @@ impl TryFrom<&[u8]> for VCardLevel {
     }
 }
 
+impl VCardLevel {
+    pub fn as_str(&self) -> &str {
+        match self {
+            VCardLevel::Beginner => "BEGINNER",
+            VCardLevel::Average => "AVERAGE",
+            VCardLevel::Expert => "EXPERT",
+            VCardLevel::High => "HIGH",
+            VCardLevel::Medium => "MEDIUM",
+            VCardLevel::Low => "LOW",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VCardPhonetic {
     Ipa,    // [RFC9554, Section 4.6]
@@ -307,6 +409,18 @@ impl From<Token<'_>> for VCardPhonetic {
             "script" => VCardPhonetic::Script,
         )
         .unwrap_or_else(|| VCardPhonetic::Other(token.into_string()))
+    }
+}
+
+impl VCardPhonetic {
+    pub fn as_str(&self) -> &str {
+        match self {
+            VCardPhonetic::Ipa => "IPA",
+            VCardPhonetic::Jyut => "JYUT",
+            VCardPhonetic::Piny => "PINY",
+            VCardPhonetic::Script => "SCRIPT",
+            VCardPhonetic::Other(ref s) => s,
+        }
     }
 }
 
@@ -388,6 +502,46 @@ impl TryFrom<&[u8]> for VCardType {
     }
 }
 
+impl VCardType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            VCardType::Work => "WORK",
+            VCardType::Home => "HOME",
+            VCardType::Billing => "BILLING",
+            VCardType::Delivery => "DELIVERY",
+            VCardType::Contact => "CONTACT",
+            VCardType::Acquaintance => "ACQUAINTANCE",
+            VCardType::Friend => "FRIEND",
+            VCardType::Met => "MET",
+            VCardType::CoWorker => "CO-WORKER",
+            VCardType::Colleague => "COLLEAGUE",
+            VCardType::CoResident => "CO-RESIDENT",
+            VCardType::Neighbor => "NEIGHBOR",
+            VCardType::Child => "CHILD",
+            VCardType::Parent => "PARENT",
+            VCardType::Sibling => "SIBLING",
+            VCardType::Spouse => "SPOUSE",
+            VCardType::Kin => "KIN",
+            VCardType::Muse => "MUSE",
+            VCardType::Crush => "CRUSH",
+            VCardType::Date => "DATE",
+            VCardType::Sweetheart => "SWEETHEART",
+            VCardType::Me => "ME",
+            VCardType::Agent => "AGENT",
+            VCardType::Emergency => "EMERGENCY",
+            VCardType::Text => "TEXT",
+            VCardType::Voice => "VOICE",
+            VCardType::Fax => "FAX",
+            VCardType::Cell => "CELL",
+            VCardType::Video => "VIDEO",
+            VCardType::Pager => "PAGER",
+            VCardType::Textphone => "TEXTPHONE",
+            VCardType::MainNumber => "MAIN-NUMBER",
+            VCardType::Other(ref s) => s,
+        }
+    }
+}
+
 impl From<Token<'_>> for VCardType {
     fn from(token: Token<'_>) -> Self {
         VCardType::try_from(token.text.as_ref())
@@ -395,6 +549,7 @@ impl From<Token<'_>> for VCardType {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VCardGramGender {
     Animate,   // [RFC9554, Section 3.2]
     Common,    // [RFC9554, Section 3.2]
@@ -416,6 +571,54 @@ impl TryFrom<&[u8]> for VCardGramGender {
             "neuter" => VCardGramGender::Neuter,
         )
         .ok_or(())
+    }
+}
+
+impl VCardGramGender {
+    pub fn as_str(&self) -> &str {
+        match self {
+            VCardGramGender::Animate => "ANIMATE",
+            VCardGramGender::Common => "COMMON",
+            VCardGramGender::Feminine => "FEMININE",
+            VCardGramGender::Inanimate => "INANIMATE",
+            VCardGramGender::Masculine => "MASCULINE",
+            VCardGramGender::Neuter => "NEUTER",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VCardSex {
+    Male,
+    Female,
+    Other,
+    NoneOrNotApplicable,
+    Unknown,
+}
+
+impl TryFrom<&[u8]> for VCardSex {
+    type Error = ();
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        hashify::tiny_map_ignore_case!(value,
+            "M" => VCardSex::Male,
+            "F" => VCardSex::Female,
+            "O" => VCardSex::Other,
+            "N" => VCardSex::NoneOrNotApplicable,
+            "U" => VCardSex::Unknown,
+        )
+        .ok_or(())
+    }
+}
+
+impl VCardSex {
+    pub fn as_str(&self) -> &str {
+        match self {
+            VCardSex::Male => "M",
+            VCardSex::Female => "F",
+            VCardSex::Other => "O",
+            VCardSex::NoneOrNotApplicable => "N",
+            VCardSex::Unknown => "U",
+        }
     }
 }
 
@@ -444,67 +647,154 @@ impl TryFrom<&[u8]> for VCardKind {
     }
 }
 
+impl VCardKind {
+    pub fn as_str(&self) -> &str {
+        match self {
+            VCardKind::Individual => "INDIVIDUAL",
+            VCardKind::Group => "GROUP",
+            VCardKind::Org => "ORG",
+            VCardKind::Location => "LOCATION",
+            VCardKind::Application => "APPLICATION",
+            VCardKind::Device => "DEVICE",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ValueSeparator {
     None,
     Comma,
     Semicolon,
+    Eof,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ValueType {
+    Vcard(VCardValueType),
+    Kind,
+    Sex,
+    GramGender,
 }
 
 impl VCardProperty {
     // Returns the default value type and whether the property is multi-valued.
-    pub(crate) fn default_types(&self) -> (VCardValueType, ValueSeparator) {
+    pub(crate) fn default_types(&self) -> (ValueType, ValueSeparator) {
         match self {
-            VCardProperty::Source => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::Kind => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Xml => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Fn => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::N => (VCardValueType::Text, ValueSeparator::Semicolon),
-            VCardProperty::Nickname => (VCardValueType::Text, ValueSeparator::Comma),
-            VCardProperty::Photo => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::Bday => (VCardValueType::DateAndOrTime, ValueSeparator::None),
-            VCardProperty::Anniversary => (VCardValueType::DateAndOrTime, ValueSeparator::None),
-            VCardProperty::Gender => (VCardValueType::Text, ValueSeparator::Semicolon),
-            VCardProperty::Adr => (VCardValueType::Text, ValueSeparator::Semicolon),
-            VCardProperty::Tel => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Email => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Impp => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::Lang => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Tz => (VCardValueType::UtcOffset, ValueSeparator::None),
-            VCardProperty::Geo => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::Title => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Role => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Logo => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::Org => (VCardValueType::Text, ValueSeparator::Semicolon),
-            VCardProperty::Member => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::Related => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::Categories => (VCardValueType::Uri, ValueSeparator::Comma),
-            VCardProperty::Note => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Prodid => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Rev => (VCardValueType::Timestamp, ValueSeparator::None),
-            VCardProperty::Sound => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::Uid => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::Clientpidmap => (VCardValueType::Text, ValueSeparator::Semicolon),
-            VCardProperty::Url => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::Version => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Key => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::Fburl => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::Caladruri => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::Caluri => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::Birthplace => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Deathplace => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Deathdate => (VCardValueType::DateAndOrTime, ValueSeparator::None),
-            VCardProperty::Expertise => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Hobby => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Interest => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::OrgDirectory => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::ContactUri => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::Created => (VCardValueType::Timestamp, ValueSeparator::None),
-            VCardProperty::Gramgender => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Language => (VCardValueType::LanguageTag, ValueSeparator::None),
-            VCardProperty::Pronouns => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Socialprofile => (VCardValueType::Uri, ValueSeparator::None),
-            VCardProperty::Jsprop => (VCardValueType::Text, ValueSeparator::None),
-            VCardProperty::Other(_) => (VCardValueType::Text, ValueSeparator::Semicolon),
+            VCardProperty::Source => (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None),
+            VCardProperty::Kind => (ValueType::Kind, ValueSeparator::None),
+            VCardProperty::Xml => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
+            VCardProperty::Fn => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
+            VCardProperty::N => (
+                ValueType::Vcard(VCardValueType::Text),
+                ValueSeparator::Semicolon,
+            ),
+            VCardProperty::Nickname => (
+                ValueType::Vcard(VCardValueType::Text),
+                ValueSeparator::Comma,
+            ),
+            VCardProperty::Photo => (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None),
+            VCardProperty::Bday => (
+                ValueType::Vcard(VCardValueType::DateAndOrTime),
+                ValueSeparator::None,
+            ),
+            VCardProperty::Anniversary => (
+                ValueType::Vcard(VCardValueType::DateAndOrTime),
+                ValueSeparator::None,
+            ),
+            VCardProperty::Gender => (ValueType::Sex, ValueSeparator::Semicolon),
+            VCardProperty::Adr => (
+                ValueType::Vcard(VCardValueType::Text),
+                ValueSeparator::Semicolon,
+            ),
+            VCardProperty::Tel => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
+            VCardProperty::Email => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
+            VCardProperty::Impp => (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None),
+            VCardProperty::Lang => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
+            VCardProperty::Tz => (
+                ValueType::Vcard(VCardValueType::UtcOffset),
+                ValueSeparator::None,
+            ),
+            VCardProperty::Geo => (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None),
+            VCardProperty::Title => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
+            VCardProperty::Role => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
+            VCardProperty::Logo => (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None),
+            VCardProperty::Org => (
+                ValueType::Vcard(VCardValueType::Text),
+                ValueSeparator::Semicolon,
+            ),
+            VCardProperty::Member => (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None),
+            VCardProperty::Related => (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None),
+            VCardProperty::Categories => {
+                (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::Comma)
+            }
+            VCardProperty::Note => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
+            VCardProperty::Prodid => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
+            VCardProperty::Rev => (
+                ValueType::Vcard(VCardValueType::Timestamp),
+                ValueSeparator::None,
+            ),
+            VCardProperty::Sound => (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None),
+            VCardProperty::Uid => (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None),
+            VCardProperty::Clientpidmap => (
+                ValueType::Vcard(VCardValueType::Text),
+                ValueSeparator::Semicolon,
+            ),
+            VCardProperty::Url => (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None),
+            VCardProperty::Version => {
+                (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None)
+            }
+            VCardProperty::Key => (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None),
+            VCardProperty::Fburl => (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None),
+            VCardProperty::Caladruri => {
+                (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None)
+            }
+            VCardProperty::Caluri => (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None),
+            VCardProperty::Birthplace => {
+                (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None)
+            }
+            VCardProperty::Deathplace => {
+                (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None)
+            }
+            VCardProperty::Deathdate => (
+                ValueType::Vcard(VCardValueType::DateAndOrTime),
+                ValueSeparator::None,
+            ),
+            VCardProperty::Expertise => {
+                (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None)
+            }
+            VCardProperty::Hobby => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
+            VCardProperty::Interest => {
+                (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None)
+            }
+            VCardProperty::OrgDirectory => {
+                (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None)
+            }
+            VCardProperty::ContactUri => {
+                (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None)
+            }
+            VCardProperty::Created => (
+                ValueType::Vcard(VCardValueType::Timestamp),
+                ValueSeparator::None,
+            ),
+            VCardProperty::Gramgender => (ValueType::GramGender, ValueSeparator::None),
+            VCardProperty::Language => (
+                ValueType::Vcard(VCardValueType::LanguageTag),
+                ValueSeparator::None,
+            ),
+            VCardProperty::Pronouns => {
+                (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None)
+            }
+            VCardProperty::Socialprofile => {
+                (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None)
+            }
+            VCardProperty::Jsprop => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
+            VCardProperty::Other(_) => (
+                ValueType::Vcard(VCardValueType::Text),
+                ValueSeparator::Semicolon,
+            ),
+            VCardProperty::Begin | VCardProperty::End => {
+                (ValueType::Vcard(VCardValueType::Text), ValueSeparator::Eof)
+            }
         }
     }
 }

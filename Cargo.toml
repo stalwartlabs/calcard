@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ahash = "0.8.11"
 hashify = "0.2.6"
+mail-builder = { version = "0.4.0", no-default-features = true }
+mail-parser = "0.10.2"
