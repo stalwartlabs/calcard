@@ -34,6 +34,7 @@ enum Encoding {
 impl<'x> Parser<'x> {
     pub fn vcard(&mut self) -> VCard {
         let mut vcard = VCard::default();
+        let mut is_v4 = true;
 
         'outer: loop {
             // Fetch property name
@@ -76,7 +77,7 @@ impl<'x> Parser<'x> {
             }
 
             // Invalid stop char, try seeking colon
-            if params.stop_char != StopChar::Colon {
+            if !matches!(params.stop_char, StopChar::Colon | StopChar::Lf) {
                 params.stop_char = self.seek_value_or_eol();
             }
 
@@ -115,7 +116,7 @@ impl<'x> Parser<'x> {
                     ValueSeparator::Semicolon => {
                         self.expect_multi_value_semicolon();
                     }
-                    ValueSeparator::Eof => {
+                    ValueSeparator::Skip => {
                         self.expect_single_value();
                         self.token();
                         break 'outer;
@@ -138,14 +139,22 @@ impl<'x> Parser<'x> {
 
                     // Decode old vCard
                     if let Some(encoding) = params.encoding {
-                        let bytes = match encoding {
-                            Encoding::QuotedPrintable => base64_decode(&token.text),
-                            Encoding::Base64 => quoted_printable_decode(&token.text),
+                        let (bytes, default_encoding) = match encoding {
+                            Encoding::Base64 => (base64_decode(&token.text), None),
+                            Encoding::QuotedPrintable => {
+                                (quoted_printable_decode(&token.text), "iso-8859-1".into())
+                            }
                         };
                         if let Some(bytes) = bytes {
-                            if let Some(decoded) = params.charset.as_ref().and_then(|charset| {
-                                charset_decoder(charset.as_bytes()).map(|decoder| decoder(&bytes))
-                            }) {
+                            if let Some(decoded) = params
+                                .charset
+                                .as_deref()
+                                .or(default_encoding)
+                                .and_then(|charset| {
+                                    charset_decoder(charset.as_bytes())
+                                        .map(|decoder| decoder(&bytes))
+                                })
+                            {
                                 token.text = Cow::Owned(decoded.into_bytes());
                             } else if std::str::from_utf8(&bytes).is_ok() {
                                 token.text = Cow::Owned(bytes);
@@ -202,19 +211,31 @@ impl<'x> Parser<'x> {
                     };
 
                     let value = match data_types.next().unwrap_or(default_type) {
-                        VCardValueType::Boolean => VCardValue::Boolean(token.into_boolean()),
-                        VCardValueType::Date => token
+                        VCardValueType::Date if is_v4 => token
                             .into_date()
                             .map(VCardValue::PartialDateTime)
                             .unwrap_or_else(VCardValue::Text),
-                        VCardValueType::DateAndOrTime => token
+                        VCardValueType::DateAndOrTime if is_v4 => token
                             .into_date_and_or_datetime()
                             .map(VCardValue::PartialDateTime)
                             .unwrap_or_else(VCardValue::Text),
-                        VCardValueType::DateTime => token
+                        VCardValueType::DateTime if is_v4 => token
                             .into_date_time()
                             .map(VCardValue::PartialDateTime)
                             .unwrap_or_else(VCardValue::Text),
+                        VCardValueType::Time if is_v4 => token
+                            .into_time()
+                            .map(VCardValue::PartialDateTime)
+                            .unwrap_or_else(VCardValue::Text),
+                        VCardValueType::Timestamp if is_v4 => token
+                            .into_timestamp()
+                            .map(VCardValue::PartialDateTime)
+                            .unwrap_or_else(VCardValue::Text),
+                        VCardValueType::UtcOffset if is_v4 => token
+                            .into_offset()
+                            .map(VCardValue::PartialDateTime)
+                            .unwrap_or_else(VCardValue::Text),
+                        VCardValueType::Boolean => VCardValue::Boolean(token.into_boolean()),
                         VCardValueType::Float => token
                             .into_float()
                             .map(VCardValue::Float)
@@ -224,24 +245,39 @@ impl<'x> Parser<'x> {
                             .map(VCardValue::Integer)
                             .unwrap_or_else(VCardValue::Text),
                         VCardValueType::LanguageTag => VCardValue::Text(token.into_string()),
-                        VCardValueType::Text => VCardValue::Text(token.into_string()),
-                        VCardValueType::Time => token
-                            .into_time()
-                            .map(VCardValue::PartialDateTime)
-                            .unwrap_or_else(VCardValue::Text),
-                        VCardValueType::Timestamp => token
-                            .into_timestamp()
-                            .map(VCardValue::PartialDateTime)
-                            .unwrap_or_else(VCardValue::Text),
+                        VCardValueType::Text => {
+                            if is_v4
+                                && matches!(
+                                    (&entry.name, token.text.first()),
+                                    (VCardProperty::Version, Some(b'1'..=b'3'))
+                                )
+                            {
+                                is_v4 = false;
+                            }
+
+                            VCardValue::Text(token.into_string())
+                        }
                         VCardValueType::Uri => token
                             .into_uri_bytes()
                             .map(VCardValue::Binary)
                             .unwrap_or_else(VCardValue::Text),
-                        VCardValueType::UtcOffset => token
-                            .into_offset()
+                        VCardValueType::Other(_) => VCardValue::Text(token.into_string()),
+                        // VCard 3.0 and older
+                        VCardValueType::Date
+                        | VCardValueType::DateAndOrTime
+                        | VCardValueType::DateTime
+                        | VCardValueType::Time => token
+                            .into_datetime_or_legacy()
                             .map(VCardValue::PartialDateTime)
                             .unwrap_or_else(VCardValue::Text),
-                        VCardValueType::Other(_) => VCardValue::Text(token.into_string()),
+                        VCardValueType::Timestamp => token
+                            .into_timestamp_or_legacy()
+                            .map(VCardValue::PartialDateTime)
+                            .unwrap_or_else(VCardValue::Text),
+                        VCardValueType::UtcOffset => token
+                            .into_offset_or_legacy()
+                            .map(VCardValue::PartialDateTime)
+                            .unwrap_or_else(VCardValue::Text),
                     };
 
                     entry.values.push(value);
@@ -334,7 +370,23 @@ impl<'x> Parser<'x> {
                     ));
                 },
                 b"TYPE" => {
-                    let types = self.buf_parse_many();
+                    let mut types = self.buf_parse_many();
+
+                    // RFC6350 has many mistakes, this is a workaround for the "TYPE" values
+                    // which in the examples sometimes appears between quotes.
+                    match types.first() {
+                        Some(VCardType::Other(text)) if types.len() == 1 && text.contains(",") => {
+                            let mut types_ = Vec::with_capacity(2);
+                            for text in text.split(',') {
+                                if let Ok(typ) = VCardType::try_from(text.as_bytes()) {
+                                    types_.push(typ);
+                                }
+                            }
+                            types = types_;
+                        }
+                        _ => {}
+                    }
+
                     if let Some(types_) = param_values.iter_mut().find_map(|param| {
                         if let VCardParameter::Type(types) = param {
                             Some(types)
@@ -440,12 +492,16 @@ impl<'x> Parser<'x> {
                         },
                         _ => {
                             if !param_name.is_empty() {
-                                param_values.push(VCardParameter::Other(
-                                    [Token::new(param_name).into_string()]
-                                        .into_iter()
-                                        .chain(self.token_buf.drain(..).map(|token| token.into_string()))
-                                        .collect(),
-                                ));
+                                if params.encoding.is_none() && param_name.eq_ignore_ascii_case(b"base64") {
+                                    params.encoding = Some(Encoding::Base64);
+                                } else {
+                                    param_values.push(VCardParameter::Other(
+                                        [Token::new(param_name).into_string()]
+                                            .into_iter()
+                                            .chain(self.token_buf.drain(..).map(|token| token.into_string()))
+                                            .collect(),
+                                    ));
+                                }
                             }
                         }
                     }
@@ -469,7 +525,7 @@ impl<'x> Parser<'x> {
                 {
                     self.token_buf.clear();
                     self.input
-                        .get(from_offset..to_offset)
+                        .get(from_offset..=to_offset)
                         .map(|slice| String::from_utf8_lossy(slice).into_owned())
                         .unwrap_or_default()
                 } else {

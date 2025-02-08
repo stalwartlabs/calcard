@@ -42,14 +42,16 @@ impl VCard {
                         write_param_value(out, &mut line_len, v)?;
                     }
                     VCardParameter::Value(v) => {
-                        write!(out, "VALUE=")?;
-                        line_len += 6;
-                        for (pos, v) in v.iter().enumerate() {
-                            if pos > 0 {
-                                write!(out, ",")?;
-                                line_len += 1;
+                        if !v.is_empty() {
+                            write!(out, "VALUE=")?;
+                            line_len += 6;
+                            for (pos, v) in v.iter().enumerate() {
+                                if pos > 0 {
+                                    write!(out, ",")?;
+                                    line_len += 1;
+                                }
+                                write_param_value(out, &mut line_len, v.as_str())?;
                             }
-                            write_param_value(out, &mut line_len, v.as_str())?;
                         }
                     }
                     VCardParameter::Pref(v) => {
@@ -62,25 +64,29 @@ impl VCard {
                         write_param_value(out, &mut line_len, v)?;
                     }
                     VCardParameter::Pid(v) => {
-                        write!(out, "PID=")?;
-                        line_len += 4;
-                        for (pos, v) in v.iter().enumerate() {
-                            if pos > 0 {
-                                write!(out, ",")?;
-                                line_len += 1;
+                        if !v.is_empty() {
+                            write!(out, "PID=")?;
+                            line_len += 4;
+                            for (pos, v) in v.iter().enumerate() {
+                                if pos > 0 {
+                                    write!(out, ",")?;
+                                    line_len += 1;
+                                }
+                                write_param_value(out, &mut line_len, v)?;
                             }
-                            write_param_value(out, &mut line_len, v)?;
                         }
                     }
                     VCardParameter::Type(v) => {
-                        write!(out, "TYPE=")?;
-                        line_len += 5;
-                        for (pos, v) in v.iter().enumerate() {
-                            if pos > 0 {
-                                write!(out, ",")?;
-                                line_len += 1;
+                        if !v.is_empty() {
+                            write!(out, "TYPE=")?;
+                            line_len += 5;
+                            for (pos, v) in v.iter().enumerate() {
+                                if pos > 0 {
+                                    write!(out, ",")?;
+                                    line_len += 1;
+                                }
+                                write_param_value(out, &mut line_len, v.as_str())?;
                             }
-                            write_param_value(out, &mut line_len, v.as_str())?;
                         }
                     }
                     VCardParameter::Mediatype(v) => {
@@ -195,13 +201,16 @@ impl VCard {
                     VCardParameter::Other(v) => {
                         for (pos, item) in v.iter().enumerate() {
                             if pos == 0 {
-                                write!(out, "{item}=")?;
+                                write!(out, "{item}")?;
                                 line_len += item.len() + 1;
                             } else {
-                                if pos > 1 {
+                                if pos == 1 {
+                                    write!(out, "=")?;
+                                } else {
                                     write!(out, ",")?;
-                                    line_len += 1;
                                 }
+                                line_len += 1;
+
                                 write_param_value(out, &mut line_len, item)?;
                             }
                         }
@@ -211,9 +220,18 @@ impl VCard {
 
             write!(out, ":")?;
 
+            let separator = if !matches!(
+                entry.name,
+                VCardProperty::Categories | VCardProperty::Nickname
+            ) {
+                ";"
+            } else {
+                ","
+            };
+
             for (pos, value) in entry.values.iter().enumerate() {
                 if pos > 0 {
-                    write!(out, ";")?;
+                    write!(out, "{separator}")?;
                     line_len += 1;
                 }
 
@@ -250,8 +268,8 @@ impl VCard {
                             write!(out, "{ct};")?;
                             line_len += ct.len() + 1;
                         }
-                        write!(out, "base64,")?;
-                        line_len += 7;
+                        write!(out, "base64\\,")?;
+                        line_len += 8;
                         write_bytes(out, &mut line_len, &v.data)?;
                     }
                     VCardValue::Sex(v) => {
@@ -298,11 +316,11 @@ fn write_value(out: &mut impl Write, line_len: &mut usize, value: &str) -> std::
                 continue;
             }
             '\\' | ',' | ';' => {
-                write!(out, "\\\\")?;
+                write!(out, "\\")?;
                 *line_len += 2;
             }
             _ => {
-                *line_len += 1;
+                *line_len += ch.len_utf8();
             }
         }
 
@@ -333,7 +351,7 @@ fn write_bytes(out: &mut impl Write, line_len: &mut usize, value: &[u8]) -> std:
                 E2[t3 as usize],
             ] {
                 if *line_len + 1 > 75 {
-                    write!(out, " \r\n")?;
+                    write!(out, "\r\n ")?;
                     *line_len = 1;
                 }
 
@@ -367,7 +385,7 @@ fn write_bytes(out: &mut impl Write, line_len: &mut usize, value: &[u8]) -> std:
 
         for ch in chs.iter() {
             if *line_len + 1 > 75 {
-                write!(out, " \r\n")?;
+                write!(out, "\r\n ")?;
                 *line_len = 1;
             }
 
@@ -380,7 +398,7 @@ fn write_bytes(out: &mut impl Write, line_len: &mut usize, value: &[u8]) -> std:
 }
 
 fn write_param_value(out: &mut impl Write, line_len: &mut usize, value: &str) -> std::fmt::Result {
-    let needs_quotes = value.as_bytes().iter().any(|&ch| !ch.is_safe_char());
+    let needs_quotes = value.as_bytes().iter().any(|&ch| matches!(ch, b',' | b';'));
 
     if needs_quotes {
         write!(out, "\"")?;
@@ -388,14 +406,29 @@ fn write_param_value(out: &mut impl Write, line_len: &mut usize, value: &str) ->
     }
 
     for ch in value.chars() {
-        if ch.is_safe_char() {
-            let ch_len = ch.len_utf8();
-            if *line_len + ch_len > 75 {
-                write!(out, "\r\n ")?;
-                *line_len = 1;
+        match ch as u32 {
+            0x0A => {
+                write!(out, "\\n")?;
+                *line_len += 2;
             }
-            write!(out, "{ch}")?;
-            *line_len += ch_len;
+            0x0D => {
+                write!(out, "\\r")?;
+                *line_len += 2;
+            }
+            0x5C => {
+                write!(out, "\\\\")?;
+                *line_len += 2;
+            }
+            0x20 | 0x09 | 0x21 | 0x23..=0x7E | 0x80.. => {
+                let ch_len = ch.len_utf8();
+                if *line_len + ch_len > 75 {
+                    write!(out, "\r\n ")?;
+                    *line_len = 1;
+                }
+                write!(out, "{ch}")?;
+                *line_len += ch_len;
+            }
+            _ => {}
         }
     }
 
@@ -405,22 +438,6 @@ fn write_param_value(out: &mut impl Write, line_len: &mut usize, value: &str) ->
     }
 
     Ok(())
-}
-
-trait IsSafeChar {
-    fn is_safe_char(&self) -> bool;
-}
-
-impl IsSafeChar for u8 {
-    fn is_safe_char(&self) -> bool {
-        matches!(self, b' ' | b'\t' | b'!' | 0x23..=0x39 | 0x3C..=0x7E | 0x80..=0xFF)
-    }
-}
-
-impl IsSafeChar for char {
-    fn is_safe_char(&self) -> bool {
-        matches!(*self as u32, 0x20 | 0x09  | 0x21  | 0x23..=0x7E | 0x80..)
-    }
 }
 
 impl Display for VCardPartialDateTime {
@@ -454,11 +471,15 @@ impl Display for VCardPartialDateTime {
         }
 
         if !missing_time {
-            write!(f, "T")?;
+            if self.year.is_some() || self.month.is_some() || self.day.is_some() {
+                write!(f, "T")?;
+            }
+            let mut last_is_some = false;
             for value in [&self.hour, &self.minute, &self.second].iter() {
                 if let Some(value) = value {
                     write!(f, "{:02}", value)?;
-                } else {
+                    last_is_some = true;
+                } else if !last_is_some {
                     write!(f, "-")?;
                 }
             }

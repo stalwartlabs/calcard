@@ -665,7 +665,7 @@ pub(crate) enum ValueSeparator {
     None,
     Comma,
     Semicolon,
-    Eof,
+    Skip,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -793,7 +793,7 @@ impl VCardProperty {
                 ValueSeparator::Semicolon,
             ),
             VCardProperty::Begin | VCardProperty::End => {
-                (ValueType::Vcard(VCardValueType::Text), ValueSeparator::Eof)
+                (ValueType::Vcard(VCardValueType::Text), ValueSeparator::Skip)
             }
         }
     }

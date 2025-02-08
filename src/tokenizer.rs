@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use crate::parser::Parser;
 
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Token<'x> {
     pub(crate) text: Cow<'x, [u8]>,
     pub(crate) start: usize,
@@ -84,6 +85,7 @@ impl<'x> Parser<'x> {
     pub(crate) fn token(&mut self) -> Option<Token<'x>> {
         let mut offset_start = usize::MAX;
         let mut offset_end = usize::MAX;
+        let mut last_idx = 0;
         let mut in_quote = false;
         let stop_char;
         let mut buf: Vec<u8> = vec![];
@@ -97,10 +99,12 @@ impl<'x> Parser<'x> {
             } else {
                 return None;
             };
+            last_idx = idx;
 
             match ch {
                 b' ' | b'\t' => {
-                    if in_quote || buf.last().is_some_and(|ch| !ch.is_ascii_whitespace()) {
+                    // Ignore leading and trailing whitespace (unless in a quoted string, or in a value (!self.unquote))
+                    if in_quote || !self.unquote || buf.last().is_some_and(|lch| lch != ch) {
                         if offset_start == usize::MAX {
                             offset_start = idx;
                         }
@@ -222,8 +226,8 @@ impl<'x> Parser<'x> {
             } else {
                 Some(Token {
                     text: Cow::Borrowed(b"".as_ref()),
-                    start: offset_start,
-                    end: offset_end,
+                    start: last_idx,
+                    end: last_idx,
                     stop_char,
                 })
             }

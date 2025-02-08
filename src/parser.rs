@@ -14,6 +14,7 @@ use crate::{
     vcard::{VCard, VCardBinary, VCardPartialDateTime},
 };
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Entry {
     VCard(VCard),
     InvalidLine(String),
@@ -256,6 +257,42 @@ impl Token<'_> {
         }
     }
 
+    pub(crate) fn into_timestamp_or_legacy(
+        self,
+    ) -> std::result::Result<VCardPartialDateTime, String> {
+        let mut dt = VCardPartialDateTime::default();
+        if dt.parse_timestamp(&mut self.text.iter().peekable()) {
+            Ok(dt)
+        } else {
+            let mut dt = VCardPartialDateTime::default();
+            if dt.parse_date_legacy(&mut self.text.iter().peekable()) {
+                Ok(dt)
+            } else {
+                Err(self.into_string())
+            }
+        }
+    }
+
+    pub(crate) fn into_datetime_or_legacy(
+        self,
+    ) -> std::result::Result<VCardPartialDateTime, String> {
+        let mut dt = VCardPartialDateTime::default();
+        if dt.parse_date_legacy(&mut self.text.iter().peekable()) {
+            Ok(dt)
+        } else {
+            self.into_date_and_or_datetime()
+        }
+    }
+
+    pub(crate) fn into_offset_or_legacy(self) -> std::result::Result<VCardPartialDateTime, String> {
+        let mut dt = VCardPartialDateTime::default();
+        if dt.parse_zone_legacy(&mut self.text.iter().peekable()) {
+            Ok(dt)
+        } else {
+            self.into_offset()
+        }
+    }
+
     pub(crate) fn into_boolean(self) -> bool {
         self.text.as_ref().eq_ignore_ascii_case(b"true")
     }
@@ -286,7 +323,11 @@ impl VCardPartialDateTime {
                     }
                 }
                 b'T' | b't' if idx == 8 => {}
-                b'Z' | b'z' | b'+' if idx == 15 => {}
+                b'+' if idx == 15 => {}
+                b'Z' | b'z' if idx == 15 => {
+                    self.tz_hour = Some(0);
+                    self.tz_minute = Some(0);
+                }
                 b'-' if idx == 15 => {
                     self.tz_minus = true;
                 }
@@ -299,6 +340,101 @@ impl VCardPartialDateTime {
         }
 
         true
+    }
+
+    fn parse_date_legacy(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+        let mut idx = 0;
+
+        for ch in iter {
+            match ch {
+                b'0'..=b'9' => {
+                    let value = match idx {
+                        0 => &mut self.year,
+                        1 => &mut self.month,
+                        2 => &mut self.day,
+                        3 => &mut self.hour,
+                        4 => &mut self.minute,
+                        5 => &mut self.second,
+                        6 => &mut self.tz_hour,
+                        7 => &mut self.tz_minute,
+                        _ => return false,
+                    };
+
+                    if let Some(value) = value {
+                        *value = value.saturating_mul(10).saturating_add((ch - b'0') as u16);
+                    } else {
+                        *value = Some((ch - b'0') as u16);
+                    }
+                }
+                b'T' | b't' if idx < 3 => {
+                    idx = 3;
+                }
+                b'+' if idx <= 5 => {
+                    idx = 6;
+                }
+                b'Z' | b'z' if idx == 5 => {
+                    self.tz_hour = Some(0);
+                    self.tz_minute = Some(0);
+                    break;
+                }
+                b'-' if idx <= 2 => {
+                    idx += 1;
+                }
+                b'-' if idx <= 5 => {
+                    self.tz_minus = true;
+                    idx = 6;
+                }
+                b':' if (3..=6).contains(&idx) => {
+                    idx += 1;
+                }
+                b' ' | b'\t' | b'\r' | b'\n' => {
+                    continue;
+                }
+                _ => return false,
+            }
+        }
+
+        self.has_date() || self.has_zone()
+    }
+
+    fn parse_zone_legacy(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+        let mut idx = 0;
+
+        for ch in iter {
+            match ch {
+                b'0'..=b'9' => {
+                    let value = match idx {
+                        0 => &mut self.tz_hour,
+                        1 => &mut self.tz_minute,
+                        _ => return false,
+                    };
+
+                    if let Some(value) = value {
+                        *value = value.saturating_mul(10).saturating_add((ch - b'0') as u16);
+                    } else {
+                        *value = Some((ch - b'0') as u16);
+                    }
+                }
+                b'+' if self.tz_hour.is_none() => {}
+                b'-' if self.tz_hour.is_none() => {
+                    self.tz_minus = true;
+                }
+                b'Z' | b'z' if self.tz_hour.is_none() => {
+                    self.tz_hour = Some(0);
+                    self.tz_minute = Some(0);
+                    break;
+                }
+                b':' => {
+                    idx += 1;
+                }
+                b' ' | b'\t' | b'\r' | b'\n' => {
+                    continue;
+                }
+                _ => return false,
+            }
+        }
+
+        self.tz_hour.is_some() && self.tz_minute.is_some()
     }
 
     fn parse_date_time(&mut self, iter: &mut Peekable<Iter<u8>>) {
@@ -355,6 +491,8 @@ impl VCardPartialDateTime {
             Some(b'-') => true,
             Some(b'+') => false,
             Some(b'Z') | Some(b'z') => {
+                self.tz_hour = Some(0);
+                self.tz_minute = Some(0);
                 iter.next();
                 return true;
             }
@@ -401,13 +539,20 @@ impl VCardPartialDateTime {
             && self.tz_minute.is_none()
     }
 
+    pub fn has_date(&self) -> bool {
+        self.year.is_some() && self.month.is_some() && self.day.is_some()
+    }
+
+    pub fn has_time(&self) -> bool {
+        self.hour.is_some() && self.minute.is_some()
+    }
+
+    pub fn has_zone(&self) -> bool {
+        self.tz_hour.is_some()
+    }
+
     pub fn to_timestamp(&self) -> Option<i64> {
-        if self.year.is_some()
-            && self.month.is_some()
-            && self.day.is_some()
-            && self.hour.is_some()
-            && self.minute.is_some()
-        {
+        if self.has_date() && self.has_time() {
             DateTime {
                 year: self.year.unwrap(),
                 month: self.month.unwrap() as u8,
