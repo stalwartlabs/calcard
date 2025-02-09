@@ -1,29 +1,90 @@
-use crate::common::Data;
+use crate::{
+    common::{Data, PartialDateTime},
+    Token,
+};
 
 pub mod parser;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ICalendar {}
+pub struct ICalendar {
+    pub component_type: ICalendarComponentType,
+    pub entries: Vec<ICalendarEntry>,
+    pub components: Vec<ICalendar>,
+}
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ICalendarEntry {
+    name: ICalendarProperty,
+    params: Vec<ICalendarParameter>,
+    values: Vec<ICalendarValue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ICalendarValue {
+    Binary(Vec<u8>),
+    Boolean(bool),
+    Uri(Uri),
+    PartialDateTime(PartialDateTime),
+    Duration(ICalendarDuration),
+    RecurrenceRule(ICalendarRecurrenceRule),
+    Float(f64),
+    Integer(i64),
+    Text(String),
+}
+
+impl Eq for ICalendarValue {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ICalendarRecurrenceRule {
+    /*freq: ICalendarFrequency,
+    until: Option<ICalendarDateTime>,
+    count: Option<u64>,
+    interval: Option<u64>,
+    bysecond: Option<Vec<u64>>,
+    byminute: Option<Vec<u64>>,
+    byhour: Option<Vec<u64>>,
+    byday: Option<Vec<ICalendarWeekday>>,
+    bymonthday: Option<Vec<i64>>,
+    byyearday: Option<Vec<i64>>,
+    byweekno: Option<Vec<i64>>,
+    bymonth: Option<Vec<i64>>,
+    bysetpos: Option<Vec<i64>>,
+    wkst: Option<ICalendarWeekday>,*/
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ICalendarPeriod {
+    Range {
+        start: PartialDateTime,
+        end: PartialDateTime,
+    },
+    Duration {
+        start: PartialDateTime,
+        duration: ICalendarDuration,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarActions {
     Audio,     // [RFC5545, Section 3.8.6.1]
     Display,   // [RFC5545, Section 3.8.6.1]
     Email,     // [RFC5545, Section 3.8.6.1]
     Procedure, // [RFC2445, Section 4.8.6.1]
+    Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarActions {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
+impl From<Token<'_>> for ICalendarActions {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
             "AUDIO" => ICalendarActions::Audio,
             "DISPLAY" => ICalendarActions::Display,
             "EMAIL" => ICalendarActions::Email,
             "PROCEDURE" => ICalendarActions::Procedure,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarUserTypes {
     Individual, // [RFC5545, Section 3.2.3]
     Group,      // [RFC5545, Section 3.2.3]
@@ -33,37 +94,40 @@ pub enum ICalendarUserTypes {
     Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarUserTypes {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
+impl From<Token<'_>> for ICalendarUserTypes {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
             "INDIVIDUAL" => ICalendarUserTypes::Individual,
             "GROUP" => ICalendarUserTypes::Group,
             "RESOURCE" => ICalendarUserTypes::Resource,
             "ROOM" => ICalendarUserTypes::Room,
             "UNKNOWN" => ICalendarUserTypes::Unknown,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarClassifications {
     Public,       // [RFC5545, Section 3.8.1.3]
     Private,      // [RFC5545, Section 3.8.1.3]
     Confidential, // [RFC5545, Section 3.8.1.3]
+    Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarClassifications {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
+impl From<Token<'_>> for ICalendarClassifications {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
             "PUBLIC" => ICalendarClassifications::Public,
             "PRIVATE" => ICalendarClassifications::Private,
             "CONFIDENTIAL" => ICalendarClassifications::Confidential,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
-pub enum ICalendarComponents {
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ICalendarComponentType {
     VCalendar,     // [RFC5545, Section 3.4]
     VEvent,        // [RFC5545, Section 3.6.1]
     VTodo,         // [RFC5545, Section 3.6.2]
@@ -80,29 +144,30 @@ pub enum ICalendarComponents {
     VResource,     // [RFC9073, Section 7.3]
 }
 
-impl TryFrom<&[u8]> for ICalendarComponents {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "VCALENDAR" => ICalendarComponents::VCalendar,
-            "VEVENT" => ICalendarComponents::VEvent,
-            "VTODO" => ICalendarComponents::VTodo,
-            "VJOURNAL" => ICalendarComponents::VJournal,
-            "VFREEBUSY" => ICalendarComponents::VFreebusy,
-            "VTIMEZONE" => ICalendarComponents::VTimezone,
-            "VALARM" => ICalendarComponents::VAlarm,
-            "STANDARD" => ICalendarComponents::Standard,
-            "DAYLIGHT" => ICalendarComponents::Daylight,
-            "VAVAILABILITY" => ICalendarComponents::VAvailability,
-            "AVAILABLE" => ICalendarComponents::Available,
-            "PARTICIPANT" => ICalendarComponents::Participant,
-            "VLOCATION" => ICalendarComponents::VLocation,
-            "VRESOURCE" => ICalendarComponents::VResource,
+/*impl From<Token<'_>> for ICalendarComponentType {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+            "VCALENDAR" => ICalendarComponentType::VCalendar,
+            "VEVENT" => ICalendarComponentType::VEvent,
+            "VTODO" => ICalendarComponentType::VTodo,
+            "VJOURNAL" => ICalendarComponentType::VJournal,
+            "VFREEBUSY" => ICalendarComponentType::VFreebusy,
+            "VTIMEZONE" => ICalendarComponentType::VTimezone,
+            "VALARM" => ICalendarComponentType::VAlarm,
+            "STANDARD" => ICalendarComponentType::Standard,
+            "DAYLIGHT" => ICalendarComponentType::Daylight,
+            "VAVAILABILITY" => ICalendarComponentType::VAvailability,
+            "AVAILABLE" => ICalendarComponentType::Available,
+            "PARTICIPANT" => ICalendarComponentType::Participant,
+            "VLOCATION" => ICalendarComponentType::VLocation,
+            "VRESOURCE" => ICalendarComponentType::VResource,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
-}
-pub enum ICalendarDisplayTypes {
+}*/
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ICalendarDisplayType {
     Badge,     // [RFC7986, Section 6.1]
     Graphic,   // [RFC7986, Section 6.1]
     Fullsize,  // [RFC7986, Section 6.1]
@@ -110,19 +175,19 @@ pub enum ICalendarDisplayTypes {
     Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarDisplayTypes {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "BADGE" => ICalendarDisplayTypes::Badge,
-            "GRAPHIC" => ICalendarDisplayTypes::Graphic,
-            "FULLSIZE" => ICalendarDisplayTypes::Fullsize,
-            "THUMBNAIL" => ICalendarDisplayTypes::Thumbnail,
+impl From<Token<'_>> for ICalendarDisplayType {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+            "BADGE" => ICalendarDisplayType::Badge,
+            "GRAPHIC" => ICalendarDisplayType::Graphic,
+            "FULLSIZE" => ICalendarDisplayType::Fullsize,
+            "THUMBNAIL" => ICalendarDisplayType::Thumbnail,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
-pub enum ICalendarFeatureTypes {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ICalendarFeatureType {
     Audio,     // [RFC7986, Section 6.3]
     Chat,      // [RFC7986, Section 6.3]
     Feed,      // [RFC7986, Section 6.3]
@@ -133,22 +198,23 @@ pub enum ICalendarFeatureTypes {
     Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarFeatureTypes {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "AUDIO" => ICalendarFeatureTypes::Audio,
-            "CHAT" => ICalendarFeatureTypes::Chat,
-            "FEED" => ICalendarFeatureTypes::Feed,
-            "MODERATOR" => ICalendarFeatureTypes::Moderator,
-            "PHONE" => ICalendarFeatureTypes::Phone,
-            "SCREEN" => ICalendarFeatureTypes::Screen,
-            "VIDEO" => ICalendarFeatureTypes::Video,
+impl From<Token<'_>> for ICalendarFeatureType {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+            "AUDIO" => ICalendarFeatureType::Audio,
+            "CHAT" => ICalendarFeatureType::Chat,
+            "FEED" => ICalendarFeatureType::Feed,
+            "MODERATOR" => ICalendarFeatureType::Moderator,
+            "PHONE" => ICalendarFeatureType::Phone,
+            "SCREEN" => ICalendarFeatureType::Screen,
+            "VIDEO" => ICalendarFeatureType::Video,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
-pub enum ICalendarFreeBusyTimeTypes {
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ICalendarFreeBusyTimeType {
     Free,            // [RFC5545, Section 3.2.9]
     Busy,            // [RFC5545, Section 3.2.9]
     BusyUnavailable, // [RFC5545, Section 3.2.9]
@@ -156,18 +222,19 @@ pub enum ICalendarFreeBusyTimeTypes {
     Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarFreeBusyTimeTypes {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "FREE" => ICalendarFreeBusyTimeTypes::Free,
-            "BUSY" => ICalendarFreeBusyTimeTypes::Busy,
-            "BUSY-UNAVAILABLE" => ICalendarFreeBusyTimeTypes::BusyUnavailable,
-            "BUSY-TENTATIVE" => ICalendarFreeBusyTimeTypes::BusyTentative,
+impl From<Token<'_>> for ICalendarFreeBusyTimeType {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+            "FREE" => ICalendarFreeBusyTimeType::Free,
+            "BUSY" => ICalendarFreeBusyTimeType::Busy,
+            "BUSY-UNAVAILABLE" => ICalendarFreeBusyTimeType::BusyUnavailable,
+            "BUSY-TENTATIVE" => ICalendarFreeBusyTimeType::BusyTentative,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarMethods {
     Publish,        // [RFC5546]
     Request,        // [RFC5546]
@@ -177,12 +244,12 @@ pub enum ICalendarMethods {
     Refresh,        // [RFC5546]
     Counter,        // [RFC5546]
     Declinecounter, // [RFC5546]
+    Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarMethods {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
+impl From<Token<'_>> for ICalendarMethods {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
             "PUBLISH" => ICalendarMethods::Publish,
             "REQUEST" => ICalendarMethods::Request,
             "REPLY" => ICalendarMethods::Reply,
@@ -192,59 +259,77 @@ impl TryFrom<&[u8]> for ICalendarMethods {
             "COUNTER" => ICalendarMethods::Counter,
             "DECLINECOUNTER" => ICalendarMethods::Declinecounter,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarParameter {
-    Altrep(Uri),                                         // [RFC5545, Section 3.2.1]
-    Cn(String),                                          // [RFC5545, Section 3.2.2]
-    Cutype(ICalendarUserTypes),                          // [RFC5545, Section 3.2.3]
-    DelegatedFrom(Vec<Uri>),                             // [RFC5545, Section 3.2.4]
-    DelegatedTo(Vec<Uri>),                               // [RFC5545, Section 3.2.5]
-    Dir(Uri),                                            // [RFC5545, Section 3.2.6]
-    Fmttype(String),                                     // [RFC5545, Section 3.2.8]
-    Fbtype(ICalendarFreeBusyTimeTypes),                  // [RFC5545, Section 3.2.9]
-    Language(String),                                    // [RFC5545, Section 3.2.10]
-    Member(Vec<Uri>),                                    // [RFC5545, Section 3.2.11]
-    Partstat(ICalendarParticipationStatuses),            // [RFC5545, Section 3.2.12]
-    Range,                                               // [RFC5545, Section 3.2.13]
-    Related(Related),                                    // [RFC5545, Section 3.2.14]
-    Reltype(ICalendarRelationshipTypes),                 // [RFC5545, Section 3.2.15]
-    Role(ICalendarParticipationRoles),                   // [RFC5545, Section 3.2.16]
-    Rsvp(bool),                                          // [RFC5545, Section 3.2.17]
-    ScheduleAgent(ICalendarScheduleAgentValues),         // [RFC6638, Section 7.1]
-    ScheduleForceSend(ICalendarScheduleForceSendValues), // [RFC6638, Section 7.2]
-    ScheduleStatus(String),                              // [RFC6638, Section 7.3]
-    SentBy(Uri),                                         // [RFC5545, Section 3.2.18]
-    Tzid(String),                                        // [RFC5545, Section 3.2.19]
-    Value(ICalendarValueType),                           // [RFC5545, Section 3.2.20]
-    Display(Vec<ICalendarDisplayTypes>),                 // [RFC7986, Section 6.1]
-    Email(String),                                       // [RFC7986, Section 6.2]
-    Feature(Vec<ICalendarFeatureTypes>),                 // [RFC7986, Section 6.3]
-    Label(String),                                       // [RFC7986, Section 6.4]
-    Size(u64),                                           // [RFC8607, Section 4.1]
-    Filename(String),                                    // [RFC8607, Section 4.2]
-    ManagedId(String),                                   // [RFC8607, Section 4.3]
-    Order(u64),                                          // [RFC9073, Section 5.1]
-    Schema(Uri),                                         // [RFC9073, Section 5.2]
-    Derived(bool),                                       // [RFC9073, Section 5.3]
-    Gap(ICalendarDuration),                              // [RFC9253, Section 6.2]
-    Linkrel(Uri),                                        // [RFC9253, Section 6.1]
+    Altrep(Uri),                                        // [RFC5545, Section 3.2.1]
+    Cn(String),                                         // [RFC5545, Section 3.2.2]
+    Cutype(ICalendarUserTypes),                         // [RFC5545, Section 3.2.3]
+    DelegatedFrom(Vec<Uri>),                            // [RFC5545, Section 3.2.4]
+    DelegatedTo(Vec<Uri>),                              // [RFC5545, Section 3.2.5]
+    Dir(Uri),                                           // [RFC5545, Section 3.2.6]
+    Fmttype(String),                                    // [RFC5545, Section 3.2.8]
+    Fbtype(ICalendarFreeBusyTimeType),                  // [RFC5545, Section 3.2.9]
+    Language(String),                                   // [RFC5545, Section 3.2.10]
+    Member(Vec<Uri>),                                   // [RFC5545, Section 3.2.11]
+    Partstat(ICalendarParticipationStatus),             // [RFC5545, Section 3.2.12]
+    Range,                                              // [RFC5545, Section 3.2.13]
+    Related(Related),                                   // [RFC5545, Section 3.2.14]
+    Reltype(ICalendarRelationshipType),                 // [RFC5545, Section 3.2.15]
+    Role(ICalendarParticipationRole),                   // [RFC5545, Section 3.2.16]
+    Rsvp(bool),                                         // [RFC5545, Section 3.2.17]
+    ScheduleAgent(ICalendarScheduleAgentValue),         // [RFC6638, Section 7.1]
+    ScheduleForceSend(ICalendarScheduleForceSendValue), // [RFC6638, Section 7.2]
+    ScheduleStatus(String),                             // [RFC6638, Section 7.3]
+    SentBy(Uri),                                        // [RFC5545, Section 3.2.18]
+    Tzid(String),                                       // [RFC5545, Section 3.2.19]
+    Value(ICalendarValueType),                          // [RFC5545, Section 3.2.20]
+    Display(Vec<ICalendarDisplayType>),                 // [RFC7986, Section 6.1]
+    Email(String),                                      // [RFC7986, Section 6.2]
+    Feature(Vec<ICalendarFeatureType>),                 // [RFC7986, Section 6.3]
+    Label(String),                                      // [RFC7986, Section 6.4]
+    Size(u64),                                          // [RFC8607, Section 4.1]
+    Filename(String),                                   // [RFC8607, Section 4.2]
+    ManagedId(String),                                  // [RFC8607, Section 4.3]
+    Order(u64),                                         // [RFC9073, Section 5.1]
+    Schema(Uri),                                        // [RFC9073, Section 5.2]
+    Derived(bool),                                      // [RFC9073, Section 5.3]
+    Gap(ICalendarDuration),                             // [RFC9253, Section 6.2]
+    Linkrel(Uri),                                       // [RFC9253, Section 6.1]
     Other(Vec<String>),
 }
 
-pub enum Related {
-    Start,
-    End,
-}
-
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ICalendarDuration {}
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Uri {
     Data(Data),
     Location(String),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Related {
+    Start,
+    End,
+}
+
+impl TryFrom<&[u8]> for Related {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        hashify::tiny_map_ignore_case!(value,
+            "START" => Related::Start,
+            "END" => Related::End,
+        )
+        .ok_or(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarParticipantTypes {
     Active,           // [RFC9073, Section 6.2]
     Inactive,         // [RFC9073, Section 6.2]
@@ -256,12 +341,12 @@ pub enum ICalendarParticipantTypes {
     PlannerContact,   // [RFC9073, Section 6.2]
     Performer,        // [RFC9073, Section 6.2]
     Speaker,          // [RFC9073, Section 6.2]
+    Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarParticipantTypes {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
+impl From<Token<'_>> for ICalendarParticipantTypes {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
             "ACTIVE" => ICalendarParticipantTypes::Active,
             "INACTIVE" => ICalendarParticipantTypes::Inactive,
             "SPONSOR" => ICalendarParticipantTypes::Sponsor,
@@ -273,10 +358,12 @@ impl TryFrom<&[u8]> for ICalendarParticipantTypes {
             "PERFORMER" => ICalendarParticipantTypes::Performer,
             "SPEAKER" => ICalendarParticipantTypes::Speaker,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
-pub enum ICalendarParticipationRoles {
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ICalendarParticipationRole {
     Chair,          // [RFC5545, Section 3.2.16]
     ReqParticipant, // [RFC5545, Section 3.2.16]
     OptParticipant, // [RFC5545, Section 3.2.16]
@@ -284,19 +371,20 @@ pub enum ICalendarParticipationRoles {
     Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarParticipationRoles {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "CHAIR" => ICalendarParticipationRoles::Chair,
-            "REQ-PARTICIPANT" => ICalendarParticipationRoles::ReqParticipant,
-            "OPT-PARTICIPANT" => ICalendarParticipationRoles::OptParticipant,
-            "NON-PARTICIPANT" => ICalendarParticipationRoles::NonParticipant,
+impl From<Token<'_>> for ICalendarParticipationRole {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+            "CHAIR" => ICalendarParticipationRole::Chair,
+            "REQ-PARTICIPANT" => ICalendarParticipationRole::ReqParticipant,
+            "OPT-PARTICIPANT" => ICalendarParticipationRole::OptParticipant,
+            "NON-PARTICIPANT" => ICalendarParticipationRole::NonParticipant,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
-pub enum ICalendarParticipationStatuses {
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ICalendarParticipationStatus {
     NeedsAction, // [RFC5545, Section 3.2.12]
     Accepted,    // [RFC5545, Section 3.2.12]
     Declined,    // [RFC5545, Section 3.2.12]
@@ -307,22 +395,23 @@ pub enum ICalendarParticipationStatuses {
     Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarParticipationStatuses {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "NEEDS-ACTION" => ICalendarParticipationStatuses::NeedsAction,
-            "ACCEPTED" => ICalendarParticipationStatuses::Accepted,
-            "DECLINED" => ICalendarParticipationStatuses::Declined,
-            "TENTATIVE" => ICalendarParticipationStatuses::Tentative,
-            "DELEGATED" => ICalendarParticipationStatuses::Delegated,
-            "COMPLETED" => ICalendarParticipationStatuses::Completed,
-            "IN-PROCESS" => ICalendarParticipationStatuses::InProcess,
+impl From<Token<'_>> for ICalendarParticipationStatus {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+            "NEEDS-ACTION" => ICalendarParticipationStatus::NeedsAction,
+            "ACCEPTED" => ICalendarParticipationStatus::Accepted,
+            "DECLINED" => ICalendarParticipationStatus::Declined,
+            "TENTATIVE" => ICalendarParticipationStatus::Tentative,
+            "DELEGATED" => ICalendarParticipationStatus::Delegated,
+            "COMPLETED" => ICalendarParticipationStatus::Completed,
+            "IN-PROCESS" => ICalendarParticipationStatus::InProcess,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
-pub enum ICalendarProperties {
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ICalendarProperty {
     Calscale,          // [RFC5545, Section 3.7.1]
     Method,            // [RFC5545, Section 3.7.2]
     Prodid,            // [RFC5545, Section 3.7.3]
@@ -391,104 +480,108 @@ pub enum ICalendarProperties {
     Concept,           // [RFC9253, Section 8.1]
     Link,              // [RFC9253, Section 8.2]
     Refid,             // [RFC9253, Section 8.3]
+    Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarProperties {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "CALSCALE" => ICalendarProperties::Calscale,
-            "METHOD" => ICalendarProperties::Method,
-            "PRODID" => ICalendarProperties::Prodid,
-            "VERSION" => ICalendarProperties::Version,
-            "ATTACH" => ICalendarProperties::Attach,
-            "CATEGORIES" => ICalendarProperties::Categories,
-            "CLASS" => ICalendarProperties::Class,
-            "COMMENT" => ICalendarProperties::Comment,
-            "DESCRIPTION" => ICalendarProperties::Description,
-            "GEO" => ICalendarProperties::Geo,
-            "LOCATION" => ICalendarProperties::Location,
-            "PERCENT-COMPLETE" => ICalendarProperties::PercentComplete,
-            "PRIORITY" => ICalendarProperties::Priority,
-            "RESOURCES" => ICalendarProperties::Resources,
-            "STATUS" => ICalendarProperties::Status,
-            "SUMMARY" => ICalendarProperties::Summary,
-            "COMPLETED" => ICalendarProperties::Completed,
-            "DTEND" => ICalendarProperties::Dtend,
-            "DUE" => ICalendarProperties::Due,
-            "DTSTART" => ICalendarProperties::Dtstart,
-            "DURATION" => ICalendarProperties::Duration,
-            "FREEBUSY" => ICalendarProperties::Freebusy,
-            "TRANSP" => ICalendarProperties::Transp,
-            "TZID" => ICalendarProperties::Tzid,
-            "TZNAME" => ICalendarProperties::Tzname,
-            "TZOFFSETFROM" => ICalendarProperties::Tzoffsetfrom,
-            "TZOFFSETTO" => ICalendarProperties::Tzoffsetto,
-            "TZURL" => ICalendarProperties::Tzurl,
-            "ATTENDEE" => ICalendarProperties::Attendee,
-            "CONTACT" => ICalendarProperties::Contact,
-            "ORGANIZER" => ICalendarProperties::Organizer,
-            "RECURRENCE-ID" => ICalendarProperties::RecurrenceId,
-            "RELATED-TO" => ICalendarProperties::RelatedTo,
-            "URL" => ICalendarProperties::Url,
-            "UID" => ICalendarProperties::Uid,
-            "EXDATE" => ICalendarProperties::Exdate,
-            "EXRULE" => ICalendarProperties::Exrule,
-            "RDATE" => ICalendarProperties::Rdate,
-            "RRULE" => ICalendarProperties::Rrule,
-            "ACTION" => ICalendarProperties::Action,
-            "REPEAT" => ICalendarProperties::Repeat,
-            "TRIGGER" => ICalendarProperties::Trigger,
-            "CREATED" => ICalendarProperties::Created,
-            "DTSTAMP" => ICalendarProperties::Dtstamp,
-            "LAST-MODIFIED" => ICalendarProperties::LastModified,
-            "SEQUENCE" => ICalendarProperties::Sequence,
-            "REQUEST-STATUS" => ICalendarProperties::RequestStatus,
-            "XML" => ICalendarProperties::Xml,
-            "TZUNTIL" => ICalendarProperties::Tzuntil,
-            "TZID-ALIAS-OF" => ICalendarProperties::TzidAliasOf,
-            "BUSYTYPE" => ICalendarProperties::Busytype,
-            "NAME" => ICalendarProperties::Name,
-            "REFRESH-INTERVAL" => ICalendarProperties::RefreshInterval,
-            "SOURCE" => ICalendarProperties::Source,
-            "COLOR" => ICalendarProperties::Color,
-            "IMAGE" => ICalendarProperties::Image,
-            "CONFERENCE" => ICalendarProperties::Conference,
-            "CALENDAR-ADDRESS" => ICalendarProperties::CalendarAddress,
-            "LOCATION-TYPE" => ICalendarProperties::LocationType,
-            "PARTICIPANT-TYPE" => ICalendarProperties::ParticipantType,
-            "RESOURCE-TYPE" => ICalendarProperties::ResourceType,
-            "STRUCTURED-DATA" => ICalendarProperties::StructuredData,
-            "STYLED-DESCRIPTION" => ICalendarProperties::StyledDescription,
-            "ACKNOWLEDGED" => ICalendarProperties::Acknowledged,
-            "PROXIMITY" => ICalendarProperties::Proximity,
-            "CONCEPT" => ICalendarProperties::Concept,
-            "LINK" => ICalendarProperties::Link,
-            "REFID" => ICalendarProperties::Refid,
+impl From<Token<'_>> for ICalendarProperty {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+            "CALSCALE" => ICalendarProperty::Calscale,
+            "METHOD" => ICalendarProperty::Method,
+            "PRODID" => ICalendarProperty::Prodid,
+            "VERSION" => ICalendarProperty::Version,
+            "ATTACH" => ICalendarProperty::Attach,
+            "CATEGORIES" => ICalendarProperty::Categories,
+            "CLASS" => ICalendarProperty::Class,
+            "COMMENT" => ICalendarProperty::Comment,
+            "DESCRIPTION" => ICalendarProperty::Description,
+            "GEO" => ICalendarProperty::Geo,
+            "LOCATION" => ICalendarProperty::Location,
+            "PERCENT-COMPLETE" => ICalendarProperty::PercentComplete,
+            "PRIORITY" => ICalendarProperty::Priority,
+            "RESOURCES" => ICalendarProperty::Resources,
+            "STATUS" => ICalendarProperty::Status,
+            "SUMMARY" => ICalendarProperty::Summary,
+            "COMPLETED" => ICalendarProperty::Completed,
+            "DTEND" => ICalendarProperty::Dtend,
+            "DUE" => ICalendarProperty::Due,
+            "DTSTART" => ICalendarProperty::Dtstart,
+            "DURATION" => ICalendarProperty::Duration,
+            "FREEBUSY" => ICalendarProperty::Freebusy,
+            "TRANSP" => ICalendarProperty::Transp,
+            "TZID" => ICalendarProperty::Tzid,
+            "TZNAME" => ICalendarProperty::Tzname,
+            "TZOFFSETFROM" => ICalendarProperty::Tzoffsetfrom,
+            "TZOFFSETTO" => ICalendarProperty::Tzoffsetto,
+            "TZURL" => ICalendarProperty::Tzurl,
+            "ATTENDEE" => ICalendarProperty::Attendee,
+            "CONTACT" => ICalendarProperty::Contact,
+            "ORGANIZER" => ICalendarProperty::Organizer,
+            "RECURRENCE-ID" => ICalendarProperty::RecurrenceId,
+            "RELATED-TO" => ICalendarProperty::RelatedTo,
+            "URL" => ICalendarProperty::Url,
+            "UID" => ICalendarProperty::Uid,
+            "EXDATE" => ICalendarProperty::Exdate,
+            "EXRULE" => ICalendarProperty::Exrule,
+            "RDATE" => ICalendarProperty::Rdate,
+            "RRULE" => ICalendarProperty::Rrule,
+            "ACTION" => ICalendarProperty::Action,
+            "REPEAT" => ICalendarProperty::Repeat,
+            "TRIGGER" => ICalendarProperty::Trigger,
+            "CREATED" => ICalendarProperty::Created,
+            "DTSTAMP" => ICalendarProperty::Dtstamp,
+            "LAST-MODIFIED" => ICalendarProperty::LastModified,
+            "SEQUENCE" => ICalendarProperty::Sequence,
+            "REQUEST-STATUS" => ICalendarProperty::RequestStatus,
+            "XML" => ICalendarProperty::Xml,
+            "TZUNTIL" => ICalendarProperty::Tzuntil,
+            "TZID-ALIAS-OF" => ICalendarProperty::TzidAliasOf,
+            "BUSYTYPE" => ICalendarProperty::Busytype,
+            "NAME" => ICalendarProperty::Name,
+            "REFRESH-INTERVAL" => ICalendarProperty::RefreshInterval,
+            "SOURCE" => ICalendarProperty::Source,
+            "COLOR" => ICalendarProperty::Color,
+            "IMAGE" => ICalendarProperty::Image,
+            "CONFERENCE" => ICalendarProperty::Conference,
+            "CALENDAR-ADDRESS" => ICalendarProperty::CalendarAddress,
+            "LOCATION-TYPE" => ICalendarProperty::LocationType,
+            "PARTICIPANT-TYPE" => ICalendarProperty::ParticipantType,
+            "RESOURCE-TYPE" => ICalendarProperty::ResourceType,
+            "STRUCTURED-DATA" => ICalendarProperty::StructuredData,
+            "STYLED-DESCRIPTION" => ICalendarProperty::StyledDescription,
+            "ACKNOWLEDGED" => ICalendarProperty::Acknowledged,
+            "PROXIMITY" => ICalendarProperty::Proximity,
+            "CONCEPT" => ICalendarProperty::Concept,
+            "LINK" => ICalendarProperty::Link,
+            "REFID" => ICalendarProperty::Refid,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarProximityValues {
     Arrive,     // [RFC9074, Section 8.1]
     Depart,     // [RFC9074, Section 8.1]
     Connect,    // [RFC9074, Section 8.1]
     Disconnect, // [RFC9074, Section 8.1]
+    Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarProximityValues {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
+impl From<Token<'_>> for ICalendarProximityValues {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
             "ARRIVE" => ICalendarProximityValues::Arrive,
             "DEPART" => ICalendarProximityValues::Depart,
             "CONNECT" => ICalendarProximityValues::Connect,
             "DISCONNECT" => ICalendarProximityValues::Disconnect,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
-pub enum ICalendarRelationshipTypes {
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ICalendarRelationshipType {
     Child,          // [RFC5545, Section 3.2.15]
     Parent,         // [RFC5545, Section 3.2.15]
     Sibling,        // [RFC5545, Section 3.2.15]
@@ -505,80 +598,85 @@ pub enum ICalendarRelationshipTypes {
     Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarRelationshipTypes {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "CHILD" => ICalendarRelationshipTypes::Child,
-            "PARENT" => ICalendarRelationshipTypes::Parent,
-            "SIBLING" => ICalendarRelationshipTypes::Sibling,
-            "SNOOZE" => ICalendarRelationshipTypes::Snooze,
-            "CONCEPT" => ICalendarRelationshipTypes::Concept,
-            "DEPENDS-ON" => ICalendarRelationshipTypes::DependsOn,
-            "FINISHTOFINISH" => ICalendarRelationshipTypes::Finishtofinish,
-            "FINISHTOSTART" => ICalendarRelationshipTypes::Finishtostart,
-            "FIRST" => ICalendarRelationshipTypes::First,
-            "NEXT" => ICalendarRelationshipTypes::Next,
-            "REFID" => ICalendarRelationshipTypes::Refid,
-            "STARTTOFINISH" => ICalendarRelationshipTypes::Starttofinish,
-            "STARTTOSTART" => ICalendarRelationshipTypes::Starttostart,
+impl From<Token<'_>> for ICalendarRelationshipType {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+            "CHILD" => ICalendarRelationshipType::Child,
+            "PARENT" => ICalendarRelationshipType::Parent,
+            "SIBLING" => ICalendarRelationshipType::Sibling,
+            "SNOOZE" => ICalendarRelationshipType::Snooze,
+            "CONCEPT" => ICalendarRelationshipType::Concept,
+            "DEPENDS-ON" => ICalendarRelationshipType::DependsOn,
+            "FINISHTOFINISH" => ICalendarRelationshipType::Finishtofinish,
+            "FINISHTOSTART" => ICalendarRelationshipType::Finishtostart,
+            "FIRST" => ICalendarRelationshipType::First,
+            "NEXT" => ICalendarRelationshipType::Next,
+            "REFID" => ICalendarRelationshipType::Refid,
+            "STARTTOFINISH" => ICalendarRelationshipType::Starttofinish,
+            "STARTTOSTART" => ICalendarRelationshipType::Starttostart,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarResourceTypes {
     Projector,             // [RFC9073, Section 6.3]
     Room,                  // [RFC9073, Section 6.3]
     RemoteConferenceAudio, // [RFC9073, Section 6.3]
     RemoteConferenceVideo, // [RFC9073, Section 6.3]
+    Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarResourceTypes {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
+impl From<Token<'_>> for ICalendarResourceTypes {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
             "PROJECTOR" => ICalendarResourceTypes::Projector,
             "ROOM" => ICalendarResourceTypes::Room,
             "REMOTE-CONFERENCE-AUDIO" => ICalendarResourceTypes::RemoteConferenceAudio,
             "REMOTE-CONFERENCE-VIDEO" => ICalendarResourceTypes::RemoteConferenceVideo,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
-pub enum ICalendarScheduleAgentValues {
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ICalendarScheduleAgentValue {
     Server, // [RFC6638, Section 7.1]
     Client, // [RFC6638, Section 7.1]
     None,   // [RFC6638, Section 7.1]
     Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarScheduleAgentValues {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "SERVER" => ICalendarScheduleAgentValues::Server,
-            "CLIENT" => ICalendarScheduleAgentValues::Client,
-            "NONE" => ICalendarScheduleAgentValues::None,
+impl From<Token<'_>> for ICalendarScheduleAgentValue {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+            "SERVER" => ICalendarScheduleAgentValue::Server,
+            "CLIENT" => ICalendarScheduleAgentValue::Client,
+            "NONE" => ICalendarScheduleAgentValue::None,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
-pub enum ICalendarScheduleForceSendValues {
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ICalendarScheduleForceSendValue {
     Request, // [RFC6638, Section 7.2]
     Reply,   // [RFC6638, Section 7.2]
     Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarScheduleForceSendValues {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
-            "REQUEST" => ICalendarScheduleForceSendValues::Request,
-            "REPLY" => ICalendarScheduleForceSendValues::Reply,
+impl From<Token<'_>> for ICalendarScheduleForceSendValue {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+            "REQUEST" => ICalendarScheduleForceSendValue::Request,
+            "REPLY" => ICalendarScheduleForceSendValue::Reply,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarValueType {
     Binary,       // [RFC5545, Section 3.3.1]
     Boolean,      // [RFC5545, Section 3.3.2]
@@ -600,10 +698,9 @@ pub enum ICalendarValueType {
     Other(String),
 }
 
-impl TryFrom<&[u8]> for ICalendarValueType {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        hashify::tiny_map_ignore_case!(value,
+impl From<Token<'_>> for ICalendarValueType {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
             "BINARY" => ICalendarValueType::Binary,
             "BOOLEAN" => ICalendarValueType::Boolean,
             "CAL-ADDRESS" => ICalendarValueType::CalAddress,
@@ -622,6 +719,6 @@ impl TryFrom<&[u8]> for ICalendarValueType {
             "XML-REFERENCE" => ICalendarValueType::XmlReference,
             "UID" => ICalendarValueType::Uid,
         )
-        .ok_or(())
+        .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }

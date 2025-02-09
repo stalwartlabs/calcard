@@ -1,4 +1,4 @@
-use crate::common::{tokenizer::Token, Data};
+use crate::common::{tokenizer::Token, Data, PartialDateTime};
 
 pub mod parser;
 pub mod writer;
@@ -200,7 +200,7 @@ pub enum VCardValue {
     Integer(i64),
     Float(f64),
     Boolean(bool),
-    PartialDateTime(VCardPartialDateTime),
+    PartialDateTime(PartialDateTime),
     Binary(Data),
     Sex(VCardSex),
     GramGender(VCardGramGender),
@@ -208,19 +208,6 @@ pub enum VCardValue {
 }
 
 impl Eq for VCardValue {}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct VCardPartialDateTime {
-    pub year: Option<u16>,
-    pub month: Option<u16>,
-    pub day: Option<u16>,
-    pub hour: Option<u16>,
-    pub minute: Option<u16>,
-    pub second: Option<u16>,
-    pub tz_hour: Option<u16>,
-    pub tz_minute: Option<u16>,
-    pub tz_minus: bool,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VCardParameter {

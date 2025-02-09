@@ -1,6 +1,6 @@
 use crate::{common::Encoding, Parser, StopChar, Token};
 
-use super::{ICalendar, ICalendarParameter, ICalendarValueType};
+use super::{ICalendar, ICalendarDuration, ICalendarParameter, ICalendarValueType, Uri};
 
 struct Params {
     params: Vec<ICalendarParameter>,
@@ -59,41 +59,143 @@ impl Parser<'_> {
             let param_values = &mut params.params;
 
             hashify::fnc_map_ignore_case!(param_name.as_ref(),
-                /*"ALTREP" => ICalendarParameter::Altrep,
-                "CN" => ICalendarParameter::Cn,
-                "CUTYPE" => ICalendarParameter::Cutype,
-                "DELEGATED-FROM" => ICalendarParameter::DelegatedFrom,
-                "DELEGATED-TO" => ICalendarParameter::DelegatedTo,
-                "DIR" => ICalendarParameter::Dir,
-                "ENCODING" => ICalendarParameter::Encoding,
-                "FMTTYPE" => ICalendarParameter::Fmttype,
-                "FBTYPE" => ICalendarParameter::Fbtype,
-                "LANGUAGE" => ICalendarParameter::Language,
-                "MEMBER" => ICalendarParameter::Member,
-                "PARTSTAT" => ICalendarParameter::Partstat,
-                "RANGE" => ICalendarParameter::Range,
-                "RELATED" => ICalendarParameter::Related,
-                "RELTYPE" => ICalendarParameter::Reltype,
-                "ROLE" => ICalendarParameter::Role,
-                "RSVP" => ICalendarParameter::Rsvp,
-                "SCHEDULE-AGENT" => ICalendarParameter::ScheduleAgent,
-                "SCHEDULE-FORCE-SEND" => ICalendarParameter::ScheduleForceSend,
-                "SCHEDULE-STATUS" => ICalendarParameter::ScheduleStatus,
-                "SENT-BY" => ICalendarParameter::SentBy,
-                "TZID" => ICalendarParameter::Tzid,
-                "VALUE" => ICalendarParameter::Value,
-                "DISPLAY" => ICalendarParameter::Display,
-                "EMAIL" => ICalendarParameter::Email,
-                "FEATURE" => ICalendarParameter::Feature,
-                "LABEL" => ICalendarParameter::Label,
-                "SIZE" => ICalendarParameter::Size,
-                "FILENAME" => ICalendarParameter::Filename,
-                "MANAGED-ID" => ICalendarParameter::ManagedId,
-                "ORDER" => ICalendarParameter::Order,
-                "SCHEMA" => ICalendarParameter::Schema,
-                "DERIVED" => ICalendarParameter::Derived,
-                "GAP" => ICalendarParameter::Gap,
-                "LINKREL" => ICalendarParameter::Linkrel,*/
+                b"ALTREP" => {
+                    if let Some(value) = self.buf_parse_one() {
+                        param_values.push(ICalendarParameter::Altrep(value));
+                    }
+                },
+                b"CN" => {
+                    param_values.push(ICalendarParameter::Cn(self.buf_to_string()));
+                },
+                b"CUTYPE" => {
+                    if let Some(value) = self.buf_parse_one() {
+                        param_values.push(ICalendarParameter::Cutype(value));
+                    }
+                },
+                b"DELEGATED-FROM" => {
+                    param_values.push(ICalendarParameter::DelegatedFrom(self.buf_parse_many()));
+                },
+                b"DELEGATED-TO" => {
+                    param_values.push(ICalendarParameter::DelegatedTo(self.buf_parse_many()));
+                },
+                b"DIR" => {
+                    if let Some(value) = self.buf_parse_one() {
+                        param_values.push(ICalendarParameter::Dir(value));
+                    }
+                },
+                b"FMTTYPE" => {
+                    param_values.push(ICalendarParameter::Fmttype(self.buf_to_string()));
+                },
+                b"FBTYPE" => {
+                    if let Some(value) = self.buf_parse_one() {
+                        param_values.push(ICalendarParameter::Fbtype(value));
+                    }
+                },
+                b"LANGUAGE" => {
+                    param_values.push(ICalendarParameter::Language(self.buf_to_string()));
+                },
+                b"MEMBER" => {
+                    param_values.push(ICalendarParameter::Member(self.buf_parse_many()));
+                },
+                b"PARTSTAT" => {
+                    if let Some(value) = self.buf_parse_one() {
+                        param_values.push(ICalendarParameter::Partstat(value));
+                    }
+                },
+                b"RANGE" => {
+                    if self.token_buf.first().is_some_and(|token| {
+                        token.text.as_ref().eq_ignore_ascii_case(b"THISANDFUTURE")
+                    }) {
+                        param_values.push(ICalendarParameter::Range);
+                    }
+                    self.token_buf.clear();
+                },
+                b"RELATED" => {
+                    if let Some(gap) = self.buf_try_parse_one() {
+                        param_values.push(ICalendarParameter::Related(gap));
+                    }
+                },
+                b"RELTYPE" => {
+                    if let Some(value) = self.buf_parse_one() {
+                        param_values.push(ICalendarParameter::Reltype(value));
+                    }
+                },
+                b"ROLE" => {
+                    if let Some(value) = self.buf_parse_one() {
+                        param_values.push(ICalendarParameter::Role(value));
+                    }
+                },
+                b"RSVP" => {
+                    param_values.push(ICalendarParameter::Rsvp(self.buf_to_bool()));
+                },
+                b"SCHEDULE-AGENT" => {
+                    if let Some(value) = self.buf_parse_one() {
+                        param_values.push(ICalendarParameter::ScheduleAgent(value));
+                    }
+                },
+                b"SCHEDULE-FORCE-SEND" => {
+                    if let Some(value) = self.buf_parse_one() {
+                        param_values.push(ICalendarParameter::ScheduleForceSend(value));
+                    }
+                },
+                b"SCHEDULE-STATUS" => {
+                    param_values.push(ICalendarParameter::ScheduleStatus(self.buf_to_string()));
+                },
+                b"SENT-BY" => {
+                    if let Some(value) = self.buf_parse_one() {
+                        param_values.push(ICalendarParameter::SentBy(value));
+                    }
+                },
+                b"TZID" => {
+                    param_values.push(ICalendarParameter::Tzid(self.buf_to_string()));
+                },
+                b"VALUE" => {
+                    if let Some(value) = self.buf_parse_one::<ICalendarValueType>() {
+                        params.data_type = value.into();
+                    }
+                },
+                b"DISPLAY" => {
+                    param_values.push(ICalendarParameter::Display(self.buf_parse_many()));
+                },
+                b"EMAIL" => {
+                    param_values.push(ICalendarParameter::Email(self.buf_to_string()));
+                },
+                b"FEATURE" => {
+                    param_values.push(ICalendarParameter::Feature(self.buf_parse_many()));
+                },
+                b"LABEL" => {
+                    param_values.push(ICalendarParameter::Label(self.buf_to_string()));
+                },
+                b"SIZE" => {
+                    param_values.push(ICalendarParameter::Size(self.buf_to_other().unwrap_or_default()));
+                },
+                b"FILENAME" => {
+                    param_values.push(ICalendarParameter::Filename(self.buf_to_string()));
+                },
+                b"MANAGED-ID" => {
+                    param_values.push(ICalendarParameter::ManagedId(self.buf_to_string()));
+                },
+                b"ORDER" => {
+                    param_values.push(ICalendarParameter::Order(self.buf_to_other().unwrap_or_default()));
+                },
+                b"SCHEMA" => {
+                    if let Some(value) = self.buf_parse_one() {
+                        param_values.push(ICalendarParameter::Schema(value));
+                    }
+                },
+                b"DERIVED" => {
+                    param_values.push(ICalendarParameter::Derived(self.buf_to_bool()));
+                },
+                b"GAP" => {
+                    if let Some(gap) = self.buf_try_parse_one() {
+                        param_values.push(ICalendarParameter::Gap(gap));
+                    }
+                },
+                b"LINKREL" => {
+                    if let Some(value) = self.buf_parse_one() {
+                        param_values.push(ICalendarParameter::Linkrel(value));
+                    }
+                },
                 b"CHARSET" => {
                     for token in self.token_buf.drain(..) {
                         params.charset = token.into_string().into();
@@ -120,6 +222,23 @@ impl Parser<'_> {
                 }
             );
         }
+    }
+}
+
+impl TryFrom<&[u8]> for ICalendarDuration {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        todo!()
+    }
+}
+
+impl From<Token<'_>> for Uri {
+    fn from(token: Token<'_>) -> Self {
+        token
+            .into_uri_bytes()
+            .map(Uri::Data)
+            .unwrap_or_else(Uri::Location)
     }
 }
 

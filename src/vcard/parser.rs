@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::{
-    VCard, VCardEntry, VCardParameter, VCardPartialDateTime, VCardType, VCardValue, VCardValueType,
+    PartialDateTime, VCard, VCardEntry, VCardParameter, VCardType, VCardValue, VCardValueType,
     ValueSeparator, ValueType,
 };
 
@@ -509,8 +509,8 @@ impl Parser<'_> {
 }
 
 impl Token<'_> {
-    pub(crate) fn into_date(self) -> std::result::Result<VCardPartialDateTime, String> {
-        let mut dt = VCardPartialDateTime::default();
+    pub(crate) fn into_date(self) -> std::result::Result<PartialDateTime, String> {
+        let mut dt = PartialDateTime::default();
         dt.parse_date(&mut self.text.iter().peekable());
         if !dt.is_null() {
             Ok(dt)
@@ -519,10 +519,8 @@ impl Token<'_> {
         }
     }
 
-    pub(crate) fn into_date_and_or_datetime(
-        self,
-    ) -> std::result::Result<VCardPartialDateTime, String> {
-        let mut dt = VCardPartialDateTime::default();
+    pub(crate) fn into_date_and_or_datetime(self) -> std::result::Result<PartialDateTime, String> {
+        let mut dt = PartialDateTime::default();
         dt.parse_date_and_or_time(&mut self.text.iter().peekable());
         if !dt.is_null() {
             Ok(dt)
@@ -531,8 +529,8 @@ impl Token<'_> {
         }
     }
 
-    pub(crate) fn into_date_time(self) -> std::result::Result<VCardPartialDateTime, String> {
-        let mut dt = VCardPartialDateTime::default();
+    pub(crate) fn into_date_time(self) -> std::result::Result<PartialDateTime, String> {
+        let mut dt = PartialDateTime::default();
         dt.parse_date_time(&mut self.text.iter().peekable());
         if !dt.is_null() {
             Ok(dt)
@@ -541,8 +539,8 @@ impl Token<'_> {
         }
     }
 
-    pub(crate) fn into_time(self) -> std::result::Result<VCardPartialDateTime, String> {
-        let mut dt = VCardPartialDateTime::default();
+    pub(crate) fn into_time(self) -> std::result::Result<PartialDateTime, String> {
+        let mut dt = PartialDateTime::default();
         dt.parse_time(&mut self.text.iter().peekable(), false);
         if !dt.is_null() {
             Ok(dt)
@@ -551,8 +549,8 @@ impl Token<'_> {
         }
     }
 
-    pub(crate) fn into_offset(self) -> std::result::Result<VCardPartialDateTime, String> {
-        let mut dt = VCardPartialDateTime::default();
+    pub(crate) fn into_offset(self) -> std::result::Result<PartialDateTime, String> {
+        let mut dt = PartialDateTime::default();
         dt.parse_zone(&mut self.text.iter().peekable());
         if !dt.is_null() {
             Ok(dt)
@@ -581,8 +579,8 @@ impl Token<'_> {
         Err(self.into_string())
     }
 
-    pub(crate) fn into_timestamp(self) -> std::result::Result<VCardPartialDateTime, String> {
-        let mut dt = VCardPartialDateTime::default();
+    pub(crate) fn into_timestamp(self) -> std::result::Result<PartialDateTime, String> {
+        let mut dt = PartialDateTime::default();
         if dt.parse_timestamp(&mut self.text.iter().peekable()) {
             Ok(dt)
         } else {
@@ -590,14 +588,12 @@ impl Token<'_> {
         }
     }
 
-    pub(crate) fn into_timestamp_or_legacy(
-        self,
-    ) -> std::result::Result<VCardPartialDateTime, String> {
-        let mut dt = VCardPartialDateTime::default();
+    pub(crate) fn into_timestamp_or_legacy(self) -> std::result::Result<PartialDateTime, String> {
+        let mut dt = PartialDateTime::default();
         if dt.parse_timestamp(&mut self.text.iter().peekable()) {
             Ok(dt)
         } else {
-            let mut dt = VCardPartialDateTime::default();
+            let mut dt = PartialDateTime::default();
             if dt.parse_date_legacy(&mut self.text.iter().peekable()) {
                 Ok(dt)
             } else {
@@ -606,10 +602,8 @@ impl Token<'_> {
         }
     }
 
-    pub(crate) fn into_datetime_or_legacy(
-        self,
-    ) -> std::result::Result<VCardPartialDateTime, String> {
-        let mut dt = VCardPartialDateTime::default();
+    pub(crate) fn into_datetime_or_legacy(self) -> std::result::Result<PartialDateTime, String> {
+        let mut dt = PartialDateTime::default();
         if dt.parse_date_legacy(&mut self.text.iter().peekable()) {
             Ok(dt)
         } else {
@@ -617,8 +611,8 @@ impl Token<'_> {
         }
     }
 
-    pub(crate) fn into_offset_or_legacy(self) -> std::result::Result<VCardPartialDateTime, String> {
-        let mut dt = VCardPartialDateTime::default();
+    pub(crate) fn into_offset_or_legacy(self) -> std::result::Result<PartialDateTime, String> {
+        let mut dt = PartialDateTime::default();
         if dt.parse_zone_legacy(&mut self.text.iter().peekable()) {
             Ok(dt)
         } else {
@@ -631,7 +625,7 @@ impl Token<'_> {
     }
 }
 
-impl VCardPartialDateTime {
+impl PartialDateTime {
     fn parse_timestamp(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
         let mut idx = 0;
         for ch in iter {
@@ -954,7 +948,7 @@ impl FromStr for Timestamp {
     type Err = ();
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let mut dt = VCardPartialDateTime::default();
+        let mut dt = PartialDateTime::default();
         dt.parse_timestamp(&mut s.as_bytes().iter().peekable());
         dt.to_timestamp().map(Timestamp).ok_or(())
     }

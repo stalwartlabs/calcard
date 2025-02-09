@@ -5,7 +5,7 @@ use mail_parser::DateTime;
 
 use crate::vcard::{VCardParameter, VCardProperty, VCardValue};
 
-use super::{VCard, VCardPartialDateTime};
+use super::{VCard, PartialDateTime};
 
 impl VCard {
     pub fn write_to(&self, out: &mut impl Write) -> std::fmt::Result {
@@ -440,7 +440,7 @@ fn write_param_value(out: &mut impl Write, line_len: &mut usize, value: &str) ->
     Ok(())
 }
 
-impl Display for VCardPartialDateTime {
+impl Display for PartialDateTime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let missing_time = self.hour.is_none() && self.minute.is_none() && self.second.is_none();
         let missing_tz = self.tz_hour.is_none();
