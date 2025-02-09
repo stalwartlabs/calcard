@@ -42,16 +42,16 @@ impl VCard {
                         write_param_value(out, &mut line_len, v)?;
                     }
                     VCardParameter::Value(v) => {
-                        if !v.is_empty() {
-                            write!(out, "VALUE=")?;
-                            line_len += 6;
-                            for (pos, v) in v.iter().enumerate() {
-                                if pos > 0 {
-                                    write!(out, ",")?;
-                                    line_len += 1;
-                                }
-                                write_param_value(out, &mut line_len, v.as_str())?;
+                        write!(out, "VALUE")?;
+                        line_len += 5;
+                        for (pos, v) in v.iter().enumerate() {
+                            if pos > 0 {
+                                write!(out, ",")?;
+                            } else {
+                                write!(out, "=")?;
                             }
+                            line_len += 1;
+                            write_param_value(out, &mut line_len, v.as_str())?;
                         }
                     }
                     VCardParameter::Pref(v) => {
@@ -64,29 +64,29 @@ impl VCard {
                         write_param_value(out, &mut line_len, v)?;
                     }
                     VCardParameter::Pid(v) => {
-                        if !v.is_empty() {
-                            write!(out, "PID=")?;
-                            line_len += 4;
-                            for (pos, v) in v.iter().enumerate() {
-                                if pos > 0 {
-                                    write!(out, ",")?;
-                                    line_len += 1;
-                                }
-                                write_param_value(out, &mut line_len, v)?;
+                        write!(out, "PID")?;
+                        line_len += 3;
+                        for (pos, v) in v.iter().enumerate() {
+                            if pos > 0 {
+                                write!(out, ",")?;
+                            } else {
+                                write!(out, "=")?;
                             }
+                            line_len += 1;
+                            write_param_value(out, &mut line_len, v)?;
                         }
                     }
                     VCardParameter::Type(v) => {
-                        if !v.is_empty() {
-                            write!(out, "TYPE=")?;
-                            line_len += 5;
-                            for (pos, v) in v.iter().enumerate() {
-                                if pos > 0 {
-                                    write!(out, ",")?;
-                                    line_len += 1;
-                                }
-                                write_param_value(out, &mut line_len, v.as_str())?;
+                        write!(out, "TYPE")?;
+                        line_len += 4;
+                        for (pos, v) in v.iter().enumerate() {
+                            if pos > 0 {
+                                write!(out, ",")?;
+                            } else {
+                                write!(out, "=")?;
                             }
+                            line_len += 1;
+                            write_param_value(out, &mut line_len, v.as_str())?;
                         }
                     }
                     VCardParameter::Mediatype(v) => {

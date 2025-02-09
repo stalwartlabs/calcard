@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use crate::parser::Parser;
+use crate::Parser;
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Token<'x> {

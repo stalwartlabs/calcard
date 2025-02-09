@@ -1,18 +1,21 @@
-use std::{borrow::Cow, str::FromStr};
+use std::{borrow::Cow, iter::Peekable, slice::Iter, str::FromStr};
 
-use mail_parser::decoders::{
-    base64::base64_decode, charsets::map::charset_decoder,
-    quoted_printable::quoted_printable_decode,
+use mail_parser::{
+    decoders::{
+        base64::base64_decode, charsets::map::charset_decoder,
+        quoted_printable::quoted_printable_decode,
+    },
+    DateTime,
 };
 
 use crate::{
-    parser::{Parser, Timestamp},
-    tokenizer::{StopChar, Token},
+    common::{tokenizer::StopChar, Data, Encoding},
     vcard::VCardProperty,
+    Parser, Token,
 };
 
 use super::{
-    VCard, VCardBinary, VCardEntry, VCardParameter, VCardType, VCardValue, VCardValueType,
+    VCard, VCardEntry, VCardParameter, VCardPartialDateTime, VCardType, VCardValue, VCardValueType,
     ValueSeparator, ValueType,
 };
 
@@ -25,13 +28,7 @@ struct Params {
     group_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Encoding {
-    QuotedPrintable,
-    Base64,
-}
-
-impl<'x> Parser<'x> {
+impl Parser<'_> {
     pub fn vcard(&mut self) -> VCard {
         let mut vcard = VCard::default();
         let mut is_v4 = true;
@@ -66,7 +63,7 @@ impl<'x> Parser<'x> {
             let name = token.text;
             match params.stop_char {
                 StopChar::Semicolon => {
-                    self.parameters(&mut params);
+                    self.vcard_parameters(&mut params);
                 }
                 StopChar::Colon => {}
                 StopChar::Lf => {
@@ -159,7 +156,7 @@ impl<'x> Parser<'x> {
                             } else if std::str::from_utf8(&bytes).is_ok() {
                                 token.text = Cow::Owned(bytes);
                             } else {
-                                entry.values.push(VCardValue::Binary(VCardBinary {
+                                entry.values.push(VCardValue::Binary(Data {
                                     data: bytes,
                                     content_type: None,
                                 }));
@@ -301,7 +298,7 @@ impl<'x> Parser<'x> {
         vcard
     }
 
-    fn parameters(&mut self, params: &mut Params) {
+    fn vcard_parameters(&mut self, params: &mut Params) {
         while params.stop_char == StopChar::Semicolon {
             self.expect_iana_token();
             let token = match self.token() {
@@ -509,83 +506,456 @@ impl<'x> Parser<'x> {
             );
         }
     }
+}
 
-    fn buf_to_string(&mut self) -> String {
-        match self.token_buf.len() {
-            0 => String::new(),
-            1 => self.token_buf.pop().unwrap().into_string(),
-            _ => {
-                let from_offset = self.token_buf.first().unwrap().start;
-                let to_offset = self.token_buf.last().unwrap().end;
+impl Token<'_> {
+    pub(crate) fn into_date(self) -> std::result::Result<VCardPartialDateTime, String> {
+        let mut dt = VCardPartialDateTime::default();
+        dt.parse_date(&mut self.text.iter().peekable());
+        if !dt.is_null() {
+            Ok(dt)
+        } else {
+            Err(self.into_string())
+        }
+    }
 
-                if self
-                    .token_buf
-                    .iter()
-                    .all(|t| matches!(t.text, Cow::Borrowed(_)))
-                {
-                    self.token_buf.clear();
-                    self.input
-                        .get(from_offset..=to_offset)
-                        .map(|slice| String::from_utf8_lossy(slice).into_owned())
-                        .unwrap_or_default()
-                } else {
-                    let mut string = String::with_capacity(to_offset - from_offset);
-                    for token in self.token_buf.drain(..) {
-                        string
-                            .push_str(std::str::from_utf8(token.text.as_ref()).unwrap_or_default());
-                    }
-                    string
-                }
+    pub(crate) fn into_date_and_or_datetime(
+        self,
+    ) -> std::result::Result<VCardPartialDateTime, String> {
+        let mut dt = VCardPartialDateTime::default();
+        dt.parse_date_and_or_time(&mut self.text.iter().peekable());
+        if !dt.is_null() {
+            Ok(dt)
+        } else {
+            Err(self.into_string())
+        }
+    }
+
+    pub(crate) fn into_date_time(self) -> std::result::Result<VCardPartialDateTime, String> {
+        let mut dt = VCardPartialDateTime::default();
+        dt.parse_date_time(&mut self.text.iter().peekable());
+        if !dt.is_null() {
+            Ok(dt)
+        } else {
+            Err(self.into_string())
+        }
+    }
+
+    pub(crate) fn into_time(self) -> std::result::Result<VCardPartialDateTime, String> {
+        let mut dt = VCardPartialDateTime::default();
+        dt.parse_time(&mut self.text.iter().peekable(), false);
+        if !dt.is_null() {
+            Ok(dt)
+        } else {
+            Err(self.into_string())
+        }
+    }
+
+    pub(crate) fn into_offset(self) -> std::result::Result<VCardPartialDateTime, String> {
+        let mut dt = VCardPartialDateTime::default();
+        dt.parse_zone(&mut self.text.iter().peekable());
+        if !dt.is_null() {
+            Ok(dt)
+        } else {
+            Err(self.into_string())
+        }
+    }
+
+    pub(crate) fn into_float(self) -> std::result::Result<f64, String> {
+        if let Ok(text) = std::str::from_utf8(self.text.as_ref()) {
+            if let Ok(float) = text.parse::<f64>() {
+                return Ok(float);
+            }
+        }
+
+        Err(self.into_string())
+    }
+
+    pub(crate) fn into_integer(self) -> std::result::Result<i64, String> {
+        if let Ok(text) = std::str::from_utf8(self.text.as_ref()) {
+            if let Ok(float) = text.parse::<i64>() {
+                return Ok(float);
+            }
+        }
+
+        Err(self.into_string())
+    }
+
+    pub(crate) fn into_timestamp(self) -> std::result::Result<VCardPartialDateTime, String> {
+        let mut dt = VCardPartialDateTime::default();
+        if dt.parse_timestamp(&mut self.text.iter().peekable()) {
+            Ok(dt)
+        } else {
+            Err(self.into_string())
+        }
+    }
+
+    pub(crate) fn into_timestamp_or_legacy(
+        self,
+    ) -> std::result::Result<VCardPartialDateTime, String> {
+        let mut dt = VCardPartialDateTime::default();
+        if dt.parse_timestamp(&mut self.text.iter().peekable()) {
+            Ok(dt)
+        } else {
+            let mut dt = VCardPartialDateTime::default();
+            if dt.parse_date_legacy(&mut self.text.iter().peekable()) {
+                Ok(dt)
+            } else {
+                Err(self.into_string())
             }
         }
     }
 
-    fn buf_to_other<T: FromStr>(&mut self) -> Option<T> {
-        let result = self.token_buf.first().and_then(|token| {
-            std::str::from_utf8(token.text.as_ref())
-                .ok()
-                .and_then(|s| s.parse().ok())
-        });
-        self.token_buf.clear();
-        result
+    pub(crate) fn into_datetime_or_legacy(
+        self,
+    ) -> std::result::Result<VCardPartialDateTime, String> {
+        let mut dt = VCardPartialDateTime::default();
+        if dt.parse_date_legacy(&mut self.text.iter().peekable()) {
+            Ok(dt)
+        } else {
+            self.into_date_and_or_datetime()
+        }
     }
 
-    fn buf_to_bool(&mut self) -> bool {
-        let result = self
-            .token_buf
-            .pop()
-            .is_some_and(|token| token.text.as_ref().eq_ignore_ascii_case(b"TRUE"));
-        self.token_buf.clear();
-        result
+    pub(crate) fn into_offset_or_legacy(self) -> std::result::Result<VCardPartialDateTime, String> {
+        let mut dt = VCardPartialDateTime::default();
+        if dt.parse_zone_legacy(&mut self.text.iter().peekable()) {
+            Ok(dt)
+        } else {
+            self.into_offset()
+        }
     }
 
-    fn buf_parse_many<T: From<Token<'x>>>(&mut self) -> Vec<T> {
-        self.token_buf.drain(..).map(T::from).collect()
-    }
-
-    fn buf_parse_one<T: From<Token<'x>>>(&mut self) -> Option<T> {
-        let result = self.token_buf.pop().map(T::from);
-        self.token_buf.clear();
-        result
-    }
-
-    fn buf_try_parse_one<T: for<'y> TryFrom<&'y [u8]>>(&mut self) -> Option<T> {
-        let result = self
-            .token_buf
-            .first()
-            .and_then(|t| T::try_from(t.text.as_ref()).ok());
-        self.token_buf.clear();
-        result
+    pub(crate) fn into_boolean(self) -> bool {
+        self.text.as_ref().eq_ignore_ascii_case(b"true")
     }
 }
 
-impl Encoding {
-    pub fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            b"QUOTED-PRINTABLE" => Encoding::QuotedPrintable,
-            b"BASE64" => Encoding::Base64,
-            b"Q" => Encoding::QuotedPrintable,
-            b"B" => Encoding::Base64,
-        )
+impl VCardPartialDateTime {
+    fn parse_timestamp(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+        let mut idx = 0;
+        for ch in iter {
+            match ch {
+                b'0'..=b'9' => {
+                    let value = match idx {
+                        0..=3 => &mut self.year,
+                        4..=5 => &mut self.month,
+                        6..=7 => &mut self.day,
+                        9..=10 => &mut self.hour,
+                        11..=12 => &mut self.minute,
+                        13..=14 => &mut self.second,
+                        16..=17 => &mut self.tz_hour,
+                        18..=19 => &mut self.tz_minute,
+                        _ => return false,
+                    };
+
+                    if let Some(value) = value {
+                        *value = value.saturating_mul(10).saturating_add((ch - b'0') as u16);
+                    } else {
+                        *value = Some((ch - b'0') as u16);
+                    }
+                }
+                b'T' | b't' if idx == 8 => {}
+                b'+' if idx == 15 => {}
+                b'Z' | b'z' if idx == 15 => {
+                    self.tz_hour = Some(0);
+                    self.tz_minute = Some(0);
+                }
+                b'-' if idx == 15 => {
+                    self.tz_minus = true;
+                }
+                b' ' | b'\t' | b'\r' | b'\n' => {
+                    continue;
+                }
+                _ => return false,
+            }
+            idx += 1;
+        }
+
+        true
+    }
+
+    fn parse_date_legacy(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+        let mut idx = 0;
+
+        for ch in iter {
+            match ch {
+                b'0'..=b'9' => {
+                    let value = match idx {
+                        0 => &mut self.year,
+                        1 => &mut self.month,
+                        2 => &mut self.day,
+                        3 => &mut self.hour,
+                        4 => &mut self.minute,
+                        5 => &mut self.second,
+                        6 => &mut self.tz_hour,
+                        7 => &mut self.tz_minute,
+                        _ => return false,
+                    };
+
+                    if let Some(value) = value {
+                        *value = value.saturating_mul(10).saturating_add((ch - b'0') as u16);
+                    } else {
+                        *value = Some((ch - b'0') as u16);
+                    }
+                }
+                b'T' | b't' if idx < 3 => {
+                    idx = 3;
+                }
+                b'+' if idx <= 5 => {
+                    idx = 6;
+                }
+                b'Z' | b'z' if idx == 5 => {
+                    self.tz_hour = Some(0);
+                    self.tz_minute = Some(0);
+                    break;
+                }
+                b'-' if idx <= 2 => {
+                    idx += 1;
+                }
+                b'-' if idx <= 5 => {
+                    self.tz_minus = true;
+                    idx = 6;
+                }
+                b':' if (3..=6).contains(&idx) => {
+                    idx += 1;
+                }
+                b' ' | b'\t' | b'\r' | b'\n' => {
+                    continue;
+                }
+                _ => return false,
+            }
+        }
+
+        self.has_date() || self.has_zone()
+    }
+
+    fn parse_zone_legacy(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+        let mut idx = 0;
+
+        for ch in iter {
+            match ch {
+                b'0'..=b'9' => {
+                    let value = match idx {
+                        0 => &mut self.tz_hour,
+                        1 => &mut self.tz_minute,
+                        _ => return false,
+                    };
+
+                    if let Some(value) = value {
+                        *value = value.saturating_mul(10).saturating_add((ch - b'0') as u16);
+                    } else {
+                        *value = Some((ch - b'0') as u16);
+                    }
+                }
+                b'+' if self.tz_hour.is_none() => {}
+                b'-' if self.tz_hour.is_none() => {
+                    self.tz_minus = true;
+                }
+                b'Z' | b'z' if self.tz_hour.is_none() => {
+                    self.tz_hour = Some(0);
+                    self.tz_minute = Some(0);
+                    break;
+                }
+                b':' => {
+                    idx += 1;
+                }
+                b' ' | b'\t' | b'\r' | b'\n' => {
+                    continue;
+                }
+                _ => return false,
+            }
+        }
+
+        self.tz_hour.is_some() && self.tz_minute.is_some()
+    }
+
+    fn parse_date_time(&mut self, iter: &mut Peekable<Iter<u8>>) {
+        self.parse_date_noreduc(iter);
+        if matches!(iter.peek(), Some(&&b'T' | &&b't')) {
+            iter.next();
+            self.parse_time(iter, true);
+        }
+    }
+
+    fn parse_date_and_or_time(&mut self, iter: &mut Peekable<Iter<u8>>) {
+        self.parse_date(iter);
+        if matches!(iter.peek(), Some(&&b'T' | &&b't')) {
+            iter.next();
+            self.parse_time(iter, false);
+        }
+    }
+
+    fn parse_date(&mut self, iter: &mut Peekable<Iter<u8>>) {
+        parse_digits(iter, &mut self.year, 4, true);
+        if self.year.is_some() && iter.peek() == Some(&&b'-') {
+            iter.next();
+            parse_digits(iter, &mut self.month, 2, true);
+        } else {
+            parse_digits(iter, &mut self.month, 2, true);
+            parse_digits(iter, &mut self.day, 2, false);
+        }
+    }
+
+    fn parse_date_noreduc(&mut self, iter: &mut Peekable<Iter<u8>>) {
+        parse_digits(iter, &mut self.year, 4, true);
+        parse_digits(iter, &mut self.month, 2, true);
+        parse_digits(iter, &mut self.day, 2, false);
+    }
+
+    fn parse_time(&mut self, iter: &mut Peekable<Iter<u8>>, mut notrunc: bool) {
+        for part in [&mut self.hour, &mut self.minute, &mut self.second] {
+            match iter.peek() {
+                Some(b'0'..=b'9') => {
+                    notrunc = true;
+                    parse_digits(iter, part, 2, false);
+                }
+                Some(b'-') if !notrunc => {
+                    iter.next();
+                }
+                _ => break,
+            }
+        }
+        self.parse_zone(iter);
+    }
+
+    fn parse_zone(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+        self.tz_minus = match iter.peek() {
+            Some(b'-') => true,
+            Some(b'+') => false,
+            Some(b'Z') | Some(b'z') => {
+                self.tz_hour = Some(0);
+                self.tz_minute = Some(0);
+                iter.next();
+                return true;
+            }
+            _ => return false,
+        };
+
+        iter.next();
+        let mut idx = 0;
+        for ch in iter {
+            match ch {
+                b'0'..=b'9' => {
+                    idx += 1;
+                    let value = match idx {
+                        1 | 2 => &mut self.tz_hour,
+                        3 | 4 => &mut self.tz_minute,
+                        _ => return false,
+                    };
+
+                    if let Some(value) = value {
+                        *value = value.saturating_mul(10).saturating_add((ch - b'0') as u16);
+                    } else {
+                        *value = Some((ch - b'0') as u16);
+                    }
+                }
+                _ => {
+                    if !ch.is_ascii_whitespace() {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        self.tz_hour.is_some()
+    }
+
+    pub fn is_null(&self) -> bool {
+        self.year.is_none()
+            && self.month.is_none()
+            && self.day.is_none()
+            && self.hour.is_none()
+            && self.minute.is_none()
+            && self.second.is_none()
+            && self.tz_hour.is_none()
+            && self.tz_minute.is_none()
+    }
+
+    pub fn has_date(&self) -> bool {
+        self.year.is_some() && self.month.is_some() && self.day.is_some()
+    }
+
+    pub fn has_time(&self) -> bool {
+        self.hour.is_some() && self.minute.is_some()
+    }
+
+    pub fn has_zone(&self) -> bool {
+        self.tz_hour.is_some()
+    }
+
+    pub fn to_timestamp(&self) -> Option<i64> {
+        if self.has_date() && self.has_time() {
+            DateTime {
+                year: self.year.unwrap(),
+                month: self.month.unwrap() as u8,
+                day: self.day.unwrap() as u8,
+                hour: self.hour.unwrap() as u8,
+                minute: self.minute.unwrap() as u8,
+                second: self.second.unwrap_or_default() as u8,
+                tz_before_gmt: self.tz_minus,
+                tz_hour: self.tz_hour.unwrap_or_default() as u8,
+                tz_minute: self.tz_minute.unwrap_or_default() as u8,
+            }
+            .to_timestamp()
+            .into()
+        } else {
+            None
+        }
+    }
+}
+
+fn parse_digits(
+    iter: &mut Peekable<Iter<u8>>,
+    target: &mut Option<u16>,
+    num: usize,
+    nullable: bool,
+) {
+    let mut idx = 0;
+    while let Some(ch) = iter.peek() {
+        match ch {
+            b'0'..=b'9' => {
+                let ch = (*ch - b'0') as u16;
+                idx += 1;
+                iter.next();
+
+                if let Some(target) = target {
+                    *target = target.saturating_mul(10).saturating_add(ch);
+
+                    if idx == num {
+                        return;
+                    }
+                } else {
+                    *target = Some(ch);
+                }
+            }
+            b'-' if nullable => {
+                idx += 1;
+                iter.next();
+                if idx == num / 2 {
+                    return;
+                }
+            }
+            _ => {
+                if !ch.is_ascii_whitespace() {
+                    return;
+                } else {
+                    iter.next();
+                }
+            }
+        };
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct Timestamp(pub i64);
+
+impl FromStr for Timestamp {
+    type Err = ();
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let mut dt = VCardPartialDateTime::default();
+        dt.parse_timestamp(&mut s.as_bytes().iter().peekable());
+        dt.to_timestamp().map(Timestamp).ok_or(())
     }
 }

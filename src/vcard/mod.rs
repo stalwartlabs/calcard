@@ -1,4 +1,4 @@
-use crate::tokenizer::Token;
+use crate::common::{tokenizer::Token, Data};
 
 pub mod parser;
 pub mod writer;
@@ -201,16 +201,10 @@ pub enum VCardValue {
     Float(f64),
     Boolean(bool),
     PartialDateTime(VCardPartialDateTime),
-    Binary(VCardBinary),
+    Binary(Data),
     Sex(VCardSex),
     GramGender(VCardGramGender),
     Kind(VCardKind),
-}
-
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct VCardBinary {
-    pub content_type: Option<String>,
-    pub data: Vec<u8>,
 }
 
 impl Eq for VCardValue {}
