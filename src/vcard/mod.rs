@@ -1,4 +1,4 @@
-use crate::common::{tokenizer::Token, Data, PartialDateTime};
+use crate::common::{tokenizer::Token, CalendarScale, Data, PartialDateTime};
 
 pub mod parser;
 pub mod writer;
@@ -211,32 +211,32 @@ impl Eq for VCardValue {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VCardParameter {
-    Language(String),             // [RFC6350, Section 5.1]
-    Value(Vec<VCardValueType>),   // [RFC6350, Section 5.2]
-    Pref(u32),                    // [RFC6350, Section 5.3]
-    Altid(String),                // [RFC6350, Section 5.4]
-    Pid(Vec<String>),             // [RFC6350, Section 5.5]
-    Type(Vec<VCardType>),         // [RFC6350, Section 5.6]
-    Mediatype(String),            // [RFC6350, Section 5.7]
-    Calscale(VCardCalendarScale), // [RFC6350, Section 5.8]
-    SortAs(String),               // [RFC6350, Section 5.9]
-    Geo(String),                  // [RFC6350, Section 5.10]
-    Tz(String),                   // [RFC6350, Section 5.11]
-    Index(u32),                   // [RFC6715, Section 3.1]
-    Level(VCardLevel),            // [RFC6715, Section 3.2]
-    Group(String),                // [RFC7095, Section 8.1]
-    Cc(String),                   // [RFC8605, Section 3.1]
-    Author(String),               // [RFC9554, Section 4.1]
-    AuthorName(String),           // [RFC9554, Section 4.2]
-    Created(i64),                 // [RFC9554, Section 4.3]
-    Derived(bool),                // [RFC9554, Section 4.4]
-    Label(String),                // [RFC6350, Section 6.3.1][RFC9554, Section 4.5]
-    Phonetic(VCardPhonetic),      // [RFC9554, Section 4.6]
-    PropId(String),               // [RFC9554, Section 4.7]
-    Script(String),               // [RFC9554, Section 4.8]
-    ServiceType(String),          // [RFC9554, Section 4.9]
-    Username(String),             // [RFC9554, Section 4.10]
-    Jsptr(String),                // [RFC9555, Section 3.3.2]
+    Language(String),           // [RFC6350, Section 5.1]
+    Value(Vec<VCardValueType>), // [RFC6350, Section 5.2]
+    Pref(u32),                  // [RFC6350, Section 5.3]
+    Altid(String),              // [RFC6350, Section 5.4]
+    Pid(Vec<String>),           // [RFC6350, Section 5.5]
+    Type(Vec<VCardType>),       // [RFC6350, Section 5.6]
+    Mediatype(String),          // [RFC6350, Section 5.7]
+    Calscale(CalendarScale),    // [RFC6350, Section 5.8]
+    SortAs(String),             // [RFC6350, Section 5.9]
+    Geo(String),                // [RFC6350, Section 5.10]
+    Tz(String),                 // [RFC6350, Section 5.11]
+    Index(u32),                 // [RFC6715, Section 3.1]
+    Level(VCardLevel),          // [RFC6715, Section 3.2]
+    Group(String),              // [RFC7095, Section 8.1]
+    Cc(String),                 // [RFC8605, Section 3.1]
+    Author(String),             // [RFC9554, Section 4.1]
+    AuthorName(String),         // [RFC9554, Section 4.2]
+    Created(i64),               // [RFC9554, Section 4.3]
+    Derived(bool),              // [RFC9554, Section 4.4]
+    Label(String),              // [RFC6350, Section 6.3.1][RFC9554, Section 4.5]
+    Phonetic(VCardPhonetic),    // [RFC9554, Section 4.6]
+    PropId(String),             // [RFC9554, Section 4.7]
+    Script(String),             // [RFC9554, Section 4.8]
+    ServiceType(String),        // [RFC9554, Section 4.9]
+    Username(String),           // [RFC9554, Section 4.10]
+    Jsptr(String),              // [RFC9555, Section 3.3.2]
     Other(Vec<String>),
 }
 
@@ -294,43 +294,6 @@ impl From<Token<'_>> for VCardValueType {
             "UTC-OFFSET" => VCardValueType::UtcOffset,
         )
         .unwrap_or_else(|| VCardValueType::Other(token.into_string()))
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub enum VCardCalendarScale {
-    #[default]
-    Gregorian,
-    Chinese,
-    IslamicCivil,
-    Hebrew,
-    Ethiopic,
-    Other(String),
-}
-
-impl VCardCalendarScale {
-    pub fn as_str(&self) -> &str {
-        match self {
-            VCardCalendarScale::Gregorian => "GREGORIAN",
-            VCardCalendarScale::Chinese => "CHINESE",
-            VCardCalendarScale::IslamicCivil => "ISLAMIC-CIVIL",
-            VCardCalendarScale::Hebrew => "HEBREW",
-            VCardCalendarScale::Ethiopic => "ETHIOPIC",
-            VCardCalendarScale::Other(ref s) => s,
-        }
-    }
-}
-
-impl From<Token<'_>> for VCardCalendarScale {
-    fn from(token: Token<'_>) -> Self {
-        hashify::tiny_map_ignore_case!(token.text.as_ref(),
-            "gregorian" => VCardCalendarScale::Gregorian,
-            "chinese" => VCardCalendarScale::Chinese,
-            "islamic-civil" => VCardCalendarScale::IslamicCivil,
-            "hebrew" => VCardCalendarScale::Hebrew,
-            "ethiopic" => VCardCalendarScale::Ethiopic,
-        )
-        .unwrap_or_else(|| VCardCalendarScale::Other(token.into_string()))
     }
 }
 

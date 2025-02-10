@@ -16,7 +16,6 @@ pub(crate) enum StopChar {
     Semicolon,
     Comma,
     Equal,
-    Slash,
     Dot,
     Lf,
 }
@@ -27,7 +26,6 @@ impl<'x> Parser<'x> {
         self.stop_semicolon = true;
         self.stop_comma = true;
         self.stop_equal = true;
-        self.stop_slash = false;
         self.unfold_qp = false;
         self.unquote = true;
     }
@@ -36,7 +34,6 @@ impl<'x> Parser<'x> {
         self.stop_colon = false;
         self.stop_comma = false;
         self.stop_equal = false;
-        self.stop_slash = false;
         self.stop_semicolon = false;
         self.unquote = false;
         self.unfold_qp = false;
@@ -46,7 +43,6 @@ impl<'x> Parser<'x> {
         self.stop_colon = false;
         self.stop_comma = true;
         self.stop_equal = false;
-        self.stop_slash = false;
         self.stop_semicolon = false;
         self.unquote = false;
         self.unfold_qp = false;
@@ -56,7 +52,6 @@ impl<'x> Parser<'x> {
         self.stop_colon = false;
         self.stop_comma = false;
         self.stop_equal = false;
-        self.stop_slash = false;
         self.stop_semicolon = true;
         self.unquote = false;
         self.unfold_qp = false;
@@ -67,9 +62,17 @@ impl<'x> Parser<'x> {
         self.stop_semicolon = true;
         self.stop_comma = true;
         self.stop_equal = false;
-        self.stop_slash = false;
         self.unfold_qp = false;
         self.unquote = true;
+    }
+
+    pub(crate) fn expect_rrule_value(&mut self) {
+        self.stop_colon = true;
+        self.stop_comma = true;
+        self.stop_equal = true;
+        self.stop_semicolon = true;
+        self.unquote = false;
+        self.unfold_qp = false;
     }
 
     fn try_unfold(&mut self) -> bool {
@@ -194,10 +197,6 @@ impl<'x> Parser<'x> {
                     stop_char = StopChar::Equal;
                     break;
                 }
-                b'/' if !in_quote && self.stop_slash => {
-                    stop_char = StopChar::Slash;
-                    break;
-                }
                 b'.' if !in_quote && self.stop_dot => {
                     stop_char = StopChar::Dot;
                     break;
@@ -238,6 +237,33 @@ impl<'x> Parser<'x> {
                 end: offset_end,
                 stop_char,
             })
+        }
+    }
+
+    #[inline]
+    pub(crate) fn token_until_lf(&mut self, last_stop_char: &mut StopChar) -> Option<Token<'x>> {
+        if last_stop_char != &StopChar::Lf {
+            self.token()
+                .inspect(|token| *last_stop_char = token.stop_char)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    pub(crate) fn parse_value_until_lf<T>(
+        &mut self,
+        separator: StopChar,
+        last_stop_char: &mut StopChar,
+    ) -> Option<Result<T, ()>>
+    where
+        T: for<'y> TryFrom<&'y [u8], Error = ()> + 'static,
+    {
+        if *last_stop_char != separator {
+            self.token_until_lf(last_stop_char)
+                .map(|token| T::try_from(token.text.as_ref()))
+        } else {
+            None
         }
     }
 

@@ -1,3 +1,5 @@
+use crate::Token;
+
 pub mod parser;
 pub mod tokenizer;
 
@@ -12,6 +14,43 @@ pub struct PartialDateTime {
     pub tz_hour: Option<u16>,
     pub tz_minute: Option<u16>,
     pub tz_minus: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum CalendarScale {
+    #[default]
+    Gregorian,
+    Chinese,
+    IslamicCivil,
+    Hebrew,
+    Ethiopic,
+    Other(String),
+}
+
+impl CalendarScale {
+    pub fn as_str(&self) -> &str {
+        match self {
+            CalendarScale::Gregorian => "GREGORIAN",
+            CalendarScale::Chinese => "CHINESE",
+            CalendarScale::IslamicCivil => "ISLAMIC-CIVIL",
+            CalendarScale::Hebrew => "HEBREW",
+            CalendarScale::Ethiopic => "ETHIOPIC",
+            CalendarScale::Other(ref s) => s,
+        }
+    }
+}
+
+impl From<Token<'_>> for CalendarScale {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+            "gregorian" => CalendarScale::Gregorian,
+            "chinese" => CalendarScale::Chinese,
+            "islamic-civil" => CalendarScale::IslamicCivil,
+            "hebrew" => CalendarScale::Hebrew,
+            "ethiopic" => CalendarScale::Ethiopic,
+        )
+        .unwrap_or_else(|| CalendarScale::Other(token.into_string()))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

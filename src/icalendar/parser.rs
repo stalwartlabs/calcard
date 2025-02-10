@@ -1,6 +1,20 @@
-use crate::{common::Encoding, Parser, StopChar, Token};
+use std::{borrow::Cow, iter::Peekable, slice::Iter};
 
-use super::{ICalendar, ICalendarDuration, ICalendarParameter, ICalendarValueType, Uri};
+use mail_parser::decoders::{
+    base64::base64_decode, charsets::map::charset_decoder,
+    quoted_printable::quoted_printable_decode,
+};
+
+use crate::{
+    common::{
+        parser::{parse_digits, Integer, Timestamp},
+        CalendarScale, Encoding, PartialDateTime,
+    },
+    icalendar::{ICalendarDay, ICalendarWeekday},
+    Parser, StopChar, Token,
+};
+
+use super::*;
 
 struct Params {
     params: Vec<ICalendarParameter>,
@@ -12,7 +26,321 @@ struct Params {
 
 impl Parser<'_> {
     pub fn icalendar(&mut self) -> ICalendar {
-        todo!()
+        let mut ical = ICalendar::default();
+        let mut ical_stack = Vec::new();
+
+        loop {
+            // Fetch property name
+            self.expect_iana_token();
+            let token = match self.token() {
+                Some(token) => token,
+                None => break,
+            };
+
+            let mut params = Params {
+                params: Vec::new(),
+                stop_char: token.stop_char,
+                data_type: None,
+                encoding: None,
+                charset: None,
+            };
+
+            // Parse parameters
+            let name = token.text;
+            match params.stop_char {
+                StopChar::Semicolon => {
+                    self.ical_parameters(&mut params);
+                }
+                StopChar::Colon => {}
+                StopChar::Lf => {
+                    // Invalid line
+                    continue;
+                }
+                _ => {}
+            }
+
+            // Invalid stop char, try seeking colon
+            if !matches!(params.stop_char, StopChar::Colon | StopChar::Lf) {
+                params.stop_char = self.seek_value_or_eol();
+            }
+
+            // Parse property
+            let name = match ICalendarProperty::try_from(name.as_ref()) {
+                Ok(ICalendarProperty::Begin) => {
+                    if params.stop_char == StopChar::Colon {
+                        self.expect_single_value();
+                        if let Some(token) = self.token() {
+                            if let Ok(component_type) =
+                                ICalendarComponentType::try_from(token.text.as_ref())
+                            {
+                                ical_stack.push(ical);
+                                ical = ICalendar {
+                                    component_type,
+                                    ..Default::default()
+                                };
+                            }
+                        }
+                    }
+                    let c = "return err";
+                    continue;
+                }
+                Ok(ICalendarProperty::End) => {
+                    if params.stop_char == StopChar::Colon {
+                        self.expect_single_value();
+                        if let Some(token) = self.token() {
+                            if let Ok(component_type) =
+                                ICalendarComponentType::try_from(token.text.as_ref())
+                            {
+                                if ical.component_type == component_type {
+                                    if let Some(mut parent) = ical_stack.pop() {
+                                        parent.components.push(ical);
+                                        ical = parent;
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    let c = "return err";
+                    continue;
+                }
+                Ok(name) => name,
+                Err(_) => {
+                    if !name.is_empty() {
+                        ICalendarProperty::Other(Token::new(name).into_string())
+                    } else {
+                        // Invalid line, skip
+                        if params.stop_char != StopChar::Lf {
+                            self.seek_lf();
+                        }
+                        continue;
+                    }
+                }
+            };
+            let mut entry = ICalendarEntry {
+                name,
+                params: params.params,
+                values: Vec::new(),
+            };
+
+            // Parse value
+            if params.stop_char != StopChar::Lf {
+                // Obtain default type and separator
+                let (default_type, multi_value) = entry.name.default_types();
+                match multi_value {
+                    ValueSeparator::None => {
+                        self.expect_single_value();
+                    }
+                    ValueSeparator::Comma => {
+                        self.expect_multi_value_comma();
+                    }
+                    ValueSeparator::Semicolon => {
+                        self.expect_multi_value_semicolon();
+                    }
+                }
+
+                // Decode
+                match params.encoding {
+                    Some(Encoding::Base64) if multi_value != ValueSeparator::None => {
+                        self.expect_single_value();
+                    }
+                    Some(Encoding::QuotedPrintable) => {
+                        self.unfold_qp = true;
+                    }
+                    _ => {}
+                }
+
+                if matches!(
+                    (&params.data_type, &default_type),
+                    (Some(ICalendarValueType::Recur), _)
+                        | (None, ValueType::Ical(ICalendarValueType::Recur))
+                ) {
+                    match self.rrule() {
+                        Ok(rrule) => {
+                            entry
+                                .values
+                                .push(ICalendarValue::RecurrenceRule(Box::new(rrule)));
+                        }
+                        Err(other) => {
+                            entry.values.push(ICalendarValue::Text(other));
+                        }
+                    }
+                } else {
+                    while let Some(mut token) = self.token() {
+                        let eol = token.stop_char == StopChar::Lf;
+
+                        // Decode binary parts
+                        if let Some(encoding) = params.encoding {
+                            let (bytes, default_encoding) = match encoding {
+                                Encoding::Base64 => (base64_decode(&token.text), None),
+                                Encoding::QuotedPrintable => {
+                                    (quoted_printable_decode(&token.text), "iso-8859-1".into())
+                                }
+                            };
+                            if let Some(bytes) = bytes {
+                                if let Some(decoded) =
+                                    params.charset.as_deref().or(default_encoding).and_then(
+                                        |charset| {
+                                            charset_decoder(charset.as_bytes())
+                                                .map(|decoder| decoder(&bytes))
+                                        },
+                                    )
+                                {
+                                    token.text = Cow::Owned(decoded.into_bytes());
+                                } else if std::str::from_utf8(&bytes).is_ok() {
+                                    token.text = Cow::Owned(bytes);
+                                } else {
+                                    entry.values.push(ICalendarValue::Binary(bytes));
+                                    if eol {
+                                        break;
+                                    } else {
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+
+                        match &default_type {
+                            ValueType::Ical(default_type) => {
+                                let value = match params.data_type.as_ref().unwrap_or(default_type)
+                                {
+                                    ICalendarValueType::Date => token
+                                        .into_ical_date()
+                                        .map(|data| ICalendarValue::PartialDateTime(Box::new(data)))
+                                        .unwrap_or_else(ICalendarValue::Text),
+                                    ICalendarValueType::DateTime => token
+                                        .into_timestamp()
+                                        .map(|data| ICalendarValue::PartialDateTime(Box::new(data)))
+                                        .unwrap_or_else(ICalendarValue::Text),
+                                    ICalendarValueType::Time => token
+                                        .into_ical_time()
+                                        .map(|data| ICalendarValue::PartialDateTime(Box::new(data)))
+                                        .unwrap_or_else(ICalendarValue::Text),
+                                    ICalendarValueType::UtcOffset => token
+                                        .into_offset()
+                                        .map(|data| ICalendarValue::PartialDateTime(Box::new(data)))
+                                        .unwrap_or_else(ICalendarValue::Text),
+                                    ICalendarValueType::Boolean => {
+                                        ICalendarValue::Boolean(token.into_boolean())
+                                    }
+                                    ICalendarValueType::Float => token
+                                        .into_float()
+                                        .map(ICalendarValue::Float)
+                                        .unwrap_or_else(ICalendarValue::Text),
+                                    ICalendarValueType::Integer => token
+                                        .into_integer()
+                                        .map(ICalendarValue::Integer)
+                                        .unwrap_or_else(ICalendarValue::Text),
+                                    ICalendarValueType::Text
+                                    | ICalendarValueType::Binary
+                                    | ICalendarValueType::Unknown
+                                    | ICalendarValueType::XmlReference
+                                    | ICalendarValueType::Uid => {
+                                        ICalendarValue::Text(token.into_string())
+                                    }
+                                    ICalendarValueType::Uri | ICalendarValueType::CalAddress => {
+                                        token
+                                            .into_uri_bytes()
+                                            .map(|data| ICalendarValue::Uri(Uri::Data(data)))
+                                            .unwrap_or_else(|uri| {
+                                                ICalendarValue::Uri(Uri::Location(uri))
+                                            })
+                                    }
+                                    ICalendarValueType::Other(_) => {
+                                        ICalendarValue::Text(token.into_string())
+                                    }
+                                    ICalendarValueType::Duration => {
+                                        if let Ok(duration) =
+                                            ICalendarDuration::try_from(token.text.as_ref())
+                                        {
+                                            ICalendarValue::Duration(duration)
+                                        } else {
+                                            ICalendarValue::Text(token.into_string())
+                                        }
+                                    }
+                                    ICalendarValueType::Period => {
+                                        if let Ok(period) =
+                                            ICalendarPeriod::try_from(token.text.as_ref())
+                                        {
+                                            ICalendarValue::Period(period)
+                                        } else {
+                                            ICalendarValue::Text(token.into_string())
+                                        }
+                                    }
+                                    ICalendarValueType::Recur => unreachable!(),
+                                };
+
+                                entry.values.push(value);
+                            }
+                            ValueType::CalendarScale => {
+                                entry.values.push(ICalendarValue::CalendarScale(
+                                    CalendarScale::from(token),
+                                ));
+                            }
+                            ValueType::Method => {
+                                entry
+                                    .values
+                                    .push(ICalendarValue::Method(ICalendarMethod::from(token)));
+                            }
+                            ValueType::Classification => {
+                                entry.values.push(ICalendarValue::Classification(
+                                    ICalendarClassification::from(token),
+                                ));
+                            }
+                            ValueType::Status => {
+                                entry.values.push(ICalendarValue::Status(
+                                    ICalendarParticipationStatus::from(token),
+                                ));
+                            }
+                            ValueType::Transparency => {
+                                entry.values.push(ICalendarValue::Transparency(
+                                    ICalendarTransparency::from(token),
+                                ));
+                            }
+                            ValueType::Action => {
+                                entry
+                                    .values
+                                    .push(ICalendarValue::Action(ICalendarAction::from(token)));
+                            }
+                            ValueType::BusyType => {
+                                entry.values.push(ICalendarValue::BusyType(
+                                    ICalendarFreeBusyType::from(token),
+                                ));
+                            }
+                            ValueType::ParticipantType => {
+                                entry.values.push(ICalendarValue::ParticipantType(
+                                    ICalendarParticipantType::from(token),
+                                ));
+                            }
+                            ValueType::ResourceType => {
+                                entry.values.push(ICalendarValue::ResourceType(
+                                    ICalendarResourceType::from(token),
+                                ));
+                            }
+                            ValueType::Proximity => {
+                                entry.values.push(ICalendarValue::Proximity(
+                                    ICalendarProximityValue::from(token),
+                                ));
+                            }
+                        }
+
+                        if eol {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Add types
+            if let Some(data_type) = params.data_type {
+                entry.params.push(ICalendarParameter::Value(data_type));
+            }
+
+            ical.entries.push(entry);
+        }
+
+        ical
     }
 
     fn ical_parameters(&mut self, params: &mut Params) {
@@ -223,13 +551,374 @@ impl Parser<'_> {
             );
         }
     }
+
+    fn rrule(&mut self) -> Result<ICalendarRecurrenceRule, String> {
+        self.expect_rrule_value();
+
+        let mut last_stop_char = StopChar::Equal;
+        let mut is_valid = true;
+        let mut has_freq = false;
+        let mut rrule = ICalendarRecurrenceRule::default();
+
+        let mut token_start = usize::MAX;
+        let mut token_end = usize::MAX;
+
+        while let Some(mut token) = self.token_until_lf(&mut last_stop_char) {
+            if token_start == usize::MAX {
+                token_start = token.start;
+            }
+            token_end = token.end;
+            if !is_valid {
+                continue;
+            }
+            if token.stop_char != StopChar::Equal {
+                if !self.strict {
+                    // Ignore unknown tokens
+                    while let Some(token_) = self.token_until_lf(&mut last_stop_char) {
+                        token_end = token.end;
+                        if token_.stop_char == StopChar::Equal {
+                            token = token_;
+                            break;
+                        }
+                    }
+                    if token.stop_char != StopChar::Equal {
+                        is_valid = false;
+                        continue;
+                    }
+                } else {
+                    is_valid = false;
+                    continue;
+                }
+            }
+
+            hashify::fnc_map_ignore_case!(token.text.as_ref(),
+                b"FREQ" => {
+                    while let Some(value) = self.parse_value_until_lf(StopChar::Semicolon, &mut last_stop_char) {
+                        token_end = token.end;
+                        if let Ok(value) = value {
+                            rrule.freq = value;
+                            has_freq = true;
+                        } else if !self.strict {
+                            is_valid = false;
+                        }
+                    }
+                },
+                b"UNTIL" => {
+                    while let Some(value) = self.parse_value_until_lf::<Timestamp>(StopChar::Semicolon, &mut last_stop_char) {
+                        token_end = token.end;
+                        if let Ok(value) = value {
+                            rrule.until = Some(value.0);
+                        } else if !self.strict {
+                            is_valid = false;
+                        }
+                    }
+                },
+                b"COUNT" => {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
+                        token_end = token.end;
+                        if let Ok(value) = value {
+                            rrule.count = Some(value.0.unsigned_abs() as u32);
+                        } else if !self.strict {
+                            is_valid = false;
+                        }
+                    }
+                },
+                b"INTERVAL" => {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
+                        token_end = token.end;
+                        if let Ok(value) = value {
+                            rrule.interval = Some(value.0.unsigned_abs() as u32);
+                        } else if !self.strict {
+                            is_valid = false;
+                        }
+                    }
+                },
+                b"BYSECOND" => {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
+                        token_end = token.end;
+                        if let Ok(value) = value {
+                            rrule.bysecond.push(value.0.unsigned_abs() as u16);
+                        } else if !self.strict {
+                            is_valid = false;
+                        }
+                    }
+                },
+                b"BYMINUTE" => {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
+                        token_end = token.end;
+                        if let Ok(value) = value {
+                            rrule.byminute.push(value.0.unsigned_abs() as u16);
+                        } else if !self.strict {
+                            is_valid = false;
+                        }
+                    }
+                },
+                b"BYHOUR" => {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
+                        token_end = token.end;
+                        if let Ok(value) = value {
+                            rrule.byhour.push(value.0.unsigned_abs() as u16);
+                        } else if !self.strict {
+                            is_valid = false;
+                        }
+                    }
+                },
+                b"BYDAY" => {
+                    while let Some(value) = self.parse_value_until_lf::<ICalendarDay>(StopChar::Semicolon, &mut last_stop_char) {
+                        token_end = token.end;
+                        if let Ok(value) = value {
+                            rrule.byday.push(value);
+                        } else if !self.strict {
+                            is_valid = false;
+                        }
+                    }
+                },
+                b"BYMONTHDAY" => {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
+                        token_end = token.end;
+                        if let Ok(value) = value {
+                            rrule.bymonthday.push(value.0 as i16);
+                        } else if !self.strict {
+                            is_valid = false;
+                        }
+                    }
+                },
+                b"BYYEARDAY" => {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
+                        token_end = token.end;
+                        if let Ok(value) = value {
+                            rrule.byyearday.push(value.0 as i16);
+                        } else if !self.strict {
+                            is_valid = false;
+                        }
+                    }
+                },
+                b"BYWEEKNO" => {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
+                        token_end = token.end;
+                        if let Ok(value) = value {
+                            rrule.byweekno.push(value.0 as i16);
+                        } else if !self.strict {
+                            is_valid = false;
+                        }
+                    }
+                },
+                b"BYMONTH" => {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
+                        token_end = token.end;
+                        if let Ok(value) = value {
+                            rrule.bymonth.push(value.0 as i16);
+                        } else if !self.strict {
+                            is_valid = false;
+                        }
+                    }
+                },
+                b"BYSETPOS" => {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
+                        token_end = token.end;
+                        if let Ok(value) = value {
+                            rrule.bysetpos.push(value.0 as i16);
+                        } else if !self.strict {
+                            is_valid = false;
+                        }
+                    }
+                },
+                b"WKST" => {
+                    while let Some(value) = self.parse_value_until_lf::<ICalendarWeekday>(StopChar::Semicolon, &mut last_stop_char) {
+                        token_end = token.end;
+                        if let Ok(value) = value {
+                            rrule.wkst = Some(value);
+                        } else if !self.strict {
+                            is_valid = false;
+                        }
+                    }
+                },
+                _ => {
+                    if !self.strict {
+                        // Ignore unknown tokens
+                        while let Some(token) = self.token_until_lf(&mut last_stop_char) {
+                            token_end = token.end;
+                            if token.stop_char == StopChar::Semicolon{
+                                break;
+                            }
+                        }
+                    } else {
+                        is_valid = false;
+                    }
+                }
+            );
+        }
+
+        if has_freq {
+            Ok(rrule)
+        } else if token_start != usize::MAX {
+            Err(self
+                .input
+                .get(token_start..=token_end)
+                .map(|slice| String::from_utf8_lossy(slice).into_owned())
+                .unwrap_or_default())
+        } else {
+            Err("".to_string())
+        }
+    }
+}
+
+impl Token<'_> {
+    pub(crate) fn into_ical_date(self) -> std::result::Result<PartialDateTime, String> {
+        let mut dt = PartialDateTime::default();
+        if dt.parse_ical_date(&mut self.text.iter().peekable()) {
+            Ok(dt)
+        } else {
+            Err(self.into_string())
+        }
+    }
+
+    pub(crate) fn into_ical_time(self) -> std::result::Result<PartialDateTime, String> {
+        let mut dt = PartialDateTime::default();
+        if dt.parse_ical_time(&mut self.text.iter().peekable()) {
+            Ok(dt)
+        } else {
+            Err(self.into_string())
+        }
+    }
+}
+
+impl PartialDateTime {
+    fn parse_ical_date(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+        parse_digits(iter, &mut self.year, 4, false)
+            && parse_digits(iter, &mut self.month, 2, false)
+            && parse_digits(iter, &mut self.day, 2, false)
+    }
+
+    fn parse_ical_time(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+        if parse_digits(iter, &mut self.hour, 2, false)
+            && parse_digits(iter, &mut self.minute, 2, false)
+            && parse_digits(iter, &mut self.second, 2, false)
+        {
+            self.parse_zone(iter);
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl TryFrom<&[u8]> for ICalendarPeriod {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let mut iter = value.iter().peekable();
+        let mut start = PartialDateTime::default();
+        if start.parse_timestamp(&mut iter) {
+            if let Some(duration) = ICalendarDuration::try_parse(&mut iter) {
+                Ok(ICalendarPeriod::Duration {
+                    start: start.to_timestamp().unwrap_or_default(),
+                    duration,
+                })
+            } else {
+                let mut end = PartialDateTime::default();
+                if end.parse_timestamp(&mut iter) {
+                    Ok(ICalendarPeriod::Range {
+                        start: start.to_timestamp().unwrap_or_default(),
+                        end: end.to_timestamp().unwrap_or_default(),
+                    })
+                } else {
+                    Err(())
+                }
+            }
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl ICalendarDuration {
+    fn try_parse(iter: &mut Peekable<Iter<u8>>) -> Option<Self> {
+        let mut dur = ICalendarDuration::default();
+        loop {
+            match iter.peek() {
+                Some(b'P' | b'p') => {
+                    iter.next();
+                    break;
+                }
+                Some(b'+') => {
+                    iter.next();
+                }
+                Some(b'-') if !dur.neg => {
+                    iter.next();
+                    dur.neg = true;
+                }
+                Some(b' ' | b'\t') => {
+                    iter.next();
+                }
+                _ => {
+                    return None;
+                }
+            }
+        }
+
+        let mut num: u32 = 0;
+        for ch in iter {
+            match ch {
+                b'0'..=b'9' => {
+                    num = num.saturating_mul(10).saturating_add((ch - b'0') as u32);
+                }
+                b'T' | b't' => {}
+                b'W' | b'w' => {
+                    dur.weeks = num;
+                    num = 0;
+                }
+                b'D' | b'd' => {
+                    dur.days = num;
+                    num = 0;
+                }
+                b'H' | b'h' => {
+                    dur.hours = num;
+                    num = 0;
+                }
+                b'M' | b'm' => {
+                    dur.minutes = num;
+                    num = 0;
+                }
+                b'S' | b's' => {
+                    dur.seconds = num;
+                    num = 0;
+                }
+                _ => {
+                    if !ch.is_ascii_whitespace() {
+                        return None;
+                    }
+                }
+            }
+        }
+
+        if !dur.is_empty() {
+            Some(dur)
+        } else {
+            None
+        }
+    }
 }
 
 impl TryFrom<&[u8]> for ICalendarDuration {
     type Error = ();
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        todo!()
+        if let Some(duration) = ICalendarDuration::try_parse(&mut value.iter().peekable()) {
+            Ok(duration)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl ICalendarDuration {
+    pub fn is_empty(&self) -> bool {
+        self.weeks == 0
+            && self.days == 0
+            && self.hours == 0
+            && self.minutes == 0
+            && self.seconds == 0
     }
 }
 
@@ -241,538 +930,3 @@ impl From<Token<'_>> for Uri {
             .unwrap_or_else(Uri::Location)
     }
 }
-
-/*
-pub(crate) trait VecMap<K, V> {
-    fn insert(&mut self, key: K, value: V);
-    fn insert_unique(&mut self, key: K, value: V);
-    fn get_mut_or_default(&mut self, key: K) -> &mut V
-    where
-        V: Default;
-}
-
-impl<K: PartialEq, V> VecMap<K, V> for Vec<(K, V)> {
-    fn insert(&mut self, key: K, value: V) {
-        self.push((key, value));
-    }
-
-    fn insert_unique(&mut self, key: K, value: V) {
-        if !self.iter().any(|(k, _)| k == &key) {
-            self.push((key, value));
-        }
-    }
-
-    fn get_mut_or_default(&mut self, key: K) -> &mut V
-    where
-        V: Default,
-    {
-        if let Some(idx) = self.iter().position(|(k, _)| k == &key) {
-            &mut self[idx].1
-        } else {
-            self.push((key, V::default()));
-            &mut self.last_mut().unwrap().1
-        }
-    }
-}
-
-
-#[cfg(test)]
-#[allow(clippy::too_many_lines)]
-mod test {
-    use crate::{unfold_lines, ContentLine, Parser};
-    use alloc::borrow::Cow;
-
-    #[test]
-    fn test_complete_example() {
-        let data = [
-            "BEGIN:VCALENDAR",
-            "VERSION:2.0",
-            "PRODID:nl.whynothugo.todoman",
-            "BEGIN:VTODO",
-            "DTSTAMP:20231126T095923Z",
-            "DUE;TZID=Asia/Shanghai:20231128T090000",
-            "SUMMARY:dummy todo for parser tests",
-            "UID:565f48cb5b424815a2ba5e56555e2832@destiny.whynothugo.nl",
-            "END:VTODO",
-            "END:VCALENDAR",
-            // Note: this calendar is not entirely semantically valid;
-            // it is missing the timezone which is referred to in DUE.
-        ]
-        .join("\r\n");
-
-        let mut parser = Parser::new(&data);
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "BEGIN:VCALENDAR",
-                name: "BEGIN",
-                params: "",
-                value: "VCALENDAR"
-            })
-        );
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "VERSION:2.0",
-                name: "VERSION",
-                params: "",
-                value: "2.0",
-            })
-        );
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "PRODID:nl.whynothugo.todoman",
-                name: "PRODID",
-                params: "",
-                value: "nl.whynothugo.todoman",
-            })
-        );
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "BEGIN:VTODO",
-                name: "BEGIN",
-                params: "",
-                value: "VTODO",
-            })
-        );
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "DTSTAMP:20231126T095923Z",
-                name: "DTSTAMP",
-                params: "",
-                value: "20231126T095923Z",
-            })
-        );
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "DUE;TZID=Asia/Shanghai:20231128T090000",
-                name: "DUE",
-                params: "TZID=Asia/Shanghai",
-                value: "20231128T090000",
-            })
-        );
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "SUMMARY:dummy todo for parser tests",
-                name: "SUMMARY",
-                params: "",
-                value: "dummy todo for parser tests",
-            })
-        );
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "UID:565f48cb5b424815a2ba5e56555e2832@destiny.whynothugo.nl",
-                name: "UID",
-                params: "",
-                value: "565f48cb5b424815a2ba5e56555e2832@destiny.whynothugo.nl",
-            })
-        );
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "END:VTODO",
-                name: "END",
-                params: "",
-                value: "VTODO",
-            })
-        );
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "END:VCALENDAR",
-                name: "END",
-                params: "",
-                value: "VCALENDAR",
-            })
-        );
-        assert_eq!(parser.next(), None);
-    }
-
-    #[test]
-    fn test_empty_data() {
-        let data = "";
-        let mut parser = Parser::new(data);
-        assert_eq!(parser.next(), None);
-    }
-
-    #[test]
-    fn test_empty_lines() {
-        // A line followed by CRLF is a different code-path than a line followed by EOF.
-        let data = "\r\n";
-        let mut parser = Parser::new(data);
-        let line = parser.next().unwrap();
-        assert_eq!(
-            line,
-            ContentLine {
-                raw: "",
-                name: "",
-                params: "",
-                value: "",
-            }
-        );
-        assert_eq!(line.raw(), "");
-        assert_eq!(line.name(), "");
-        assert_eq!(line.params(), "");
-        assert_eq!(line.value(), "");
-        // FIXME: trailing empty lines are swallowed.
-        // assert_eq!(
-        //     parser.next(),
-        //     Some(ContentLine {
-        //         raw: "",
-        //         name: "",
-        //         params: "",
-        //         value: "",
-        //     })
-        // );
-        assert_eq!(parser.next(), None);
-    }
-
-    #[test]
-    fn test_line_with_params() {
-        // A line with ending in CRLF is a different code-path than a line in EOF.
-        let data = [
-            "DTSTART;TZID=America/New_York:19970902T090000",
-            "DTSTART;TZID=America/New_York:19970902T090000",
-        ]
-        .join("\r\n");
-        let mut parser = Parser::new(&data);
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "DTSTART;TZID=America/New_York:19970902T090000",
-                name: "DTSTART",
-                params: "TZID=America/New_York",
-                value: "19970902T090000",
-            })
-        );
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "DTSTART;TZID=America/New_York:19970902T090000",
-                name: "DTSTART",
-                params: "TZID=America/New_York",
-                value: "19970902T090000",
-            })
-        );
-        assert_eq!(parser.next(), None);
-    }
-
-    #[test]
-    fn test_line_with_dquote() {
-        // A line with ending in CRLF is a different code-path than a line in EOF.
-        let data = [
-            "SUMMARY:This has \"some quotes\"",
-            "DTSTART;TZID=\"local;VALUE=DATE-TIME\":20150304T184500",
-        ]
-        .join("\r\n");
-        let mut parser = Parser::new(&data);
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "SUMMARY:This has \"some quotes\"",
-                name: "SUMMARY",
-                params: "",
-                value: "This has \"some quotes\"",
-            })
-        );
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "DTSTART;TZID=\"local;VALUE=DATE-TIME\":20150304T184500",
-                name: "DTSTART",
-                params: "TZID=\"local;VALUE=DATE-TIME\"",
-                value: "20150304T184500",
-            })
-        );
-        assert_eq!(parser.next(), None);
-    }
-
-    #[test]
-    fn test_continuation_line() {
-        // A line with ending in CRLF is a different code-path than a line in EOF.
-        let data = [
-            "X-JMAP-LOCATION;VALUE=TEXT;X-JMAP-GEO=\"geo:52.123456,4.123456\";",
-            " X-JMAP-ID=03453afa-71fc-4893-ba70-a7436bb6d56c:Name of place",
-            "X-JMAP-LOCATION;VALUE=TEXT;X-JMAP-GEO=\"geo:52.123456,4.123456\";",
-            " X-JMAP-ID=03453afa-71fc-4893-ba70-a7436bb6d56c:Name of place",
-        ]
-        .join("\r\n");
-        let mut parser = Parser::new(&data);
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: &[
-                    "X-JMAP-LOCATION;VALUE=TEXT;X-JMAP-GEO=\"geo:52.123456,4.123456\";",
-                    " X-JMAP-ID=03453afa-71fc-4893-ba70-a7436bb6d56c:Name of place",
-                ]
-                .join("\r\n"),
-                name: "X-JMAP-LOCATION",
-                params: "VALUE=TEXT;X-JMAP-GEO=\"geo:52.123456,4.123456\";\r\n X-JMAP-ID=03453afa-71fc-4893-ba70-a7436bb6d56c",
-                value: "Name of place",
-            })
-        );
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: &[
-                    "X-JMAP-LOCATION;VALUE=TEXT;X-JMAP-GEO=\"geo:52.123456,4.123456\";",
-                    " X-JMAP-ID=03453afa-71fc-4893-ba70-a7436bb6d56c:Name of place",
-                ]
-                .join("\r\n"),
-                name: "X-JMAP-LOCATION",
-                params: "VALUE=TEXT;X-JMAP-GEO=\"geo:52.123456,4.123456\";\r\n X-JMAP-ID=03453afa-71fc-4893-ba70-a7436bb6d56c",
-                value: "Name of place",
-            })
-        );
-        assert_eq!(parser.next(), None);
-    }
-
-    #[test]
-    fn test_invalid_lone_name() {
-        let data = "BEGIN";
-        let mut parser = Parser::new(data);
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "BEGIN",
-                name: "BEGIN",
-                params: "",
-                value: "",
-            })
-        );
-        assert_eq!(parser.next(), None);
-    }
-
-    #[test]
-    fn test_invalid_name_with_params() {
-        let data = "DTSTART;TZID=America/New_York";
-        let mut parser = Parser::new(data);
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "DTSTART;TZID=America/New_York",
-                name: "DTSTART",
-                params: "TZID=America/New_York",
-                value: "",
-            })
-        );
-        assert_eq!(parser.next(), None);
-    }
-
-    #[test]
-    fn test_invalid_name_with_trailing_semicolon() {
-        let data = "DTSTART;";
-        let mut parser = Parser::new(data);
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "DTSTART;",
-                name: "DTSTART",
-                params: "",
-                value: "",
-            })
-        );
-        assert_eq!(parser.next(), None);
-    }
-
-    #[test]
-    fn test_invalid_name_with_trailing_colon() {
-        let data = "DTSTART:";
-        let mut parser = Parser::new(data);
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "DTSTART:",
-                name: "DTSTART",
-                params: "",
-                value: "",
-            })
-        );
-        assert_eq!(parser.next(), None);
-    }
-
-    #[test]
-    fn test_remainder() {
-        let data = ["BEGIN:VTODO", "SUMMARY:Do the thing"].join("\r\n");
-        let mut parser = Parser::new(&data);
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "BEGIN:VTODO",
-                name: "BEGIN",
-                params: "",
-                value: "VTODO",
-            })
-        );
-        assert_eq!(parser.remainder(), "SUMMARY:Do the thing");
-        assert_eq!(
-            parser.next(),
-            Some(ContentLine {
-                raw: "SUMMARY:Do the thing",
-                name: "SUMMARY",
-                params: "",
-                value: "Do the thing",
-            })
-        );
-        assert_eq!(parser.next(), None);
-    }
-
-    #[test]
-    fn test_fold_multiline() {
-        assert_eq!(
-            unfold_lines("UID:horrible-\r\n example"),
-            "UID:horrible-example"
-        );
-        assert_eq!(unfold_lines("UID:X\r\n Y"), "UID:XY");
-        assert_eq!(unfold_lines("UID:X\r\n "), "UID:X");
-        assert_eq!(
-            unfold_lines("UID:quite\r\n a\r\n few\r\n lines"),
-            "UID:quiteafewlines"
-        );
-    }
-
-    #[test]
-    #[should_panic(expected = "continuation line is not a continuation line")]
-    fn test_fold_multiline_missing_whitespace() {
-        unfold_lines("UID:two\r\nlines");
-    }
-
-    #[test]
-    fn test_normalise_folds_short() {
-        let data = "SUMMARY:Hello there";
-        let mut parser = Parser::new(data);
-        let line = parser.next().unwrap();
-        assert_eq!(parser.next(), None);
-
-        assert_eq!(line.normalise_folds(), data);
-        assert!(matches!(line.normalise_folds(), Cow::Borrowed(_)));
-    }
-
-    #[test]
-    fn test_normalise_folds_with_carrige_returns() {
-        let data = "SUMMARY:Hello \rthere";
-        let mut parser = Parser::new(data);
-        let line = parser.next().unwrap();
-        assert_eq!(parser.next(), None);
-
-        assert_eq!(line.normalise_folds(), data);
-        assert!(matches!(line.normalise_folds(), Cow::Borrowed(_)));
-    }
-
-    #[test]
-    fn test_normalise_folds_with_newlines() {
-        let data = "SUMMARY:Hello \nthere";
-        let mut parser = Parser::new(data);
-        let line = parser.next().unwrap();
-        assert_eq!(parser.next(), None);
-
-        assert_eq!(line.normalise_folds(), data);
-        assert!(matches!(line.normalise_folds(), Cow::Borrowed(_)));
-    }
-
-    #[test]
-    fn test_normalise_folds_too_many_folds() {
-        let data = "SUMMARY:Hello \r\n \r\n there";
-        let mut parser = Parser::new(data);
-        let line = parser.next().unwrap();
-        assert_eq!(parser.next(), None);
-
-        let expected = "SUMMARY:Hello there";
-        assert_eq!(line.normalise_folds(), expected);
-    }
-
-    #[test]
-    fn test_normalise_folds_long() {
-        let data = [
-            "SUMMARY:Some really long text that nobody ",
-            " cares about, but is wrapped in two lines.",
-        ]
-        .join("\r\n");
-        let mut parser = Parser::new(&data);
-        let line = parser.next().unwrap();
-        assert_eq!(parser.next(), None);
-
-        let expected = [
-            "SUMMARY:Some really long text that nobody cares about, but is wrapped in t",
-            " wo lines.",
-        ]
-        .join("\r\n");
-        assert_eq!(line.normalise_folds(), expected);
-    }
-
-    #[test]
-    fn test_normalise_folds_multibyte() {
-        // This is 59 characters, 161 octets
-        let data = "SUMMARY:動千首看院波未假遠子到花，白六到星害，馬吃牠說衣欠去皮香收司意，青個話化汁喜視娘以男雪青土已升斤法兌。";
-        let mut parser = Parser::new(data);
-        let line = parser.next().unwrap();
-        assert_eq!(parser.next(), None);
-
-        let expected = [
-            // Keep in mind that CR counts, but LF does not.
-            "SUMMARY:動千首看院波未假遠子到花，白六到星害，馬吃牠", // 74
-            " 說衣欠去皮香收司意，青個話化汁喜視娘以男雪青土已",    // 73
-            " 升斤法兌。",                                          // 16
-        ]
-        .join("\r\n");
-        assert_eq!(line.normalise_folds(), expected);
-    }
-
-    #[test]
-    fn test_normalise_folds_multibyte_noop() {
-        // This is 59 characters, 161 octets
-        let data = [
-            // Keep in mind that CR counts, but LF does not.
-            "SUMMARY:動千首看院波未假遠子到花，白六到星害，馬吃牠", // 74
-            " 說衣欠去皮香收司意，青個話化汁喜視娘以男雪青土已",    // 73
-            " 升斤法兌。",                                          // 16
-        ]
-        .join("\r\n");
-        let mut parser = Parser::new(&data);
-        let line = parser.next().unwrap();
-        assert_eq!(parser.next(), None);
-
-        assert_eq!(line.normalise_folds(), data);
-        assert!(matches!(line.normalise_folds(), Cow::Borrowed(_)));
-    }
-
-    #[test]
-    fn test_unfold_params_with_trailing_crlf() {
-        let data = ";\r\n";
-        let mut parser = Parser::new(data);
-        let line = parser.next().unwrap();
-        assert_eq!(line.raw(), ";");
-        assert_eq!(line.name(), "");
-        assert_eq!(line.params(), "");
-        assert_eq!(line.value(), "");
-    }
-
-    #[test]
-    fn test_unfold_name_with_trailing_crlf() {
-        let data = "\r\n";
-        let mut parser = Parser::new(data);
-        let line = parser.next().unwrap();
-        assert_eq!(line.raw(), "");
-        assert_eq!(line.name(), "");
-        assert_eq!(line.params(), "");
-        assert_eq!(line.value(), "");
-    }
-
-    #[test]
-    fn test_unfold_value_with_trailing_crlf() {
-        let data = ";:\r\n";
-        let mut parser = Parser::new(data);
-        let line = parser.next().unwrap();
-        assert_eq!(line.raw(), ";:");
-        assert_eq!(line.name(), "");
-        assert_eq!(line.params(), "");
-        assert_eq!(line.value(), "");
-    }
-}
-*/
