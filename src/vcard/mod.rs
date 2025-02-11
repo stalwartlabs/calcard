@@ -277,6 +277,12 @@ impl VCardValueType {
     }
 }
 
+impl AsRef<str> for VCardValueType {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
 impl From<Token<'_>> for VCardValueType {
     fn from(token: Token<'_>) -> Self {
         hashify::tiny_map_ignore_case!(token.text.as_ref(),
@@ -335,6 +341,12 @@ impl VCardLevel {
     }
 }
 
+impl AsRef<str> for VCardLevel {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VCardPhonetic {
     Ipa,    // [RFC9554, Section 4.6]
@@ -365,6 +377,12 @@ impl VCardPhonetic {
             VCardPhonetic::Script => "SCRIPT",
             VCardPhonetic::Other(ref s) => s,
         }
+    }
+}
+
+impl AsRef<str> for VCardPhonetic {
+    fn as_ref(&self) -> &str {
+        self.as_str()
     }
 }
 
@@ -483,6 +501,12 @@ impl VCardType {
             VCardType::MainNumber => "MAIN-NUMBER",
             VCardType::Other(ref s) => s,
         }
+    }
+}
+
+impl AsRef<str> for VCardType {
+    fn as_ref(&self) -> &str {
+        self.as_str()
     }
 }
 
@@ -739,6 +763,15 @@ impl VCardProperty {
             VCardProperty::Begin | VCardProperty::End => {
                 (ValueType::Vcard(VCardValueType::Text), ValueSeparator::Skip)
             }
+        }
+    }
+}
+
+impl ValueType {
+    pub fn unwrap_vcard(self) -> VCardValueType {
+        match self {
+            ValueType::Vcard(v) => v,
+            _ => VCardValueType::Text,
         }
     }
 }

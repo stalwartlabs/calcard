@@ -11,7 +11,7 @@ use crate::{
         CalendarScale, Encoding, PartialDateTime,
     },
     icalendar::{ICalendarDay, ICalendarWeekday},
-    Parser, StopChar, Token,
+    Entry, Parser, StopChar, Token,
 };
 
 use super::*;
@@ -25,7 +25,7 @@ struct Params {
 }
 
 impl Parser<'_> {
-    pub fn icalendar(&mut self) -> ICalendar {
+    pub fn icalendar(&mut self) -> Entry {
         let mut ical = ICalendar::default();
         let mut ical_stack = Vec::new();
 
@@ -54,7 +54,11 @@ impl Parser<'_> {
                 StopChar::Colon => {}
                 StopChar::Lf => {
                     // Invalid line
-                    continue;
+                    if name.is_empty() || !self.strict {
+                        continue;
+                    } else {
+                        return Entry::InvalidLine(Token::new(name).into_string());
+                    }
                 }
                 _ => {}
             }
@@ -78,11 +82,17 @@ impl Parser<'_> {
                                     component_type,
                                     ..Default::default()
                                 };
+                            } else if self.strict {
+                                return Entry::InvalidComponentType(token.into_string());
                             }
                         }
                     }
-                    let c = "return err";
-                    continue;
+
+                    if !self.strict {
+                        continue;
+                    } else {
+                        return Entry::InvalidLine("BEGIN".to_string());
+                    }
                 }
                 Ok(ICalendarProperty::End) => {
                     if params.stop_char == StopChar::Colon {
@@ -91,19 +101,30 @@ impl Parser<'_> {
                             if let Ok(component_type) =
                                 ICalendarComponentType::try_from(token.text.as_ref())
                             {
-                                if ical.component_type == component_type {
+                                if ical.component_type == component_type || !self.strict {
                                     if let Some(mut parent) = ical_stack.pop() {
                                         parent.components.push(ical);
                                         ical = parent;
                                     } else {
                                         break;
                                     }
+                                } else {
+                                    return Entry::UnexpectedComponentEnd {
+                                        expected: ical.component_type,
+                                        found: component_type,
+                                    };
                                 }
+                            } else if self.strict {
+                                return Entry::InvalidComponentType(token.into_string());
                             }
                         }
                     }
-                    let c = "return err";
-                    continue;
+
+                    if !self.strict {
+                        continue;
+                    } else {
+                        return Entry::InvalidLine("END".to_string());
+                    }
                 }
                 Ok(name) => name,
                 Err(_) => {
@@ -340,7 +361,18 @@ impl Parser<'_> {
             ical.entries.push(entry);
         }
 
-        ical
+        if !ical_stack.is_empty() {
+            if !self.strict {
+                while let Some(mut parent) = ical_stack.pop() {
+                    parent.components.push(ical);
+                    ical = parent;
+                }
+            } else {
+                return Entry::UnterminatedComponent(ical.component_type);
+            }
+        }
+
+        Entry::ICalendar(ical)
     }
 
     fn ical_parameters(&mut self, params: &mut Params) {

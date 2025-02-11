@@ -12,7 +12,7 @@ use crate::{
         Data, Encoding,
     },
     vcard::VCardProperty,
-    Parser, Token,
+    Entry, Parser, Token,
 };
 
 use super::{
@@ -30,7 +30,7 @@ struct Params {
 }
 
 impl Parser<'_> {
-    pub fn vcard(&mut self) -> VCard {
+    pub fn vcard(&mut self) -> Entry {
         let mut vcard = VCard::default();
         let mut is_v4 = true;
 
@@ -69,7 +69,11 @@ impl Parser<'_> {
                 StopChar::Colon => {}
                 StopChar::Lf => {
                     // Invalid line
-                    continue;
+                    if name.is_empty() || !self.strict {
+                        continue;
+                    } else {
+                        return Entry::InvalidLine(Token::new(name).into_string());
+                    }
                 }
                 _ => {}
             }
@@ -296,7 +300,7 @@ impl Parser<'_> {
             vcard.entries.push(entry);
         }
 
-        vcard
+        Entry::VCard(vcard)
     }
 
     fn vcard_parameters(&mut self, params: &mut Params) {

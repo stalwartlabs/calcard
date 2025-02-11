@@ -4,6 +4,7 @@ use crate::{
 };
 
 pub mod parser;
+pub mod writer;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ICalendar {
@@ -133,6 +134,20 @@ impl TryFrom<&[u8]> for ICalendarFrequency {
     }
 }
 
+impl ICalendarFrequency {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarFrequency::Secondly => "SECONDLY",
+            ICalendarFrequency::Minutely => "MINUTELY",
+            ICalendarFrequency::Hourly => "HOURLY",
+            ICalendarFrequency::Daily => "DAILY",
+            ICalendarFrequency::Weekly => "WEEKLY",
+            ICalendarFrequency::Monthly => "MONTHLY",
+            ICalendarFrequency::Yearly => "YEARLY",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ICalendarWeekday {
     Sunday,
@@ -158,6 +173,20 @@ impl TryFrom<&[u8]> for ICalendarWeekday {
             b"SA" => ICalendarWeekday::Saturday,
         )
         .ok_or(())
+    }
+}
+
+impl ICalendarWeekday {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarWeekday::Sunday => "SU",
+            ICalendarWeekday::Monday => "MO",
+            ICalendarWeekday::Tuesday => "TU",
+            ICalendarWeekday::Wednesday => "WE",
+            ICalendarWeekday::Thursday => "TH",
+            ICalendarWeekday::Friday => "FR",
+            ICalendarWeekday::Saturday => "SA",
+        }
     }
 }
 
@@ -194,6 +223,18 @@ impl From<Token<'_>> for ICalendarAction {
     }
 }
 
+impl ICalendarAction {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarAction::Audio => "AUDIO",
+            ICalendarAction::Display => "DISPLAY",
+            ICalendarAction::Email => "EMAIL",
+            ICalendarAction::Procedure => "PROCEDURE",
+            ICalendarAction::Other(value) => value,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarUserTypes {
     Individual, // [RFC5545, Section 3.2.3]
@@ -217,6 +258,19 @@ impl From<Token<'_>> for ICalendarUserTypes {
     }
 }
 
+impl ICalendarUserTypes {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarUserTypes::Individual => "INDIVIDUAL",
+            ICalendarUserTypes::Group => "GROUP",
+            ICalendarUserTypes::Resource => "RESOURCE",
+            ICalendarUserTypes::Room => "ROOM",
+            ICalendarUserTypes::Unknown => "UNKNOWN",
+            ICalendarUserTypes::Other(value) => value,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarClassification {
     Public,       // [RFC5545, Section 3.8.1.3]
@@ -233,6 +287,17 @@ impl From<Token<'_>> for ICalendarClassification {
             "CONFIDENTIAL" => ICalendarClassification::Confidential,
         )
         .unwrap_or_else(|| Self::Other(token.into_string()))
+    }
+}
+
+impl ICalendarClassification {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarClassification::Public => "PUBLIC",
+            ICalendarClassification::Private => "PRIVATE",
+            ICalendarClassification::Confidential => "CONFIDENTIAL",
+            ICalendarClassification::Other(value) => value,
+        }
     }
 }
 
@@ -279,6 +344,27 @@ impl TryFrom<&[u8]> for ICalendarComponentType {
     }
 }
 
+impl ICalendarComponentType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarComponentType::VCalendar => "VCALENDAR",
+            ICalendarComponentType::VEvent => "VEVENT",
+            ICalendarComponentType::VTodo => "VTODO",
+            ICalendarComponentType::VJournal => "VJOURNAL",
+            ICalendarComponentType::VFreebusy => "VFREEBUSY",
+            ICalendarComponentType::VTimezone => "VTIMEZONE",
+            ICalendarComponentType::VAlarm => "VALARM",
+            ICalendarComponentType::Standard => "STANDARD",
+            ICalendarComponentType::Daylight => "DAYLIGHT",
+            ICalendarComponentType::VAvailability => "VAVAILABILITY",
+            ICalendarComponentType::Available => "AVAILABLE",
+            ICalendarComponentType::Participant => "PARTICIPANT",
+            ICalendarComponentType::VLocation => "VLOCATION",
+            ICalendarComponentType::VResource => "VRESOURCE",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarDisplayType {
     Badge,     // [RFC7986, Section 6.1]
@@ -299,6 +385,19 @@ impl From<Token<'_>> for ICalendarDisplayType {
         .unwrap_or_else(|| Self::Other(token.into_string()))
     }
 }
+
+impl ICalendarDisplayType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarDisplayType::Badge => "BADGE",
+            ICalendarDisplayType::Graphic => "GRAPHIC",
+            ICalendarDisplayType::Fullsize => "FULLSIZE",
+            ICalendarDisplayType::Thumbnail => "THUMBNAIL",
+            ICalendarDisplayType::Other(value) => value,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarFeatureType {
     Audio,     // [RFC7986, Section 6.3]
@@ -326,6 +425,21 @@ impl From<Token<'_>> for ICalendarFeatureType {
     }
 }
 
+impl ICalendarFeatureType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarFeatureType::Audio => "AUDIO",
+            ICalendarFeatureType::Chat => "CHAT",
+            ICalendarFeatureType::Feed => "FEED",
+            ICalendarFeatureType::Moderator => "MODERATOR",
+            ICalendarFeatureType::Phone => "PHONE",
+            ICalendarFeatureType::Screen => "SCREEN",
+            ICalendarFeatureType::Video => "VIDEO",
+            ICalendarFeatureType::Other(value) => value,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarFreeBusyType {
     Free,            // [RFC5545, Section 3.2.9]
@@ -344,6 +458,18 @@ impl From<Token<'_>> for ICalendarFreeBusyType {
             "BUSY-TENTATIVE" => ICalendarFreeBusyType::BusyTentative,
         )
         .unwrap_or_else(|| Self::Other(token.into_string()))
+    }
+}
+
+impl ICalendarFreeBusyType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarFreeBusyType::Free => "FREE",
+            ICalendarFreeBusyType::Busy => "BUSY",
+            ICalendarFreeBusyType::BusyUnavailable => "BUSY-UNAVAILABLE",
+            ICalendarFreeBusyType::BusyTentative => "BUSY-TENTATIVE",
+            ICalendarFreeBusyType::Other(value) => value,
+        }
     }
 }
 
@@ -373,6 +499,22 @@ impl From<Token<'_>> for ICalendarMethod {
             "DECLINECOUNTER" => ICalendarMethod::Declinecounter,
         )
         .unwrap_or_else(|| Self::Other(token.into_string()))
+    }
+}
+
+impl ICalendarMethod {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarMethod::Publish => "PUBLISH",
+            ICalendarMethod::Request => "REQUEST",
+            ICalendarMethod::Reply => "REPLY",
+            ICalendarMethod::Add => "ADD",
+            ICalendarMethod::Cancel => "CANCEL",
+            ICalendarMethod::Refresh => "REFRESH",
+            ICalendarMethod::Counter => "COUNTER",
+            ICalendarMethod::Declinecounter => "DECLINECOUNTER",
+            ICalendarMethod::Other(value) => value,
+        }
     }
 }
 
@@ -449,6 +591,15 @@ impl TryFrom<&[u8]> for Related {
     }
 }
 
+impl Related {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Related::Start => "START",
+            Related::End => "END",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarParticipantType {
     Active,           // [RFC9073, Section 6.2]
@@ -482,6 +633,24 @@ impl From<Token<'_>> for ICalendarParticipantType {
     }
 }
 
+impl ICalendarParticipantType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarParticipantType::Active => "ACTIVE",
+            ICalendarParticipantType::Inactive => "INACTIVE",
+            ICalendarParticipantType::Sponsor => "SPONSOR",
+            ICalendarParticipantType::Contact => "CONTACT",
+            ICalendarParticipantType::BookingContact => "BOOKING-CONTACT",
+            ICalendarParticipantType::EmergencyContact => "EMERGENCY-CONTACT",
+            ICalendarParticipantType::PublicityContact => "PUBLICITY-CONTACT",
+            ICalendarParticipantType::PlannerContact => "PLANNER-CONTACT",
+            ICalendarParticipantType::Performer => "PERFORMER",
+            ICalendarParticipantType::Speaker => "SPEAKER",
+            ICalendarParticipantType::Other(value) => value,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarParticipationRole {
     Chair,          // [RFC5545, Section 3.2.16]
@@ -500,6 +669,18 @@ impl From<Token<'_>> for ICalendarParticipationRole {
             "NON-PARTICIPANT" => ICalendarParticipationRole::NonParticipant,
         )
         .unwrap_or_else(|| Self::Other(token.into_string()))
+    }
+}
+
+impl ICalendarParticipationRole {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarParticipationRole::Chair => "CHAIR",
+            ICalendarParticipationRole::ReqParticipant => "REQ-PARTICIPANT",
+            ICalendarParticipationRole::OptParticipant => "OPT-PARTICIPANT",
+            ICalendarParticipationRole::NonParticipant => "NON-PARTICIPANT",
+            ICalendarParticipationRole::Other(value) => value,
+        }
     }
 }
 
@@ -527,6 +708,21 @@ impl From<Token<'_>> for ICalendarParticipationStatus {
             "IN-PROCESS" => ICalendarParticipationStatus::InProcess,
         )
         .unwrap_or_else(|| Self::Other(token.into_string()))
+    }
+}
+
+impl ICalendarParticipationStatus {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarParticipationStatus::NeedsAction => "NEEDS-ACTION",
+            ICalendarParticipationStatus::Accepted => "ACCEPTED",
+            ICalendarParticipationStatus::Declined => "DECLINED",
+            ICalendarParticipationStatus::Tentative => "TENTATIVE",
+            ICalendarParticipationStatus::Delegated => "DELEGATED",
+            ICalendarParticipationStatus::Completed => "COMPLETED",
+            ICalendarParticipationStatus::InProcess => "IN-PROCESS",
+            ICalendarParticipationStatus::Other(value) => value,
+        }
     }
 }
 
@@ -684,6 +880,84 @@ impl TryFrom<&[u8]> for ICalendarProperty {
     }
 }
 
+impl ICalendarProperty {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarProperty::Calscale => "CALSCALE",
+            ICalendarProperty::Method => "METHOD",
+            ICalendarProperty::Prodid => "PRODID",
+            ICalendarProperty::Version => "VERSION",
+            ICalendarProperty::Attach => "ATTACH",
+            ICalendarProperty::Categories => "CATEGORIES",
+            ICalendarProperty::Class => "CLASS",
+            ICalendarProperty::Comment => "COMMENT",
+            ICalendarProperty::Description => "DESCRIPTION",
+            ICalendarProperty::Geo => "GEO",
+            ICalendarProperty::Location => "LOCATION",
+            ICalendarProperty::PercentComplete => "PERCENT-COMPLETE",
+            ICalendarProperty::Priority => "PRIORITY",
+            ICalendarProperty::Resources => "RESOURCES",
+            ICalendarProperty::Status => "STATUS",
+            ICalendarProperty::Summary => "SUMMARY",
+            ICalendarProperty::Completed => "COMPLETED",
+            ICalendarProperty::Dtend => "DTEND",
+            ICalendarProperty::Due => "DUE",
+            ICalendarProperty::Dtstart => "DTSTART",
+            ICalendarProperty::Duration => "DURATION",
+            ICalendarProperty::Freebusy => "FREEBUSY",
+            ICalendarProperty::Transp => "TRANSP",
+            ICalendarProperty::Tzid => "TZID",
+            ICalendarProperty::Tzname => "TZNAME",
+            ICalendarProperty::Tzoffsetfrom => "TZOFFSETFROM",
+            ICalendarProperty::Tzoffsetto => "TZOFFSETTO",
+            ICalendarProperty::Tzurl => "TZURL",
+            ICalendarProperty::Attendee => "ATTENDEE",
+            ICalendarProperty::Contact => "CONTACT",
+            ICalendarProperty::Organizer => "ORGANIZER",
+            ICalendarProperty::RecurrenceId => "RECURRENCE-ID",
+            ICalendarProperty::RelatedTo => "RELATED-TO",
+            ICalendarProperty::Url => "URL",
+            ICalendarProperty::Uid => "UID",
+            ICalendarProperty::Exdate => "EXDATE",
+            ICalendarProperty::Exrule => "EXRULE",
+            ICalendarProperty::Rdate => "RDATE",
+            ICalendarProperty::Rrule => "RRULE",
+            ICalendarProperty::Action => "ACTION",
+            ICalendarProperty::Repeat => "REPEAT",
+            ICalendarProperty::Trigger => "TRIGGER",
+            ICalendarProperty::Created => "CREATED",
+            ICalendarProperty::Dtstamp => "DTSTAMP",
+            ICalendarProperty::LastModified => "LAST-MODIFIED",
+            ICalendarProperty::Sequence => "SEQUENCE",
+            ICalendarProperty::RequestStatus => "REQUEST-STATUS",
+            ICalendarProperty::Xml => "XML",
+            ICalendarProperty::Tzuntil => "TZUNTIL",
+            ICalendarProperty::TzidAliasOf => "TZID-ALIAS-OF",
+            ICalendarProperty::Busytype => "BUSYTYPE",
+            ICalendarProperty::Name => "NAME",
+            ICalendarProperty::RefreshInterval => "REFRESH-INTERVAL",
+            ICalendarProperty::Source => "SOURCE",
+            ICalendarProperty::Color => "COLOR",
+            ICalendarProperty::Image => "IMAGE",
+            ICalendarProperty::Conference => "CONFERENCE",
+            ICalendarProperty::CalendarAddress => "CALENDAR-ADDRESS",
+            ICalendarProperty::LocationType => "LOCATION-TYPE",
+            ICalendarProperty::ParticipantType => "PARTICIPANT-TYPE",
+            ICalendarProperty::ResourceType => "RESOURCE-TYPE",
+            ICalendarProperty::StructuredData => "STRUCTURED-DATA",
+            ICalendarProperty::StyledDescription => "STYLED-DESCRIPTION",
+            ICalendarProperty::Acknowledged => "ACKNOWLEDGED",
+            ICalendarProperty::Proximity => "PROXIMITY",
+            ICalendarProperty::Concept => "CONCEPT",
+            ICalendarProperty::Link => "LINK",
+            ICalendarProperty::Refid => "REFID",
+            ICalendarProperty::Begin => "BEGIN",
+            ICalendarProperty::End => "END",
+            ICalendarProperty::Other(value) => value,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarProximityValue {
     Arrive,     // [RFC9074, Section 8.1]
@@ -702,6 +976,18 @@ impl From<Token<'_>> for ICalendarProximityValue {
             "DISCONNECT" => ICalendarProximityValue::Disconnect,
         )
         .unwrap_or_else(|| Self::Other(token.into_string()))
+    }
+}
+
+impl ICalendarProximityValue {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarProximityValue::Arrive => "ARRIVE",
+            ICalendarProximityValue::Depart => "DEPART",
+            ICalendarProximityValue::Connect => "CONNECT",
+            ICalendarProximityValue::Disconnect => "DISCONNECT",
+            ICalendarProximityValue::Other(value) => value,
+        }
     }
 }
 
@@ -744,6 +1030,27 @@ impl From<Token<'_>> for ICalendarRelationshipType {
     }
 }
 
+impl ICalendarRelationshipType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarRelationshipType::Child => "CHILD",
+            ICalendarRelationshipType::Parent => "PARENT",
+            ICalendarRelationshipType::Sibling => "SIBLING",
+            ICalendarRelationshipType::Snooze => "SNOOZE",
+            ICalendarRelationshipType::Concept => "CONCEPT",
+            ICalendarRelationshipType::DependsOn => "DEPENDS-ON",
+            ICalendarRelationshipType::Finishtofinish => "FINISHTOFINISH",
+            ICalendarRelationshipType::Finishtostart => "FINISHTOSTART",
+            ICalendarRelationshipType::First => "FIRST",
+            ICalendarRelationshipType::Next => "NEXT",
+            ICalendarRelationshipType::Refid => "REFID",
+            ICalendarRelationshipType::Starttofinish => "STARTTOFINISH",
+            ICalendarRelationshipType::Starttostart => "STARTTOSTART",
+            ICalendarRelationshipType::Other(value) => value,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarResourceType {
     Projector,             // [RFC9073, Section 6.3]
@@ -762,6 +1069,18 @@ impl From<Token<'_>> for ICalendarResourceType {
             "REMOTE-CONFERENCE-VIDEO" => ICalendarResourceType::RemoteConferenceVideo,
         )
         .unwrap_or_else(|| Self::Other(token.into_string()))
+    }
+}
+
+impl ICalendarResourceType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarResourceType::Projector => "PROJECTOR",
+            ICalendarResourceType::Room => "ROOM",
+            ICalendarResourceType::RemoteConferenceAudio => "REMOTE-CONFERENCE-AUDIO",
+            ICalendarResourceType::RemoteConferenceVideo => "REMOTE-CONFERENCE-VIDEO",
+            ICalendarResourceType::Other(value) => value,
+        }
     }
 }
 
@@ -784,6 +1103,17 @@ impl From<Token<'_>> for ICalendarScheduleAgentValue {
     }
 }
 
+impl ICalendarScheduleAgentValue {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarScheduleAgentValue::Server => "SERVER",
+            ICalendarScheduleAgentValue::Client => "CLIENT",
+            ICalendarScheduleAgentValue::None => "NONE",
+            ICalendarScheduleAgentValue::Other(value) => value,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarScheduleForceSendValue {
     Request, // [RFC6638, Section 7.2]
@@ -798,6 +1128,16 @@ impl From<Token<'_>> for ICalendarScheduleForceSendValue {
             "REPLY" => ICalendarScheduleForceSendValue::Reply,
         )
         .unwrap_or_else(|| Self::Other(token.into_string()))
+    }
+}
+
+impl ICalendarScheduleForceSendValue {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarScheduleForceSendValue::Request => "REQUEST",
+            ICalendarScheduleForceSendValue::Reply => "REPLY",
+            ICalendarScheduleForceSendValue::Other(value) => value,
+        }
     }
 }
 
@@ -848,6 +1188,31 @@ impl From<Token<'_>> for ICalendarValueType {
     }
 }
 
+impl ICalendarValueType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarValueType::Binary => "BINARY",
+            ICalendarValueType::Boolean => "BOOLEAN",
+            ICalendarValueType::CalAddress => "CAL-ADDRESS",
+            ICalendarValueType::Date => "DATE",
+            ICalendarValueType::DateTime => "DATE-TIME",
+            ICalendarValueType::Duration => "DURATION",
+            ICalendarValueType::Float => "FLOAT",
+            ICalendarValueType::Integer => "INTEGER",
+            ICalendarValueType::Period => "PERIOD",
+            ICalendarValueType::Recur => "RECUR",
+            ICalendarValueType::Text => "TEXT",
+            ICalendarValueType::Time => "TIME",
+            ICalendarValueType::Unknown => "UNKNOWN",
+            ICalendarValueType::Uri => "URI",
+            ICalendarValueType::UtcOffset => "UTC-OFFSET",
+            ICalendarValueType::XmlReference => "XML-REFERENCE",
+            ICalendarValueType::Uid => "UID",
+            ICalendarValueType::Other(value) => value,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarTransparency {
     Opaque,
@@ -862,6 +1227,148 @@ impl From<Token<'_>> for ICalendarTransparency {
             "TRANSPARENT" => ICalendarTransparency::Transparent,
         )
         .unwrap_or_else(|| Self::Other(token.into_string()))
+    }
+}
+
+impl ICalendarTransparency {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarTransparency::Opaque => "OPAQUE",
+            ICalendarTransparency::Transparent => "TRANSPARENT",
+            ICalendarTransparency::Other(value) => value,
+        }
+    }
+}
+
+impl AsRef<str> for ICalendarFrequency {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarWeekday {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarAction {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarUserTypes {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarClassification {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarComponentType {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarDisplayType {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarFeatureType {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarFreeBusyType {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarMethod {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for Related {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarParticipantType {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarParticipationRole {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarParticipationStatus {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarProperty {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarProximityValue {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarRelationshipType {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarResourceType {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarScheduleAgentValue {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarScheduleForceSendValue {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarValueType {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarTransparency {
+    fn as_ref(&self) -> &str {
+        self.as_str()
     }
 }
 
@@ -1147,6 +1654,15 @@ impl ICalendarProperty {
                 ValueType::Ical(ICalendarValueType::Text),
                 ValueSeparator::None,
             ),
+        }
+    }
+}
+
+impl ValueType {
+    pub fn unwrap_ical(self) -> ICalendarValueType {
+        match self {
+            ValueType::Ical(value) => value,
+            _ => ICalendarValueType::Text,
         }
     }
 }

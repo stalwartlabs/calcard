@@ -2,6 +2,7 @@ use crate::Token;
 
 pub mod parser;
 pub mod tokenizer;
+pub mod writer;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PartialDateTime {
@@ -37,6 +38,12 @@ impl CalendarScale {
             CalendarScale::Ethiopic => "ETHIOPIC",
             CalendarScale::Other(ref s) => s,
         }
+    }
+}
+
+impl AsRef<str> for CalendarScale {
+    fn as_ref(&self) -> &str {
+        self.as_str()
     }
 }
 

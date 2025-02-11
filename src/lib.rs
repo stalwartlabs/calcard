@@ -4,7 +4,7 @@ use std::{
 };
 
 use common::tokenizer::{StopChar, Token};
-use icalendar::ICalendar;
+use icalendar::{ICalendar, ICalendarComponentType};
 use vcard::VCard;
 
 pub(crate) mod common;
@@ -16,6 +16,12 @@ pub enum Entry {
     VCard(VCard),
     ICalendar(ICalendar),
     InvalidLine(String),
+    InvalidComponentType(String),
+    UnexpectedComponentEnd {
+        expected: ICalendarComponentType,
+        found: ICalendarComponentType,
+    },
+    UnterminatedComponent(ICalendarComponentType),
     Eof,
 }
 
@@ -65,10 +71,10 @@ impl<'x> Parser<'x> {
                         if token.stop_char == StopChar::Lf {
                             hashify::fnc_map_ignore_case!(token.text.as_ref(),
                                 b"VCARD" => {
-                                    return Entry::VCard(self.vcard());
+                                    return self.vcard();
                                 },
                                 b"VCALENDAR" => {
-                                    return Entry::ICalendar(self.icalendar());
+                                    return self.icalendar();
                                 }
                                 _ => {
                                     return Entry::InvalidLine(token.into_string());
