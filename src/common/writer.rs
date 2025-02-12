@@ -119,7 +119,10 @@ pub(crate) fn write_param_value(
     line_len: &mut usize,
     value: &str,
 ) -> std::fmt::Result {
-    let needs_quotes = value.as_bytes().iter().any(|&ch| matches!(ch, b',' | b';'));
+    let needs_quotes = value
+        .as_bytes()
+        .iter()
+        .any(|&ch| matches!(ch, b',' | b':' | b'=' | b' ' | b';' | b'"'));
 
     if needs_quotes {
         write!(out, "\"")?;
@@ -138,6 +141,10 @@ pub(crate) fn write_param_value(
             }
             0x5C => {
                 write!(out, "\\\\")?;
+                *line_len += 2;
+            }
+            0x22 => {
+                write!(out, "\\\"")?;
                 *line_len += 2;
             }
             0x20 | 0x09 | 0x21 | 0x23..=0x7E | 0x80.. => {

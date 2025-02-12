@@ -7,7 +7,7 @@ use mail_parser::decoders::{
 
 use crate::{
     common::{
-        parser::{parse_digits, Integer, Timestamp},
+        parser::{parse_digits, Integer},
         CalendarScale, Encoding, PartialDateTime,
     },
     icalendar::{ICalendarDay, ICalendarWeekday},
@@ -25,8 +25,11 @@ struct Params {
 }
 
 impl Parser<'_> {
-    pub fn icalendar(&mut self) -> Entry {
-        let mut ical = ICalendar::default();
+    pub fn icalendar(&mut self, component_type: ICalendarComponentType) -> Entry {
+        let mut ical = ICalendar {
+            component_type,
+            ..Default::default()
+        };
         let mut ical_stack = Vec::new();
 
         loop {
@@ -190,6 +193,18 @@ impl Parser<'_> {
                 } else {
                     while let Some(mut token) = self.token() {
                         let eol = token.stop_char == StopChar::Lf;
+
+                        if token.text.is_empty()
+                            && (matches!(multi_value, ValueSeparator::None)
+                                || matches!(entry.name, ICalendarProperty::Other(_))
+                                    && entry.values.is_empty())
+                        {
+                            if eol {
+                                break;
+                            } else {
+                                continue;
+                            }
+                        }
 
                         // Decode binary parts
                         if let Some(encoding) = params.encoding {
@@ -636,7 +651,7 @@ impl Parser<'_> {
                     }
                 },
                 b"UNTIL" => {
-                    while let Some(value) = self.parse_value_until_lf::<Timestamp>(StopChar::Semicolon, &mut last_stop_char) {
+                    while let Some(value) = self.parse_value_until_lf::<ICalendarDateTime>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
                         if let Ok(value) = value {
                             rrule.until = Some(value.0);
@@ -835,6 +850,21 @@ impl PartialDateTime {
     }
 }
 
+struct ICalendarDateTime(PartialDateTime);
+
+impl TryFrom<&[u8]> for ICalendarDateTime {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let mut dt = PartialDateTime::default();
+        if dt.parse_timestamp(&mut value.iter().peekable()) {
+            Ok(ICalendarDateTime(dt))
+        } else {
+            Err(())
+        }
+    }
+}
+
 impl TryFrom<&[u8]> for ICalendarPeriod {
     type Error = ();
 
@@ -843,17 +873,11 @@ impl TryFrom<&[u8]> for ICalendarPeriod {
         let mut start = PartialDateTime::default();
         if start.parse_timestamp(&mut iter) {
             if let Some(duration) = ICalendarDuration::try_parse(&mut iter) {
-                Ok(ICalendarPeriod::Duration {
-                    start: start.to_timestamp().unwrap_or_default(),
-                    duration,
-                })
+                Ok(ICalendarPeriod::Duration { start, duration })
             } else {
                 let mut end = PartialDateTime::default();
                 if end.parse_timestamp(&mut iter) {
-                    Ok(ICalendarPeriod::Range {
-                        start: start.to_timestamp().unwrap_or_default(),
-                        end: end.to_timestamp().unwrap_or_default(),
-                    })
+                    Ok(ICalendarPeriod::Range { start, end })
                 } else {
                     Err(())
                 }

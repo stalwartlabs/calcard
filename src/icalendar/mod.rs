@@ -49,7 +49,7 @@ impl Eq for ICalendarValue {}
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ICalendarRecurrenceRule {
     freq: ICalendarFrequency,
-    until: Option<i64>,
+    until: Option<PartialDateTime>,
     count: Option<u32>,
     interval: Option<u32>,
     bysecond: Vec<u16>,
@@ -193,11 +193,11 @@ impl ICalendarWeekday {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ICalendarPeriod {
     Range {
-        start: i64,
-        end: i64,
+        start: PartialDateTime,
+        end: PartialDateTime,
     },
     Duration {
-        start: i64,
+        start: PartialDateTime,
         duration: ICalendarDuration,
     },
 }
@@ -1652,7 +1652,7 @@ impl ICalendarProperty {
             ),
             ICalendarProperty::Other(_) => (
                 ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
+                ValueSeparator::Semicolon,
             ),
         }
     }

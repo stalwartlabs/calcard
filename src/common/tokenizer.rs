@@ -107,7 +107,10 @@ impl<'x> Parser<'x> {
             match ch {
                 b' ' | b'\t' => {
                     // Ignore leading and trailing whitespace (unless in a quoted string, or in a value (!self.unquote))
-                    if in_quote || !self.unquote || buf.last().is_some_and(|lch| lch != ch) {
+                    if in_quote
+                        || (!self.unquote && !self.stop_comma)
+                        || buf.last().is_some_and(|lch| lch != ch)
+                    {
                         if offset_start == usize::MAX {
                             offset_start = idx;
                         }

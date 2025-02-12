@@ -5,7 +5,6 @@ use std::{
 
 use crate::{
     common::{
-        parser::Timestamp,
         writer::{write_bytes, write_param, write_param_value, write_params, write_value},
         PartialDateTime,
     },
@@ -221,6 +220,8 @@ impl ICalendarEntry {
             }
         }
 
+        write!(out, ":")?;
+
         let (default_type, separator) = self.name.default_types();
         let separator = if !matches!(separator, ValueSeparator::Comma) {
             ";"
@@ -252,7 +253,7 @@ impl ICalendarEntry {
                     continue;
                 }
                 ICalendarValue::Uri(v) => {
-                    write_uri(out, &mut line_len, v)?;
+                    write_uri(out, &mut line_len, v, true)?;
                     continue;
                 }
                 ICalendarValue::PartialDateTime(v) => {
@@ -315,10 +316,10 @@ pub(crate) fn write_uri_param(
     name: &str,
     value: &Uri,
 ) -> std::fmt::Result {
-    write!(out, "{}=", name)?;
-    *line_len += name.len() + 1;
-
-    write_uri(out, line_len, value)
+    write!(out, "{}=\"", name)?;
+    *line_len += name.len() + 3;
+    write_uri(out, line_len, value, false)?;
+    write!(out, "\"")
 }
 
 pub(crate) fn write_uri_params(
@@ -327,17 +328,18 @@ pub(crate) fn write_uri_params(
     name: &str,
     values: &[Uri],
 ) -> std::fmt::Result {
-    write!(out, "{}=", name)?;
+    write!(out, "{}", name)?;
     *line_len += name.len() + 1;
 
     for (pos, v) in values.iter().enumerate() {
         if pos > 0 {
-            write!(out, ",")?;
+            write!(out, ",\"")?;
         } else {
-            write!(out, "=")?;
+            write!(out, "=\"")?;
         }
-        *line_len += 1;
-        write_uri(out, line_len, v)?;
+        *line_len += 3;
+        write_uri(out, line_len, v, false)?;
+        write!(out, "\"")?;
     }
 
     Ok(())
@@ -347,6 +349,7 @@ pub(crate) fn write_uri(
     out: &mut impl Write,
     line_len: &mut usize,
     value: &Uri,
+    escape: bool,
 ) -> std::fmt::Result {
     match value {
         Uri::Data(v) => {
@@ -356,7 +359,11 @@ pub(crate) fn write_uri(
                 write!(out, "{ct};")?;
                 *line_len += ct.len() + 1;
             }
-            write!(out, "base64\\,")?;
+            if escape {
+                write!(out, "base64\\,")?;
+            } else {
+                write!(out, "base64,")?;
+            }
             *line_len += 8;
             write_bytes(out, line_len, &v.data)
         }
@@ -367,8 +374,9 @@ pub(crate) fn write_uri(
 impl Display for ICalendarRecurrenceRule {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "FREQ={}", self.freq.as_str())?;
-        if let Some(until) = self.until {
-            write!(f, ";UNTIL={}", Timestamp(until))?;
+        if let Some(until) = &self.until {
+            write!(f, ";UNTIL=")?;
+            until.format_as_ical(f, &ICalendarValueType::DateTime)?;
         }
         if let Some(count) = self.count {
             write!(f, ";COUNT={}", count)?;
@@ -478,10 +486,13 @@ impl Display for ICalendarPeriod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ICalendarPeriod::Range { start, end } => {
-                write!(f, "{}/{}", Timestamp(*start), Timestamp(*end))
+                start.format_as_ical(f, &ICalendarValueType::DateTime)?;
+                write!(f, "/")?;
+                end.format_as_ical(f, &ICalendarValueType::DateTime)
             }
             ICalendarPeriod::Duration { start, duration } => {
-                write!(f, "{}/{}", Timestamp(*start), duration)
+                start.format_as_ical(f, &ICalendarValueType::DateTime)?;
+                write!(f, "/{}", duration)
             }
         }
     }
@@ -522,7 +533,50 @@ impl PartialDateTime {
         out: &mut impl Write,
         fmt: &ICalendarValueType,
     ) -> std::fmt::Result {
-        todo!()
+        if matches!(fmt, ICalendarValueType::Date | ICalendarValueType::DateTime) {
+            write!(
+                out,
+                "{:04}{:02}{:02}",
+                self.year.unwrap_or_default(),
+                self.month.unwrap_or_default(),
+                self.day.unwrap_or_default()
+            )?;
+        }
+
+        if matches!(fmt, ICalendarValueType::DateTime) {
+            write!(out, "T")?;
+        }
+
+        if matches!(fmt, ICalendarValueType::DateTime | ICalendarValueType::Time) {
+            write!(
+                out,
+                "{:02}{:02}{:02}",
+                self.hour.unwrap_or_default(),
+                self.minute.unwrap_or_default(),
+                self.second.unwrap_or_default()
+            )?;
+
+            if matches!((self.tz_hour, self.tz_minute), (Some(0), Some(0))) {
+                write!(out, "Z")?;
+            }
+        }
+
+        if matches!(fmt, ICalendarValueType::UtcOffset) {
+            if self.tz_minus {
+                write!(out, "-")?;
+            } else {
+                write!(out, "+")?;
+            }
+
+            write!(
+                out,
+                "{:02}{:02}",
+                self.tz_hour.unwrap_or_default(),
+                self.tz_minute.unwrap_or_default(),
+            )?;
+        }
+
+        Ok(())
     }
 }
 

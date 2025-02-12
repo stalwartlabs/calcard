@@ -10,10 +10,10 @@ pub struct VCard {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VCardEntry {
-    group: Option<String>,
-    name: VCardProperty,
-    params: Vec<VCardParameter>,
-    values: Vec<VCardValue>,
+    pub group: Option<String>,
+    pub name: VCardProperty,
+    pub params: Vec<VCardParameter>,
+    pub values: Vec<VCardValue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

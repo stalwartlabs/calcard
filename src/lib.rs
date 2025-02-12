@@ -40,7 +40,8 @@ pub struct Parser<'x> {
 }
 
 impl<'x> Parser<'x> {
-    pub fn new(input: &'x [u8]) -> Self {
+    pub fn new(input: &'x str) -> Self {
+        let input = input.as_bytes();
         Self {
             input,
             iter: input.iter().enumerate().peekable(),
@@ -66,16 +67,28 @@ impl<'x> Parser<'x> {
 
         loop {
             if let Some(token) = self.token() {
-                if token.text.eq_ignore_ascii_case(b"BEGIN") && token.stop_char == StopChar::Colon {
+                if (token.text.eq_ignore_ascii_case(b"BEGIN")
+                    || token.text.eq_ignore_ascii_case("\u{feff}BEGIN".as_bytes()))
+                    && token.stop_char == StopChar::Colon
+                {
                     if let Some(token) = self.token() {
                         if token.stop_char == StopChar::Lf {
                             hashify::fnc_map_ignore_case!(token.text.as_ref(),
-                                b"VCARD" => {
-                                    return self.vcard();
-                                },
-                                b"VCALENDAR" => {
-                                    return self.icalendar();
-                                }
+                                b"VCARD" => { return self.vcard(); },
+                                b"VCALENDAR" => { return self.icalendar(ICalendarComponentType::VCalendar); },
+                                b"VEVENT" => { return self.icalendar(ICalendarComponentType::VEvent); },
+                                b"VTODO" => { return self.icalendar(ICalendarComponentType::VTodo); },
+                                b"VJOURNAL" => { return self.icalendar(ICalendarComponentType::VJournal); },
+                                b"VFREEBUSY" => { return self.icalendar(ICalendarComponentType::VFreebusy); },
+                                b"VTIMEZONE" => { return self.icalendar(ICalendarComponentType::VTimezone); },
+                                b"VALARM" => { return self.icalendar(ICalendarComponentType::VAlarm); },
+                                b"STANDARD" => { return self.icalendar(ICalendarComponentType::Standard); },
+                                b"DAYLIGHT" => { return self.icalendar(ICalendarComponentType::Daylight); },
+                                b"VAVAILABILITY" => { return self.icalendar(ICalendarComponentType::VAvailability); },
+                                b"AVAILABLE" => { return self.icalendar(ICalendarComponentType::Available); },
+                                b"PARTICIPANT" => { return self.icalendar(ICalendarComponentType::Participant); },
+                                b"VLOCATION" => { return self.icalendar(ICalendarComponentType::VLocation); },
+                                b"VRESOURCE" => { return self.icalendar(ICalendarComponentType::VResource); },
                                 _ => {
                                     return Entry::InvalidLine(token.into_string());
                                 }
@@ -102,9 +115,11 @@ impl<'x> Parser<'x> {
                 }
 
                 return Entry::InvalidLine(
-                    std::str::from_utf8(self.input.get(token_start..token_end).unwrap_or_default())
-                        .unwrap_or_default()
-                        .to_string(),
+                    std::str::from_utf8(
+                        self.input.get(token_start..=token_end).unwrap_or_default(),
+                    )
+                    .unwrap_or_default()
+                    .to_string(),
                 );
             } else {
                 return Entry::Eof;
