@@ -4,11 +4,19 @@ pub mod parser;
 pub mod writer;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct VCard {
     pub entries: Vec<VCardEntry>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct VCardEntry {
     pub group: Option<String>,
     pub name: VCardProperty,
@@ -17,6 +25,11 @@ pub struct VCardEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum VCardProperty {
     Begin,
     End,
@@ -195,6 +208,11 @@ impl VCardProperty {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum VCardValue {
     Text(String),
     Integer(i64),
@@ -210,6 +228,11 @@ pub enum VCardValue {
 impl Eq for VCardValue {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum VCardParameter {
     Language(String),           // [RFC6350, Section 5.1]
     Value(Vec<VCardValueType>), // [RFC6350, Section 5.2]
@@ -241,6 +264,11 @@ pub enum VCardParameter {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum VCardValueType {
     Boolean,       // [RFC6350, Section 4.4]
     Date,          // [RFC6350, Section 4.3.1]
@@ -304,6 +332,10 @@ impl From<Token<'_>> for VCardValueType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum VCardLevel {
     Beginner, // [RFC6715, Section 3.2]
     Average,  // [RFC6715, Section 3.2]
@@ -348,6 +380,11 @@ impl AsRef<str> for VCardLevel {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum VCardPhonetic {
     Ipa,    // [RFC9554, Section 4.6]
     Jyut,   // [RFC9554, Section 4.6]
@@ -387,6 +424,11 @@ impl AsRef<str> for VCardPhonetic {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum VCardType {
     Work,         // [RFC6350, Section 5.6]
     Home,         // [RFC6350, Section 5.6]
@@ -518,6 +560,10 @@ impl From<Token<'_>> for VCardType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum VCardGramGender {
     Animate,   // [RFC9554, Section 3.2]
     Common,    // [RFC9554, Section 3.2]
@@ -556,6 +602,10 @@ impl VCardGramGender {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum VCardSex {
     Male,
     Female,
@@ -591,6 +641,10 @@ impl VCardSex {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum VCardKind {
     Individual,  // [RFC6350, Section 6.1.4]
     Group,       // [RFC6350, Section 6.1.4]

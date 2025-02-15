@@ -7,6 +7,10 @@ pub mod parser;
 pub mod writer;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct ICalendar {
     pub component_type: ICalendarComponentType,
     pub entries: Vec<ICalendarEntry>,
@@ -14,6 +18,10 @@ pub struct ICalendar {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct ICalendarEntry {
     name: ICalendarProperty,
     params: Vec<ICalendarParameter>,
@@ -21,6 +29,11 @@ pub struct ICalendarEntry {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarValue {
     Binary(Vec<u8>),
     Boolean(bool),
@@ -47,6 +60,10 @@ pub enum ICalendarValue {
 impl Eq for ICalendarValue {}
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct ICalendarRecurrenceRule {
     freq: ICalendarFrequency,
     until: Option<PartialDateTime>,
@@ -65,6 +82,10 @@ pub struct ICalendarRecurrenceRule {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct ICalendarDay {
     pub ordwk: Option<i16>,
     pub weekday: ICalendarWeekday,
@@ -106,6 +127,10 @@ impl TryFrom<&[u8]> for ICalendarDay {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum ICalendarFrequency {
     Secondly,
     Minutely,
@@ -149,6 +174,10 @@ impl ICalendarFrequency {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum ICalendarWeekday {
     Sunday,
     Monday,
@@ -191,6 +220,11 @@ impl ICalendarWeekday {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarPeriod {
     Range {
         start: PartialDateTime,
@@ -203,6 +237,11 @@ pub enum ICalendarPeriod {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarAction {
     Audio,     // [RFC5545, Section 3.8.6.1]
     Display,   // [RFC5545, Section 3.8.6.1]
@@ -236,6 +275,11 @@ impl ICalendarAction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarUserTypes {
     Individual, // [RFC5545, Section 3.2.3]
     Group,      // [RFC5545, Section 3.2.3]
@@ -272,6 +316,11 @@ impl ICalendarUserTypes {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarClassification {
     Public,       // [RFC5545, Section 3.8.1.3]
     Private,      // [RFC5545, Section 3.8.1.3]
@@ -302,6 +351,10 @@ impl ICalendarClassification {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum ICalendarComponentType {
     #[default]
     VCalendar, // [RFC5545, Section 3.4]
@@ -366,6 +419,11 @@ impl ICalendarComponentType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarDisplayType {
     Badge,     // [RFC7986, Section 6.1]
     Graphic,   // [RFC7986, Section 6.1]
@@ -399,6 +457,11 @@ impl ICalendarDisplayType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarFeatureType {
     Audio,     // [RFC7986, Section 6.3]
     Chat,      // [RFC7986, Section 6.3]
@@ -441,6 +504,11 @@ impl ICalendarFeatureType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarFreeBusyType {
     Free,            // [RFC5545, Section 3.2.9]
     Busy,            // [RFC5545, Section 3.2.9]
@@ -474,6 +542,11 @@ impl ICalendarFreeBusyType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarMethod {
     Publish,        // [RFC5546]
     Request,        // [RFC5546]
@@ -519,6 +592,11 @@ impl ICalendarMethod {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarParameter {
     Altrep(Uri),                                        // [RFC5545, Section 3.2.1]
     Cn(String),                                         // [RFC5545, Section 3.2.2]
@@ -558,6 +636,10 @@ pub enum ICalendarParameter {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct ICalendarDuration {
     pub neg: bool,
     pub weeks: u32,
@@ -568,12 +650,21 @@ pub struct ICalendarDuration {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum Uri {
     Data(Data),
     Location(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum Related {
     Start,
     End,
@@ -601,6 +692,11 @@ impl Related {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarParticipantType {
     Active,           // [RFC9073, Section 6.2]
     Inactive,         // [RFC9073, Section 6.2]
@@ -652,6 +748,11 @@ impl ICalendarParticipantType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarParticipationRole {
     Chair,          // [RFC5545, Section 3.2.16]
     ReqParticipant, // [RFC5545, Section 3.2.16]
@@ -685,6 +786,11 @@ impl ICalendarParticipationRole {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarParticipationStatus {
     NeedsAction, // [RFC5545, Section 3.2.12]
     Accepted,    // [RFC5545, Section 3.2.12]
@@ -727,6 +833,11 @@ impl ICalendarParticipationStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarProperty {
     Calscale,          // [RFC5545, Section 3.7.1]
     Method,            // [RFC5545, Section 3.7.2]
@@ -959,6 +1070,11 @@ impl ICalendarProperty {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarProximityValue {
     Arrive,     // [RFC9074, Section 8.1]
     Depart,     // [RFC9074, Section 8.1]
@@ -992,6 +1108,11 @@ impl ICalendarProximityValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarRelationshipType {
     Child,          // [RFC5545, Section 3.2.15]
     Parent,         // [RFC5545, Section 3.2.15]
@@ -1052,6 +1173,11 @@ impl ICalendarRelationshipType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarResourceType {
     Projector,             // [RFC9073, Section 6.3]
     Room,                  // [RFC9073, Section 6.3]
@@ -1085,6 +1211,11 @@ impl ICalendarResourceType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarScheduleAgentValue {
     Server, // [RFC6638, Section 7.1]
     Client, // [RFC6638, Section 7.1]
@@ -1115,6 +1246,11 @@ impl ICalendarScheduleAgentValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarScheduleForceSendValue {
     Request, // [RFC6638, Section 7.2]
     Reply,   // [RFC6638, Section 7.2]
@@ -1142,6 +1278,11 @@ impl ICalendarScheduleForceSendValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarValueType {
     Binary,       // [RFC5545, Section 3.3.1]
     Boolean,      // [RFC5545, Section 3.3.2]
@@ -1214,6 +1355,11 @@ impl ICalendarValueType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum ICalendarTransparency {
     Opaque,
     Transparent,

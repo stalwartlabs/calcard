@@ -5,6 +5,10 @@ pub mod tokenizer;
 pub mod writer;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct PartialDateTime {
     pub year: Option<u16>,
     pub month: Option<u16>,
@@ -18,6 +22,11 @@ pub struct PartialDateTime {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum CalendarScale {
     #[default]
     Gregorian,
@@ -78,6 +87,10 @@ impl Encoding {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct Data {
     pub content_type: Option<String>,
     pub data: Vec<u8>,

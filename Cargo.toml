@@ -1,9 +1,16 @@
 [package]
-name = "dav"
+name = "ical-vcard"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 hashify = "0.2.6"
-mail-builder = { version = "0.4.0", no-default-features = true }
+mail-builder = { version = "0.4.1", no-default-features = true }
 mail-parser = "0.10.2"
+serde = { version = "1.0.217", features = ["derive"], optional = true }
+
+[features]
+serde = ["dep:serde"]
+
+[dev-dependencies]
+serde = { version = "1.0.217", features = ["derive"] }
