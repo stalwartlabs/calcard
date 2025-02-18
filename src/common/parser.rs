@@ -188,7 +188,7 @@ impl Token<'_> {
 }
 
 impl PartialDateTime {
-    pub(crate) fn parse_timestamp(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+    pub fn parse_timestamp(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
         let mut idx = 0;
         for ch in iter {
             match ch {

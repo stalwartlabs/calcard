@@ -831,13 +831,13 @@ impl Token<'_> {
 }
 
 impl PartialDateTime {
-    fn parse_ical_date(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+    pub fn parse_ical_date(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
         parse_digits(iter, &mut self.year, 4, false)
             && parse_digits(iter, &mut self.month, 2, false)
             && parse_digits(iter, &mut self.day, 2, false)
     }
 
-    fn parse_ical_time(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+    pub fn parse_ical_time(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
         if parse_digits(iter, &mut self.hour, 2, false)
             && parse_digits(iter, &mut self.minute, 2, false)
             && parse_digits(iter, &mut self.second, 2, false)
@@ -984,5 +984,47 @@ impl From<Token<'_>> for Uri {
             .into_uri_bytes()
             .map(Uri::Data)
             .unwrap_or_else(Uri::Location)
+    }
+}
+
+impl ICalendarParameterName {
+    pub fn parse(input: &str) -> Self {
+        hashify::tiny_map_ignore_case!(input.as_bytes(),
+                b"ALTREP" => ICalendarParameterName::Altrep,
+                b"CN" => ICalendarParameterName::Cn,
+                b"CUTYPE" => ICalendarParameterName::Cutype,
+                b"DELEGATED-FROM" => ICalendarParameterName::DelegatedFrom,
+                b"DELEGATED-TO" => ICalendarParameterName::DelegatedTo,
+                b"DIR" => ICalendarParameterName::Dir,
+                b"FMTTYPE" => ICalendarParameterName::Fmttype,
+                b"FBTYPE" => ICalendarParameterName::Fbtype,
+                b"LANGUAGE" => ICalendarParameterName::Language,
+                b"MEMBER" => ICalendarParameterName::Member,
+                b"PARTSTAT" => ICalendarParameterName::Partstat,
+                b"RANGE" => ICalendarParameterName::Range,
+                b"RELATED" => ICalendarParameterName::Related,
+                b"RELTYPE" => ICalendarParameterName::Reltype,
+                b"ROLE" => ICalendarParameterName::Role,
+                b"RSVP" => ICalendarParameterName::Rsvp,
+                b"SCHEDULE-AGENT" => ICalendarParameterName::ScheduleAgent,
+                b"SCHEDULE-FORCE-SEND" => ICalendarParameterName::ScheduleForceSend,
+                b"SCHEDULE-STATUS" => ICalendarParameterName::ScheduleStatus,
+                b"SENT-BY" => ICalendarParameterName::SentBy,
+                b"TZID" => ICalendarParameterName::Tzid,
+                b"VALUE" => ICalendarParameterName::Value,
+                b"DISPLAY" => ICalendarParameterName::Display,
+                b"EMAIL" => ICalendarParameterName::Email,
+                b"FEATURE" => ICalendarParameterName::Feature,
+                b"LABEL" => ICalendarParameterName::Label,
+                b"SIZE" => ICalendarParameterName::Size,
+                b"FILENAME" => ICalendarParameterName::Filename,
+                b"MANAGED-ID" => ICalendarParameterName::ManagedId,
+                b"ORDER" => ICalendarParameterName::Order,
+                b"SCHEMA" => ICalendarParameterName::Schema,
+                b"DERIVED" => ICalendarParameterName::Derived,
+                b"GAP" => ICalendarParameterName::Gap,
+                b"LINKREL" => ICalendarParameterName::Linkrel,
+        )
+        .unwrap_or_else(|| ICalendarParameterName::Other(input.to_string()))
     }
 }

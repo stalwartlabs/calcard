@@ -7,7 +7,7 @@ use common::tokenizer::{StopChar, Token};
 use icalendar::{ICalendar, ICalendarComponentType};
 use vcard::VCard;
 
-pub(crate) mod common;
+pub mod common;
 pub mod icalendar;
 pub mod vcard;
 

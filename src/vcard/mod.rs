@@ -268,6 +268,41 @@ pub enum VCardParameter {
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+pub enum VCardParameterName {
+    Language,    // [RFC6350, Section 5.1]
+    Value,       // [RFC6350, Section 5.2]
+    Pref,        // [RFC6350, Section 5.3]
+    Altid,       // [RFC6350, Section 5.4]
+    Pid,         // [RFC6350, Section 5.5]
+    Type,        // [RFC6350, Section 5.6]
+    Mediatype,   // [RFC6350, Section 5.7]
+    Calscale,    // [RFC6350, Section 5.8]
+    SortAs,      // [RFC6350, Section 5.9]
+    Geo,         // [RFC6350, Section 5.10]
+    Tz,          // [RFC6350, Section 5.11]
+    Index,       // [RFC6715, Section 3.1]
+    Level,       // [RFC6715, Section 3.2]
+    Group,       // [RFC7095, Section 8.1]
+    Cc,          // [RFC8605, Section 3.1]
+    Author,      // [RFC9554, Section 4.1]
+    AuthorName,  // [RFC9554, Section 4.2]
+    Created,     // [RFC9554, Section 4.3]
+    Derived,     // [RFC9554, Section 4.4]
+    Label,       // [RFC6350, Section 6.3.1][RFC9554, Section 4.5]
+    Phonetic,    // [RFC9554, Section 4.6]
+    PropId,      // [RFC9554, Section 4.7]
+    Script,      // [RFC9554, Section 4.8]
+    ServiceType, // [RFC9554, Section 4.9]
+    Username,    // [RFC9554, Section 4.10]
+    Jsptr,       // [RFC9555, Section 3.3.2]
+    Other(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum VCardValueType {
     Boolean,       // [RFC6350, Section 4.4]

@@ -350,7 +350,7 @@ impl ICalendarClassification {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -633,6 +633,49 @@ pub enum ICalendarParameter {
     Gap(ICalendarDuration),                             // [RFC9253, Section 6.2]
     Linkrel(Uri),                                       // [RFC9253, Section 6.1]
     Other(Vec<String>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+pub enum ICalendarParameterName {
+    Altrep,            // [RFC5545, Section 3.2.1]
+    Cn,                // [RFC5545, Section 3.2.2]
+    Cutype,            // [RFC5545, Section 3.2.3]
+    DelegatedFrom,     // [RFC5545, Section 3.2.4]
+    DelegatedTo,       // [RFC5545, Section 3.2.5]
+    Dir,               // [RFC5545, Section 3.2.6]
+    Fmttype,           // [RFC5545, Section 3.2.8]
+    Fbtype,            // [RFC5545, Section 3.2.9]
+    Language,          // [RFC5545, Section 3.2.10]
+    Member,            // [RFC5545, Section 3.2.11]
+    Partstat,          // [RFC5545, Section 3.2.12]
+    Range,             // [RFC5545, Section 3.2.13]
+    Related,           // [RFC5545, Section 3.2.14]
+    Reltype,           // [RFC5545, Section 3.2.15]
+    Role,              // [RFC5545, Section 3.2.16]
+    Rsvp,              // [RFC5545, Section 3.2.17]
+    ScheduleAgent,     // [RFC6638, Section 7.1]
+    ScheduleForceSend, // [RFC6638, Section 7.2]
+    ScheduleStatus,    // [RFC6638, Section 7.3]
+    SentBy,            // [RFC5545, Section 3.2.18]
+    Tzid,              // [RFC5545, Section 3.2.19]
+    Value,             // [RFC5545, Section 3.2.20]
+    Display,           // [RFC7986, Section 6.1]
+    Email,             // [RFC7986, Section 6.2]
+    Feature,           // [RFC7986, Section 6.3]
+    Label,             // [RFC7986, Section 6.4]
+    Size,              // [RFC8607, Section 4.1]
+    Filename,          // [RFC8607, Section 4.2]
+    ManagedId,         // [RFC8607, Section 4.3]
+    Order,             // [RFC9073, Section 5.1]
+    Schema,            // [RFC9073, Section 5.2]
+    Derived,           // [RFC9073, Section 5.3]
+    Gap,               // [RFC9253, Section 6.2]
+    Linkrel,           // [RFC9253, Section 6.1]
+    Other(String),
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
