@@ -1,4 +1,7 @@
-use crate::common::{tokenizer::Token, CalendarScale, Data, PartialDateTime};
+use crate::{
+    common::{tokenizer::Token, CalendarScale, Data, PartialDateTime},
+    Entry, Parser,
+};
 
 pub mod parser;
 pub mod writer;
@@ -8,6 +11,11 @@ pub mod writer;
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub struct VCard {
     pub entries: Vec<VCardEntry>,
 }
@@ -17,6 +25,11 @@ pub struct VCard {
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub struct VCardEntry {
     pub group: Option<String>,
     pub name: VCardProperty,
@@ -30,6 +43,11 @@ pub struct VCardEntry {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum VCardProperty {
     Begin,
     End,
@@ -213,6 +231,11 @@ impl VCardProperty {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum VCardValue {
     Text(String),
     Integer(i64),
@@ -233,6 +256,11 @@ impl Eq for VCardValue {}
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum VCardParameter {
     Language(String),           // [RFC6350, Section 5.1]
     Value(Vec<VCardValueType>), // [RFC6350, Section 5.2]
@@ -268,6 +296,11 @@ pub enum VCardParameter {
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum VCardParameterName {
     Language,    // [RFC6350, Section 5.1]
     Value,       // [RFC6350, Section 5.2]
@@ -304,6 +337,11 @@ pub enum VCardParameterName {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum VCardValueType {
     Boolean,       // [RFC6350, Section 4.4]
     Date,          // [RFC6350, Section 4.3.1]
@@ -371,6 +409,11 @@ impl From<Token<'_>> for VCardValueType {
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum VCardLevel {
     Beginner, // [RFC6715, Section 3.2]
     Average,  // [RFC6715, Section 3.2]
@@ -420,6 +463,11 @@ impl AsRef<str> for VCardLevel {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum VCardPhonetic {
     Ipa,    // [RFC9554, Section 4.6]
     Jyut,   // [RFC9554, Section 4.6]
@@ -464,6 +512,11 @@ impl AsRef<str> for VCardPhonetic {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum VCardType {
     Work,         // [RFC6350, Section 5.6]
     Home,         // [RFC6350, Section 5.6]
@@ -599,6 +652,11 @@ impl From<Token<'_>> for VCardType {
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum VCardGramGender {
     Animate,   // [RFC9554, Section 3.2]
     Common,    // [RFC9554, Section 3.2]
@@ -641,6 +699,11 @@ impl VCardGramGender {
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum VCardSex {
     Male,
     Female,
@@ -680,6 +743,11 @@ impl VCardSex {
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum VCardKind {
     Individual,  // [RFC6350, Section 6.1.4]
     Group,       // [RFC6350, Section 6.1.4]
@@ -861,6 +929,16 @@ impl ValueType {
         match self {
             ValueType::Vcard(v) => v,
             _ => VCardValueType::Text,
+        }
+    }
+}
+
+impl VCard {
+    pub fn parse(value: impl AsRef<str>) -> Result<Self, Entry> {
+        let mut parser = Parser::new(value.as_ref());
+        match parser.entry() {
+            Entry::VCard(vcard) => Ok(vcard),
+            other => Err(other),
         }
     }
 }

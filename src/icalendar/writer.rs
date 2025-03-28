@@ -19,12 +19,12 @@ use super::{
 
 impl ICalendar {
     pub fn write_to(&self, out: &mut impl Write) -> std::fmt::Result {
-        let mut component_main = Some(self);
-        let mut component_iter: Iter<'_, ICalendar> = Default::default();
+        let mut component_iter: Iter<'_, u16> = [0].iter();
         let mut component_stack = Vec::with_capacity(4);
 
         loop {
-            if let Some(component) = component_iter.next().or_else(|| component_main.take()) {
+            if let Some(component_id) = component_iter.next() {
+                let component = self.components.get(*component_id as usize).unwrap();
                 write!(out, "BEGIN:{}\r\n", component.component_type.as_str())?;
                 if matches!(component.component_type, ICalendarComponentType::VCalendar) {
                     write!(out, "VERSION:2.0\r\n")?;
@@ -41,9 +41,9 @@ impl ICalendar {
                     }
                 }
 
-                if !component.components.is_empty() {
+                if !component.component_ids.is_empty() {
                     component_stack.push((component, component_iter));
-                    component_iter = component.components.iter();
+                    component_iter = component.component_ids.iter();
                 } else {
                     write!(out, "END:{}\r\n", component.component_type.as_str())?;
                 }

@@ -1,6 +1,6 @@
 use crate::{
     common::{CalendarScale, Data, PartialDateTime},
-    Token,
+    Entry, Parser, Token,
 };
 
 pub mod parser;
@@ -11,10 +11,29 @@ pub mod writer;
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub struct ICalendar {
+    pub components: Vec<ICalendarComponent>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
+pub struct ICalendarComponent {
     pub component_type: ICalendarComponentType,
     pub entries: Vec<ICalendarEntry>,
-    pub components: Vec<ICalendar>,
+    pub component_ids: Vec<u16>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,6 +41,11 @@ pub struct ICalendar {
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub struct ICalendarEntry {
     name: ICalendarProperty,
     params: Vec<ICalendarParameter>,
@@ -34,6 +58,11 @@ pub struct ICalendarEntry {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarValue {
     Binary(Vec<u8>),
     Boolean(bool),
@@ -64,6 +93,11 @@ impl Eq for ICalendarValue {}
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub struct ICalendarRecurrenceRule {
     freq: ICalendarFrequency,
     until: Option<PartialDateTime>,
@@ -86,6 +120,11 @@ pub struct ICalendarRecurrenceRule {
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub struct ICalendarDay {
     pub ordwk: Option<i16>,
     pub weekday: ICalendarWeekday,
@@ -131,6 +170,11 @@ impl TryFrom<&[u8]> for ICalendarDay {
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarFrequency {
     Secondly,
     Minutely,
@@ -178,6 +222,11 @@ impl ICalendarFrequency {
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarWeekday {
     Sunday,
     Monday,
@@ -225,6 +274,11 @@ impl ICalendarWeekday {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarPeriod {
     Range {
         start: PartialDateTime,
@@ -242,6 +296,11 @@ pub enum ICalendarPeriod {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarAction {
     Audio,     // [RFC5545, Section 3.8.6.1]
     Display,   // [RFC5545, Section 3.8.6.1]
@@ -280,6 +339,11 @@ impl ICalendarAction {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarUserTypes {
     Individual, // [RFC5545, Section 3.2.3]
     Group,      // [RFC5545, Section 3.2.3]
@@ -321,6 +385,11 @@ impl ICalendarUserTypes {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarClassification {
     Public,       // [RFC5545, Section 3.8.1.3]
     Private,      // [RFC5545, Section 3.8.1.3]
@@ -355,6 +424,11 @@ impl ICalendarClassification {
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarComponentType {
     #[default]
     VCalendar, // [RFC5545, Section 3.4]
@@ -424,6 +498,11 @@ impl ICalendarComponentType {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarDisplayType {
     Badge,     // [RFC7986, Section 6.1]
     Graphic,   // [RFC7986, Section 6.1]
@@ -462,6 +541,11 @@ impl ICalendarDisplayType {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarFeatureType {
     Audio,     // [RFC7986, Section 6.3]
     Chat,      // [RFC7986, Section 6.3]
@@ -509,6 +593,11 @@ impl ICalendarFeatureType {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarFreeBusyType {
     Free,            // [RFC5545, Section 3.2.9]
     Busy,            // [RFC5545, Section 3.2.9]
@@ -547,6 +636,11 @@ impl ICalendarFreeBusyType {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarMethod {
     Publish,        // [RFC5546]
     Request,        // [RFC5546]
@@ -597,6 +691,11 @@ impl ICalendarMethod {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarParameter {
     Altrep(Uri),                                        // [RFC5545, Section 3.2.1]
     Cn(String),                                         // [RFC5545, Section 3.2.2]
@@ -640,6 +739,11 @@ pub enum ICalendarParameter {
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarParameterName {
     Altrep,            // [RFC5545, Section 3.2.1]
     Cn,                // [RFC5545, Section 3.2.2]
@@ -683,6 +787,11 @@ pub enum ICalendarParameterName {
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub struct ICalendarDuration {
     pub neg: bool,
     pub weeks: u32,
@@ -698,6 +807,11 @@ pub struct ICalendarDuration {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum Uri {
     Data(Data),
     Location(String),
@@ -708,6 +822,11 @@ pub enum Uri {
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum Related {
     Start,
     End,
@@ -740,6 +859,11 @@ impl Related {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarParticipantType {
     Active,           // [RFC9073, Section 6.2]
     Inactive,         // [RFC9073, Section 6.2]
@@ -796,6 +920,11 @@ impl ICalendarParticipantType {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarParticipationRole {
     Chair,          // [RFC5545, Section 3.2.16]
     ReqParticipant, // [RFC5545, Section 3.2.16]
@@ -834,6 +963,11 @@ impl ICalendarParticipationRole {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarParticipationStatus {
     NeedsAction, // [RFC5545, Section 3.2.12]
     Accepted,    // [RFC5545, Section 3.2.12]
@@ -881,6 +1015,11 @@ impl ICalendarParticipationStatus {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarProperty {
     Calscale,          // [RFC5545, Section 3.7.1]
     Method,            // [RFC5545, Section 3.7.2]
@@ -1118,6 +1257,11 @@ impl ICalendarProperty {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarProximityValue {
     Arrive,     // [RFC9074, Section 8.1]
     Depart,     // [RFC9074, Section 8.1]
@@ -1156,6 +1300,11 @@ impl ICalendarProximityValue {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarRelationshipType {
     Child,          // [RFC5545, Section 3.2.15]
     Parent,         // [RFC5545, Section 3.2.15]
@@ -1221,6 +1370,11 @@ impl ICalendarRelationshipType {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarResourceType {
     Projector,             // [RFC9073, Section 6.3]
     Room,                  // [RFC9073, Section 6.3]
@@ -1259,6 +1413,11 @@ impl ICalendarResourceType {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarScheduleAgentValue {
     Server, // [RFC6638, Section 7.1]
     Client, // [RFC6638, Section 7.1]
@@ -1294,6 +1453,11 @@ impl ICalendarScheduleAgentValue {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarScheduleForceSendValue {
     Request, // [RFC6638, Section 7.2]
     Reply,   // [RFC6638, Section 7.2]
@@ -1326,6 +1490,11 @@ impl ICalendarScheduleForceSendValue {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarValueType {
     Binary,       // [RFC5545, Section 3.3.1]
     Boolean,      // [RFC5545, Section 3.3.2]
@@ -1403,6 +1572,11 @@ impl ICalendarValueType {
     derive(serde::Serialize, serde::Deserialize)
 )]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarTransparency {
     Opaque,
     Transparent,
@@ -1852,6 +2026,16 @@ impl ValueType {
         match self {
             ValueType::Ical(value) => value,
             _ => ICalendarValueType::Text,
+        }
+    }
+}
+
+impl ICalendar {
+    pub fn parse(value: impl AsRef<str>) -> Result<Self, Entry> {
+        let mut parser = Parser::new(value.as_ref());
+        match parser.entry() {
+            Entry::ICalendar(icalendar) => Ok(icalendar),
+            other => Err(other),
         }
     }
 }

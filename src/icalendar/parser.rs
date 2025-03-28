@@ -26,11 +26,14 @@ struct Params {
 
 impl Parser<'_> {
     pub fn icalendar(&mut self, component_type: ICalendarComponentType) -> Entry {
-        let mut ical = ICalendar {
+        let mut ical_stack: Vec<usize> = Vec::new();
+        let mut ical_components = vec![ICalendarComponent {
             component_type,
             ..Default::default()
-        };
-        let mut ical_stack = Vec::new();
+        }];
+        let mut next_component_id: u16 = 1;
+        let mut ical_idx = 0;
+        let mut ical = ical_components.last_mut().unwrap();
 
         loop {
             // Fetch property name
@@ -80,11 +83,15 @@ impl Parser<'_> {
                             if let Ok(component_type) =
                                 ICalendarComponentType::try_from(token.text.as_ref())
                             {
-                                ical_stack.push(ical);
-                                ical = ICalendar {
+                                ical_stack.push(ical_idx);
+                                ical.component_ids.push(next_component_id);
+                                ical_components.push(ICalendarComponent {
                                     component_type,
                                     ..Default::default()
-                                };
+                                });
+                                ical_idx = next_component_id as usize;
+                                next_component_id += 1;
+                                ical = ical_components.last_mut().unwrap();
                             } else if self.strict {
                                 return Entry::InvalidComponentType(token.into_string());
                             }
@@ -105,9 +112,9 @@ impl Parser<'_> {
                                 ICalendarComponentType::try_from(token.text.as_ref())
                             {
                                 if ical.component_type == component_type || !self.strict {
-                                    if let Some(mut parent) = ical_stack.pop() {
-                                        parent.components.push(ical);
-                                        ical = parent;
+                                    if let Some(parent_ical_idx) = ical_stack.pop() {
+                                        ical_idx = parent_ical_idx;
+                                        ical = ical_components.get_mut(ical_idx).unwrap();
                                     } else {
                                         break;
                                     }
@@ -376,18 +383,13 @@ impl Parser<'_> {
             ical.entries.push(entry);
         }
 
-        if !ical_stack.is_empty() {
-            if !self.strict {
-                while let Some(mut parent) = ical_stack.pop() {
-                    parent.components.push(ical);
-                    ical = parent;
-                }
-            } else {
-                return Entry::UnterminatedComponent(ical.component_type);
-            }
+        if ical_stack.is_empty() || !self.strict {
+            Entry::ICalendar(ICalendar {
+                components: ical_components,
+            })
+        } else {
+            Entry::UnterminatedComponent(ical.component_type)
         }
-
-        Entry::ICalendar(ical)
     }
 
     fn ical_parameters(&mut self, params: &mut Params) {

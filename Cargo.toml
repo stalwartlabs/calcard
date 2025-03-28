@@ -1,5 +1,5 @@
 [package]
-name = "ical-vcard"
+name = "calcard"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,9 +7,12 @@ edition = "2021"
 hashify = "0.2.6"
 mail-builder = { version = "0.4.1", no-default-features = true }
 mail-parser = "0.10.2"
+rkyv = { version = "0.8.10", optional = true }
 serde = { version = "1.0.217", features = ["derive"], optional = true }
 
 [features]
+default = []
+rkyv = ["dep:rkyv"]
 serde = ["dep:serde"]
 
 [dev-dependencies]
