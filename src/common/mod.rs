@@ -66,6 +66,27 @@ impl AsRef<str> for CalendarScale {
     }
 }
 
+#[cfg(feature = "rkyv")]
+impl ArchivedCalendarScale {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ArchivedCalendarScale::Gregorian => "GREGORIAN",
+            ArchivedCalendarScale::Chinese => "CHINESE",
+            ArchivedCalendarScale::IslamicCivil => "ISLAMIC-CIVIL",
+            ArchivedCalendarScale::Hebrew => "HEBREW",
+            ArchivedCalendarScale::Ethiopic => "ETHIOPIC",
+            ArchivedCalendarScale::Other(ref s) => s,
+        }
+    }
+}
+
+#[cfg(feature = "rkyv")]
+impl AsRef<str> for ArchivedCalendarScale {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
 impl From<Token<'_>> for CalendarScale {
     fn from(token: Token<'_>) -> Self {
         hashify::tiny_map_ignore_case!(token.text.as_ref(),
