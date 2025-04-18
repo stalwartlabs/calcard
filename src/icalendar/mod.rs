@@ -4,7 +4,13 @@ use crate::{
 };
 
 pub mod parser;
+pub mod utils;
 pub mod writer;
+
+#[cfg(feature = "rkyv")]
+pub mod rkyv_types;
+#[cfg(feature = "rkyv")]
+pub mod rkyv_writer;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 #[cfg_attr(

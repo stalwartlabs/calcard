@@ -12,9 +12,8 @@ use crate::{
 };
 
 use super::{
-    ICalendar, ICalendarComponentType, ICalendarDay, ICalendarDuration, ICalendarEntry,
-    ICalendarParameter, ICalendarPeriod, ICalendarProperty, ICalendarRecurrenceRule,
-    ICalendarValueType,
+    ICalendar, ICalendarDay, ICalendarDuration, ICalendarEntry, ICalendarParameter,
+    ICalendarPeriod, ICalendarProperty, ICalendarRecurrenceRule, ICalendarValueType,
 };
 
 impl ICalendar {
@@ -26,16 +25,11 @@ impl ICalendar {
             if let Some(component_id) = component_iter.next() {
                 let component = self.components.get(*component_id as usize).unwrap();
                 write!(out, "BEGIN:{}\r\n", component.component_type.as_str())?;
-                if matches!(component.component_type, ICalendarComponentType::VCalendar) {
-                    write!(out, "VERSION:2.0\r\n")?;
-                }
 
                 for entry in &component.entries {
                     if !matches!(
                         entry.name,
-                        ICalendarProperty::Begin
-                            | ICalendarProperty::End
-                            | ICalendarProperty::Version
+                        ICalendarProperty::Begin | ICalendarProperty::End
                     ) {
                         entry.write_to(out)?;
                     }
