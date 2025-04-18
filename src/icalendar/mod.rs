@@ -10,6 +10,8 @@ pub mod writer;
 #[cfg(feature = "rkyv")]
 pub mod rkyv_types;
 #[cfg(feature = "rkyv")]
+pub mod rkyv_utils;
+#[cfg(feature = "rkyv")]
 pub mod rkyv_writer;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
