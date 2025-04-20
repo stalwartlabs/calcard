@@ -7,7 +7,7 @@ use mail_parser::decoders::{
 
 use crate::{
     common::{
-        parser::{parse_digits, Integer},
+        parser::{parse_digits, parse_small_digits, Integer},
         CalendarScale, Encoding, PartialDateTime,
     },
     icalendar::{ICalendarDay, ICalendarWeekday},
@@ -686,7 +686,7 @@ impl Parser<'_> {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
                         if let Ok(value) = value {
-                            rrule.bysecond.push(value.0.unsigned_abs() as u16);
+                            rrule.bysecond.push(value.0.unsigned_abs() as u8);
                         } else if !self.strict {
                             is_valid = false;
                         }
@@ -696,7 +696,7 @@ impl Parser<'_> {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
                         if let Ok(value) = value {
-                            rrule.byminute.push(value.0.unsigned_abs() as u16);
+                            rrule.byminute.push(value.0.unsigned_abs() as u8);
                         } else if !self.strict {
                             is_valid = false;
                         }
@@ -706,7 +706,7 @@ impl Parser<'_> {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
                         if let Ok(value) = value {
-                            rrule.byhour.push(value.0.unsigned_abs() as u16);
+                            rrule.byhour.push(value.0.unsigned_abs() as u8);
                         } else if !self.strict {
                             is_valid = false;
                         }
@@ -726,7 +726,7 @@ impl Parser<'_> {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
                         if let Ok(value) = value {
-                            rrule.bymonthday.push(value.0 as i16);
+                            rrule.bymonthday.push(value.0 as i8);
                         } else if !self.strict {
                             is_valid = false;
                         }
@@ -746,7 +746,7 @@ impl Parser<'_> {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
                         if let Ok(value) = value {
-                            rrule.byweekno.push(value.0 as i16);
+                            rrule.byweekno.push(value.0 as i8);
                         } else if !self.strict {
                             is_valid = false;
                         }
@@ -756,7 +756,7 @@ impl Parser<'_> {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
                         if let Ok(value) = value {
-                            rrule.bymonth.push(value.0 as i16);
+                            rrule.bymonth.push(value.0 as u8);
                         } else if !self.strict {
                             is_valid = false;
                         }
@@ -766,7 +766,7 @@ impl Parser<'_> {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
                         if let Ok(value) = value {
-                            rrule.bysetpos.push(value.0 as i16);
+                            rrule.bysetpos.push(value.0 as i32);
                         } else if !self.strict {
                             is_valid = false;
                         }
@@ -835,14 +835,14 @@ impl Token<'_> {
 impl PartialDateTime {
     pub fn parse_ical_date(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
         parse_digits(iter, &mut self.year, 4, false)
-            && parse_digits(iter, &mut self.month, 2, false)
-            && parse_digits(iter, &mut self.day, 2, false)
+            && parse_small_digits(iter, &mut self.month, 2, false)
+            && parse_small_digits(iter, &mut self.day, 2, false)
     }
 
     pub fn parse_ical_time(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
-        if parse_digits(iter, &mut self.hour, 2, false)
-            && parse_digits(iter, &mut self.minute, 2, false)
-            && parse_digits(iter, &mut self.second, 2, false)
+        if parse_small_digits(iter, &mut self.hour, 2, false)
+            && parse_small_digits(iter, &mut self.minute, 2, false)
+            && parse_small_digits(iter, &mut self.second, 2, false)
         {
             self.parse_zone(iter);
             true

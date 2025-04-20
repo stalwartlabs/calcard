@@ -246,15 +246,15 @@ impl crate::common::ArchivedPartialDateTime {
                 out,
                 "{:04}{:02}{:02}T{:02}{:02}{:02}",
                 self.year.as_ref().map(u16::from).unwrap_or_default(),
-                self.month.as_ref().map(u16::from).unwrap_or_default(),
-                self.day.as_ref().map(u16::from).unwrap_or_default(),
-                self.hour.as_ref().map(u16::from).unwrap_or_default(),
-                self.minute.as_ref().map(u16::from).unwrap_or_default(),
-                self.second.as_ref().map(u16::from).unwrap_or_default()
+                self.month.as_ref().copied().unwrap_or_default(),
+                self.day.as_ref().copied().unwrap_or_default(),
+                self.hour.as_ref().copied().unwrap_or_default(),
+                self.minute.as_ref().copied().unwrap_or_default(),
+                self.second.as_ref().copied().unwrap_or_default()
             )?;
 
-            if let Some(tz_hour) = self.tz_hour.as_ref().map(u16::from) {
-                let tz_minute = self.tz_minute.as_ref().map(u16::from).unwrap_or_default();
+            if let Some(tz_hour) = self.tz_hour.as_ref().copied() {
+                let tz_minute = self.tz_minute.as_ref().copied().unwrap_or_default();
                 if tz_hour == 0 && tz_minute == 0 {
                     write!(out, "Z")?;
                 } else {
@@ -352,10 +352,7 @@ impl crate::common::ArchivedPartialDateTime {
                     | ArchivedVCardValueType::Time
                     | ArchivedVCardValueType::UtcOffset
             ) {
-                match (
-                    self.tz_hour.as_ref().map(u16::from),
-                    self.tz_minute.as_ref().map(u16::from),
-                ) {
+                match (self.tz_hour.as_ref(), self.tz_minute.as_ref()) {
                     (Some(0), Some(0)) | (Some(0), _) => {
                         write!(out, "Z")?;
                     }

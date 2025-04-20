@@ -111,15 +111,15 @@ pub struct ICalendarRecurrenceRule {
     until: Option<PartialDateTime>,
     count: Option<u32>,
     interval: Option<u32>,
-    bysecond: Vec<u16>,
-    byminute: Vec<u16>,
-    byhour: Vec<u16>,
+    bysecond: Vec<u8>,
+    byminute: Vec<u8>,
+    byhour: Vec<u8>,
     byday: Vec<ICalendarDay>,
-    bymonthday: Vec<i16>,
+    bymonthday: Vec<i8>,
     byyearday: Vec<i16>,
-    byweekno: Vec<i16>,
-    bymonth: Vec<i16>,
-    bysetpos: Vec<i16>,
+    byweekno: Vec<i8>,
+    bymonth: Vec<u8>,
+    bysetpos: Vec<i32>,
     wkst: Option<ICalendarWeekday>,
 }
 
@@ -173,7 +173,7 @@ impl TryFrom<&[u8]> for ICalendarDay {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -184,14 +184,14 @@ impl TryFrom<&[u8]> for ICalendarDay {
 )]
 #[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarFrequency {
-    Secondly,
-    Minutely,
-    Hourly,
+    Yearly = 0,
+    Monthly = 1,
+    Weekly = 2,
     #[default]
-    Daily,
-    Weekly,
-    Monthly,
-    Yearly,
+    Daily = 3,
+    Hourly = 4,
+    Minutely = 5,
+    Secondly = 6,
 }
 
 impl TryFrom<&[u8]> for ICalendarFrequency {

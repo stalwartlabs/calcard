@@ -7,7 +7,7 @@ use mail_parser::decoders::{
 
 use crate::{
     common::{
-        parser::{parse_digits, Timestamp},
+        parser::{parse_digits, parse_small_digits, Timestamp},
         tokenizer::StopChar,
         Data, Encoding,
     },
@@ -637,7 +637,15 @@ impl PartialDateTime {
             match ch {
                 b'0'..=b'9' => {
                     let value = match idx {
-                        0 => &mut self.year,
+                        0 => {
+                            if let Some(value) = &mut self.year {
+                                *value =
+                                    value.saturating_mul(10).saturating_add((ch - b'0') as u16);
+                            } else {
+                                self.year = Some((ch - b'0') as u16);
+                            }
+                            continue;
+                        }
                         1 => &mut self.month,
                         2 => &mut self.day,
                         3 => &mut self.hour,
@@ -649,9 +657,9 @@ impl PartialDateTime {
                     };
 
                     if let Some(value) = value {
-                        *value = value.saturating_mul(10).saturating_add((ch - b'0') as u16);
+                        *value = value.saturating_mul(10).saturating_add(ch - b'0');
                     } else {
-                        *value = Some((ch - b'0') as u16);
+                        *value = Some(ch - b'0');
                     }
                 }
                 b'T' | b't' if idx < 3 => {
@@ -698,9 +706,9 @@ impl PartialDateTime {
                     };
 
                     if let Some(value) = value {
-                        *value = value.saturating_mul(10).saturating_add((ch - b'0') as u16);
+                        *value = value.saturating_mul(10).saturating_add(ch - b'0');
                     } else {
-                        *value = Some((ch - b'0') as u16);
+                        *value = Some(ch - b'0');
                     }
                 }
                 b'+' if self.tz_hour.is_none() => {}
@@ -745,17 +753,17 @@ impl PartialDateTime {
         parse_digits(iter, &mut self.year, 4, true);
         if self.year.is_some() && iter.peek() == Some(&&b'-') {
             iter.next();
-            parse_digits(iter, &mut self.month, 2, true);
+            parse_small_digits(iter, &mut self.month, 2, true);
         } else {
-            parse_digits(iter, &mut self.month, 2, true);
-            parse_digits(iter, &mut self.day, 2, false);
+            parse_small_digits(iter, &mut self.month, 2, true);
+            parse_small_digits(iter, &mut self.day, 2, false);
         }
     }
 
     pub fn parse_vcard_date_noreduc(&mut self, iter: &mut Peekable<Iter<u8>>) {
         parse_digits(iter, &mut self.year, 4, true);
-        parse_digits(iter, &mut self.month, 2, true);
-        parse_digits(iter, &mut self.day, 2, false);
+        parse_small_digits(iter, &mut self.month, 2, true);
+        parse_small_digits(iter, &mut self.day, 2, false);
     }
 
     pub fn parse_vcard_time(&mut self, iter: &mut Peekable<Iter<u8>>, mut notrunc: bool) {
@@ -763,7 +771,7 @@ impl PartialDateTime {
             match iter.peek() {
                 Some(b'0'..=b'9') => {
                     notrunc = true;
-                    parse_digits(iter, part, 2, false);
+                    parse_small_digits(iter, part, 2, false);
                 }
                 Some(b'-') if !notrunc => {
                     iter.next();

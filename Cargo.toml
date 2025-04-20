@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+chrono = "0.4.40"
+chrono-tz = "0.10.3"
 hashify = "0.2.6"
 mail-builder = { version = "0.4", no-default-features = true }
 mail-parser = "0.10.2"

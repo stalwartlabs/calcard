@@ -1,3 +1,5 @@
+use chrono::{FixedOffset, NaiveDate, NaiveDateTime};
+
 use crate::Token;
 
 pub mod parser;
@@ -16,13 +18,13 @@ pub mod writer;
 #[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub struct PartialDateTime {
     pub year: Option<u16>,
-    pub month: Option<u16>,
-    pub day: Option<u16>,
-    pub hour: Option<u16>,
-    pub minute: Option<u16>,
-    pub second: Option<u16>,
-    pub tz_hour: Option<u16>,
-    pub tz_minute: Option<u16>,
+    pub month: Option<u8>,
+    pub day: Option<u8>,
+    pub hour: Option<u8>,
+    pub minute: Option<u8>,
+    pub second: Option<u8>,
+    pub tz_hour: Option<u8>,
+    pub tz_minute: Option<u8>,
     pub tz_minus: bool,
 }
 
@@ -130,4 +132,37 @@ impl Encoding {
 pub struct Data {
     pub content_type: Option<String>,
     pub data: Vec<u8>,
+}
+
+impl PartialDateTime {
+    pub fn to_date_time(&self) -> Option<DateTimeResult> {
+        let mut dt = DateTimeResult {
+            date_time: NaiveDate::from_ymd_opt(
+                self.year? as i32,
+                self.month? as u32,
+                self.day? as u32,
+            )?
+            .and_hms_opt(
+                self.hour.unwrap_or(0) as u32,
+                self.minute.unwrap_or(0) as u32,
+                self.second.unwrap_or(0) as u32,
+            )?,
+            offset: None,
+        };
+        if let Some(tz_hour) = self.tz_hour {
+            let secs = (tz_hour as i32 * 3600) + (self.tz_minute.unwrap_or(0) as i32 * 60);
+            dt.offset = if self.tz_minus {
+                FixedOffset::west_opt(secs)?
+            } else {
+                FixedOffset::east_opt(secs)?
+            }
+            .into();
+        }
+        Some(dt)
+    }
+}
+
+pub struct DateTimeResult {
+    pub date_time: NaiveDateTime,
+    pub offset: Option<FixedOffset>,
 }

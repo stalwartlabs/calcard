@@ -194,7 +194,16 @@ impl PartialDateTime {
             match ch {
                 b'0'..=b'9' => {
                     let value = match idx {
-                        0..=3 => &mut self.year,
+                        0..=3 => {
+                            if let Some(value) = &mut self.year {
+                                *value =
+                                    value.saturating_mul(10).saturating_add((ch - b'0') as u16);
+                            } else {
+                                self.year = Some((ch - b'0') as u16);
+                            }
+                            idx += 1;
+                            continue;
+                        }
                         4..=5 => &mut self.month,
                         6..=7 => &mut self.day,
                         9..=10 => &mut self.hour,
@@ -206,9 +215,9 @@ impl PartialDateTime {
                     };
 
                     if let Some(value) = value {
-                        *value = value.saturating_mul(10).saturating_add((ch - b'0') as u16);
+                        *value = value.saturating_mul(10).saturating_add(ch - b'0');
                     } else {
-                        *value = Some((ch - b'0') as u16);
+                        *value = Some(ch - b'0');
                     }
                 }
                 b'T' | b't' if idx == 8 => {}
@@ -257,9 +266,9 @@ impl PartialDateTime {
                     };
 
                     if let Some(value) = value {
-                        *value = value.saturating_mul(10).saturating_add((ch - b'0') as u16);
+                        *value = value.saturating_mul(10).saturating_add(ch - b'0');
                     } else {
-                        *value = Some((ch - b'0') as u16);
+                        *value = Some(ch - b'0');
                     }
                 }
                 _ => {
@@ -300,14 +309,14 @@ impl PartialDateTime {
         if self.has_date() && self.has_time() {
             DateTime {
                 year: self.year.unwrap(),
-                month: self.month.unwrap() as u8,
-                day: self.day.unwrap() as u8,
-                hour: self.hour.unwrap() as u8,
-                minute: self.minute.unwrap() as u8,
-                second: self.second.unwrap_or_default() as u8,
+                month: self.month.unwrap(),
+                day: self.day.unwrap(),
+                hour: self.hour.unwrap(),
+                minute: self.minute.unwrap(),
+                second: self.second.unwrap_or_default(),
                 tz_before_gmt: self.tz_minus,
-                tz_hour: self.tz_hour.unwrap_or_default() as u8,
-                tz_minute: self.tz_minute.unwrap_or_default() as u8,
+                tz_hour: self.tz_hour.unwrap_or_default(),
+                tz_minute: self.tz_minute.unwrap_or_default(),
             }
             .to_timestamp()
             .into()
@@ -328,6 +337,50 @@ pub(crate) fn parse_digits(
         match ch {
             b'0'..=b'9' => {
                 let ch = (*ch - b'0') as u16;
+                idx += 1;
+                iter.next();
+
+                if let Some(target) = target {
+                    *target = target.saturating_mul(10).saturating_add(ch);
+
+                    if idx == num {
+                        return true;
+                    }
+                } else {
+                    *target = Some(ch);
+                }
+            }
+            b'-' if nullable => {
+                idx += 1;
+                iter.next();
+                if idx == num / 2 {
+                    return true;
+                }
+            }
+            _ => {
+                if !ch.is_ascii_whitespace() {
+                    return false;
+                } else {
+                    iter.next();
+                }
+            }
+        };
+    }
+
+    false
+}
+
+pub(crate) fn parse_small_digits(
+    iter: &mut Peekable<Iter<u8>>,
+    target: &mut Option<u8>,
+    num: usize,
+    nullable: bool,
+) -> bool {
+    let mut idx = 0;
+    while let Some(ch) = iter.peek() {
+        match ch {
+            b'0'..=b'9' => {
+                let ch = *ch - b'0';
                 idx += 1;
                 iter.next();
 

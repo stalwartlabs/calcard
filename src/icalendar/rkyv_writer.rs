@@ -541,11 +541,8 @@ impl ArchivedPartialDateTime {
                     .as_ref()
                     .map(|n| n.to_native())
                     .unwrap_or_default(),
-                self.month
-                    .as_ref()
-                    .map(|n| n.to_native())
-                    .unwrap_or_default(),
-                self.day.as_ref().map(|n| n.to_native()).unwrap_or_default(),
+                self.month.as_ref().copied().unwrap_or_default(),
+                self.day.as_ref().copied().unwrap_or_default(),
             )?;
         }
 
@@ -560,25 +557,13 @@ impl ArchivedPartialDateTime {
             write!(
                 out,
                 "{:02}{:02}{:02}",
-                self.hour
-                    .as_ref()
-                    .map(|n| n.to_native())
-                    .unwrap_or_default(),
-                self.minute
-                    .as_ref()
-                    .map(|n| n.to_native())
-                    .unwrap_or_default(),
-                self.second
-                    .as_ref()
-                    .map(|n| n.to_native())
-                    .unwrap_or_default(),
+                self.hour.as_ref().copied().unwrap_or_default(),
+                self.minute.as_ref().copied().unwrap_or_default(),
+                self.second.as_ref().copied().unwrap_or_default(),
             )?;
 
             if matches!(
-                (
-                    self.tz_hour.as_ref().map(|n| n.to_native()),
-                    self.tz_minute.as_ref().map(|n| n.to_native())
-                ),
+                (self.tz_hour.as_ref(), self.tz_minute.as_ref()),
                 (Some(0), Some(0))
             ) {
                 write!(out, "Z")?;
@@ -595,14 +580,8 @@ impl ArchivedPartialDateTime {
             write!(
                 out,
                 "{:02}{:02}",
-                self.tz_hour
-                    .as_ref()
-                    .map(|n| n.to_native())
-                    .unwrap_or_default(),
-                self.tz_minute
-                    .as_ref()
-                    .map(|n| n.to_native())
-                    .unwrap_or_default(),
+                self.tz_hour.as_ref().copied().unwrap_or_default(),
+                self.tz_minute.as_ref().copied().unwrap_or_default(),
             )?;
         }
 
