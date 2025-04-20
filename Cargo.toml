@@ -11,7 +11,7 @@ rkyv = { version = "0.8", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 
 [features]
-default = []
+default = ["rkyv"]
 rkyv = ["dep:rkyv"]
 serde = ["dep:serde"]
 

@@ -1,4 +1,7 @@
-use super::{ICalendar, ICalendarComponent, ICalendarEntry, ICalendarProperty, ICalendarValue};
+use super::{
+    ICalendar, ICalendarComponent, ICalendarComponentType, ICalendarEntry, ICalendarParameter,
+    ICalendarProperty, ICalendarRecurrenceRule, ICalendarValue, Uri,
+};
 use crate::common::PartialDateTime;
 
 impl ICalendar {
@@ -6,6 +9,21 @@ impl ICalendar {
         self.components
             .iter()
             .filter_map(|component| component.uid())
+    }
+
+    pub fn size(&self) -> usize {
+        self.components
+            .iter()
+            .map(|component| component.size())
+            .sum()
+    }
+
+    pub fn is_timezone(&self) -> bool {
+        self.components
+            .iter()
+            .filter(|comp| matches!(comp.component_type, ICalendarComponentType::VTimezone))
+            .count()
+            == 1
     }
 }
 
@@ -26,12 +44,26 @@ impl ICalendarComponent {
     ) -> impl Iterator<Item = &'x ICalendarEntry> + 'x {
         self.entries.iter().filter(move |entry| &entry.name == prop)
     }
+
+    pub fn size(&self) -> usize {
+        self.entries.iter().map(|entry| entry.size()).sum()
+    }
 }
 
 impl ICalendarValue {
+    pub fn size(&self) -> usize {
+        match self {
+            ICalendarValue::Binary(value) => value.len(),
+            ICalendarValue::Text(value) => value.len(),
+            ICalendarValue::PartialDateTime(_) => std::mem::size_of::<PartialDateTime>(),
+            ICalendarValue::RecurrenceRule(_) => std::mem::size_of::<ICalendarRecurrenceRule>(),
+            _ => std::mem::size_of::<ICalendarValue>(),
+        }
+    }
+
     pub fn as_text(&self) -> Option<&str> {
         match self {
-            ICalendarValue::Text(ref s) => Some(s),
+            ICalendarValue::Text(s) => Some(s),
             _ => None,
         }
     }
@@ -68,6 +100,62 @@ impl ICalendarValue {
         match self {
             ICalendarValue::Binary(ref d) => Some(d.as_slice()),
             _ => None,
+        }
+    }
+}
+
+impl ICalendarEntry {
+    pub fn size(&self) -> usize {
+        self.values.iter().map(|value| value.size()).sum::<usize>()
+            + self.params.iter().map(|param| param.size()).sum::<usize>()
+            + self.name.as_str().len()
+    }
+}
+
+impl ICalendarParameter {
+    pub fn size(&self) -> usize {
+        match self {
+            ICalendarParameter::Altrep(s) => s.size(),
+            ICalendarParameter::Cn(s) => s.len(),
+            ICalendarParameter::Cutype(s) => s.as_str().len(),
+            ICalendarParameter::DelegatedFrom(v) => v.iter().map(|s| s.size()).sum(),
+            ICalendarParameter::DelegatedTo(v) => v.iter().map(|s| s.size()).sum(),
+            ICalendarParameter::Dir(s) => s.size(),
+            ICalendarParameter::Fmttype(s) => s.len(),
+            ICalendarParameter::Fbtype(s) => s.as_str().len(),
+            ICalendarParameter::Language(s) => s.len(),
+            ICalendarParameter::Member(v) => v.iter().map(|s| s.size()).sum(),
+            ICalendarParameter::Partstat(s) => s.as_str().len(),
+            ICalendarParameter::Related(ref r) => r.as_str().len(),
+            ICalendarParameter::Reltype(ref r) => r.as_str().len(),
+            ICalendarParameter::Role(ref r) => r.as_str().len(),
+            ICalendarParameter::ScheduleAgent(ref a) => a.as_str().len(),
+            ICalendarParameter::ScheduleForceSend(ref a) => a.as_str().len(),
+            ICalendarParameter::ScheduleStatus(ref a) => a.len(),
+            ICalendarParameter::SentBy(ref u) => u.size(),
+            ICalendarParameter::Tzid(ref t) => t.len(),
+            ICalendarParameter::Value(ref t) => t.as_str().len(),
+            ICalendarParameter::Display(ref d) => d.iter().map(|s| s.as_str().len()).sum(),
+            ICalendarParameter::Email(ref e) => e.len(),
+            ICalendarParameter::Feature(ref f) => f.iter().map(|s| s.as_str().len()).sum(),
+            ICalendarParameter::Label(ref l) => l.len(),
+            ICalendarParameter::Filename(s) => s.as_str().len(),
+            ICalendarParameter::ManagedId(s) => s.as_str().len(),
+            ICalendarParameter::Schema(s) => s.size(),
+            ICalendarParameter::Linkrel(ref l) => l.size(),
+            ICalendarParameter::Other(ref o) => o.iter().map(|s| s.len()).sum(),
+            _ => std::mem::size_of::<ICalendarParameter>(),
+        }
+    }
+}
+
+impl Uri {
+    pub fn size(&self) -> usize {
+        match self {
+            Uri::Data(data) => {
+                data.data.len() + data.content_type.as_ref().map(|s| s.len()).unwrap_or(0)
+            }
+            Uri::Location(loc) => loc.len(),
         }
     }
 }

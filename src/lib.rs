@@ -1,14 +1,14 @@
+use common::tokenizer::{StopChar, Token};
+use icalendar::{ICalendar, ICalendarComponentType};
 use std::{
     iter::{Enumerate, Peekable},
     slice::Iter,
 };
-
-use common::tokenizer::{StopChar, Token};
-use icalendar::{ICalendar, ICalendarComponentType};
 use vcard::VCard;
 
 pub mod common;
 pub mod icalendar;
+pub mod rrule;
 pub mod vcard;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

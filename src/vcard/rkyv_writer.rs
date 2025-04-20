@@ -17,7 +17,7 @@ impl ArchivedVCard {
                 entry.name,
                 ArchivedVCardProperty::Begin | ArchivedVCardProperty::End
             ) {
-                entry.write_to(out)?;
+                entry.write_to(out, true)?;
             }
         }
 
@@ -26,7 +26,7 @@ impl ArchivedVCard {
 }
 
 impl ArchivedVCardEntry {
-    pub fn write_to(&self, out: &mut impl Write) -> std::fmt::Result {
+    pub fn write_to(&self, out: &mut impl Write, with_value: bool) -> std::fmt::Result {
         let mut line_len = 0;
 
         if let Some(group_name) = self.group.as_ref() {
@@ -166,67 +166,68 @@ impl ArchivedVCardEntry {
         };
         let default_type = default_type.unwrap_vcard();
 
-        for (pos, value) in self.values.iter().enumerate() {
-            if pos > 0 {
-                write!(out, "{separator}")?;
-                line_len += 1;
-            }
+        if with_value {
+            for (pos, value) in self.values.iter().enumerate() {
+                if pos > 0 {
+                    write!(out, "{separator}")?;
+                    line_len += 1;
+                }
 
-            if line_len + 1 > 75 {
-                write!(out, "\r\n ")?;
-                line_len = 1;
-            }
+                if line_len + 1 > 75 {
+                    write!(out, "\r\n ")?;
+                    line_len = 1;
+                }
 
-            match value {
-                ArchivedVCardValue::Text(v) => {
-                    write_value(out, &mut line_len, v)?;
-                }
-                ArchivedVCardValue::Integer(v) => {
-                    write!(out, "{v}")?;
-                    line_len += 4;
-                }
-                ArchivedVCardValue::Float(v) => {
-                    write!(out, "{v}")?;
-                    line_len += 4;
-                }
-                ArchivedVCardValue::Boolean(v) => {
-                    let text = if *v { "TRUE" } else { "FALSE" };
-                    write!(out, "{text}")?;
-                    line_len += text.len();
-                }
-                ArchivedVCardValue::PartialDateTime(v) => {
-                    v.format_as_vcard(out, types.get(pos).unwrap_or(&default_type))?;
-                    line_len += 16;
-                }
-                ArchivedVCardValue::Binary(v) => {
-                    write!(out, "data:")?;
-                    line_len += 5;
-                    if let Some(ct) = v.content_type.as_ref() {
-                        write!(out, "{ct};")?;
-                        line_len += ct.len() + 1;
+                match value {
+                    ArchivedVCardValue::Text(v) => {
+                        write_value(out, &mut line_len, v)?;
                     }
-                    write!(out, "base64\\,")?;
-                    line_len += 8;
-                    write_bytes(out, &mut line_len, &v.data)?;
-                }
-                ArchivedVCardValue::Sex(v) => {
-                    let text = v.as_str();
-                    write!(out, "{text}")?;
-                    line_len += text.len();
-                }
-                ArchivedVCardValue::GramGender(v) => {
-                    let text = v.as_str();
-                    write!(out, "{text}")?;
-                    line_len += text.len();
-                }
-                ArchivedVCardValue::Kind(v) => {
-                    let text = v.as_str();
-                    write!(out, "{text}")?;
-                    line_len += text.len();
+                    ArchivedVCardValue::Integer(v) => {
+                        write!(out, "{v}")?;
+                        line_len += 4;
+                    }
+                    ArchivedVCardValue::Float(v) => {
+                        write!(out, "{v}")?;
+                        line_len += 4;
+                    }
+                    ArchivedVCardValue::Boolean(v) => {
+                        let text = if *v { "TRUE" } else { "FALSE" };
+                        write!(out, "{text}")?;
+                        line_len += text.len();
+                    }
+                    ArchivedVCardValue::PartialDateTime(v) => {
+                        v.format_as_vcard(out, types.get(pos).unwrap_or(&default_type))?;
+                        line_len += 16;
+                    }
+                    ArchivedVCardValue::Binary(v) => {
+                        write!(out, "data:")?;
+                        line_len += 5;
+                        if let Some(ct) = v.content_type.as_ref() {
+                            write!(out, "{ct};")?;
+                            line_len += ct.len() + 1;
+                        }
+                        write!(out, "base64\\,")?;
+                        line_len += 8;
+                        write_bytes(out, &mut line_len, &v.data)?;
+                    }
+                    ArchivedVCardValue::Sex(v) => {
+                        let text = v.as_str();
+                        write!(out, "{text}")?;
+                        line_len += text.len();
+                    }
+                    ArchivedVCardValue::GramGender(v) => {
+                        let text = v.as_str();
+                        write!(out, "{text}")?;
+                        line_len += text.len();
+                    }
+                    ArchivedVCardValue::Kind(v) => {
+                        let text = v.as_str();
+                        write!(out, "{text}")?;
+                        line_len += text.len();
+                    }
                 }
             }
         }
-
         write!(out, "\r\n")
     }
 }
