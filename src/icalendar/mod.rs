@@ -3,7 +3,9 @@ use crate::{
     Entry, Parser, Token,
 };
 
+pub mod dates;
 pub mod parser;
+pub mod timezone;
 pub mod utils;
 pub mod writer;
 
@@ -107,20 +109,20 @@ impl Eq for ICalendarValue {}
 )]
 #[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub struct ICalendarRecurrenceRule {
-    freq: ICalendarFrequency,
-    until: Option<PartialDateTime>,
-    count: Option<u32>,
-    interval: Option<u32>,
-    bysecond: Vec<u8>,
-    byminute: Vec<u8>,
-    byhour: Vec<u8>,
-    byday: Vec<ICalendarDay>,
-    bymonthday: Vec<i8>,
-    byyearday: Vec<i16>,
-    byweekno: Vec<i8>,
-    bymonth: Vec<u8>,
-    bysetpos: Vec<i32>,
-    wkst: Option<ICalendarWeekday>,
+    pub freq: ICalendarFrequency,
+    pub until: Option<PartialDateTime>,
+    pub count: Option<u32>,
+    pub interval: Option<u16>,
+    pub bysecond: Vec<u8>,
+    pub byminute: Vec<u8>,
+    pub byhour: Vec<u8>,
+    pub byday: Vec<ICalendarDay>,
+    pub bymonthday: Vec<i8>,
+    pub byyearday: Vec<i16>,
+    pub byweekno: Vec<i8>,
+    pub bymonth: Vec<u8>,
+    pub bysetpos: Vec<i32>,
+    pub wkst: Option<ICalendarWeekday>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -259,6 +261,20 @@ impl TryFrom<&[u8]> for ICalendarWeekday {
             b"SA" => ICalendarWeekday::Saturday,
         )
         .ok_or(())
+    }
+}
+
+impl From<ICalendarWeekday> for chrono::Weekday {
+    fn from(value: ICalendarWeekday) -> Self {
+        match value {
+            ICalendarWeekday::Sunday => chrono::Weekday::Sun,
+            ICalendarWeekday::Monday => chrono::Weekday::Mon,
+            ICalendarWeekday::Tuesday => chrono::Weekday::Tue,
+            ICalendarWeekday::Wednesday => chrono::Weekday::Wed,
+            ICalendarWeekday::Thursday => chrono::Weekday::Thu,
+            ICalendarWeekday::Friday => chrono::Weekday::Fri,
+            ICalendarWeekday::Saturday => chrono::Weekday::Sat,
+        }
     }
 }
 

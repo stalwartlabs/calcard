@@ -666,7 +666,10 @@ impl Parser<'_> {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
                         if let Ok(value) = value {
-                            rrule.count = Some(value.0.unsigned_abs() as u32);
+                            let count = value.0.unsigned_abs() as u32;
+                            if count > 0 {
+                                rrule.count = Some(count);
+                            }
                         } else if !self.strict {
                             is_valid = false;
                         }
@@ -676,7 +679,10 @@ impl Parser<'_> {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
                         if let Ok(value) = value {
-                            rrule.interval = Some(value.0.unsigned_abs() as u32);
+                            let interval = value.0.unsigned_abs() as u16;
+                            if interval > 0 {
+                                rrule.interval = Some(interval);
+                            }
                         } else if !self.strict {
                             is_valid = false;
                         }

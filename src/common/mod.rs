@@ -1,8 +1,8 @@
+use crate::Token;
 use chrono::{FixedOffset, NaiveDate, NaiveDateTime};
 
-use crate::Token;
-
 pub mod parser;
+pub mod timezone;
 pub mod tokenizer;
 pub mod writer;
 
@@ -159,6 +159,15 @@ impl PartialDateTime {
             .into();
         }
         Some(dt)
+    }
+
+    pub fn tz_offset(&self) -> Option<i32> {
+        let secs = (self.tz_hour? as i32 * 3600) + (self.tz_minute.unwrap_or(0) as i32 * 60);
+        if self.tz_minus {
+            Some(-secs)
+        } else {
+            Some(secs)
+        }
     }
 }
 

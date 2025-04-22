@@ -3,10 +3,9 @@ use super::{
     error::{checked_add_u32, checked_mul_u32, RRuleError},
     masks::MASKS,
     rrule::RRule,
-    timezone::Tz,
     utils::is_leap_year,
 };
-use crate::icalendar::ICalendarFrequency;
+use crate::{common::timezone::Tz, icalendar::ICalendarFrequency};
 use chrono::{Datelike, TimeZone, Timelike, Utc, Weekday};
 use std::collections::HashSet;
 
@@ -179,7 +178,7 @@ impl DateTimeIter {
                 u32::from(interval),
                 Some("please decrease `INTERVAL`"),
             )?;
-            let new_hours = u8::try_from(self.hour % 24).expect("range 0-23 is covered by u8");
+            let new_hours = (self.hour % 24) as u8;
             if by_hour.is_empty() || by_hour.iter().any(|bh| *bh == new_hours) {
                 break;
             }
@@ -231,8 +230,8 @@ impl DateTimeIter {
                 self.increment_hourly(hours_div, by_hour, increment_day)?;
             }
 
-            let hours = u8::try_from(self.hour % 24).expect("range 0-23 is covered by u8");
-            let minutes = u8::try_from(self.minute % 60).expect("range 0-59 is covered by u8");
+            let hours = (self.hour % 24) as u8;
+            let minutes = (self.minute % 60) as u8;
 
             if (by_hour.is_empty() || by_hour.contains(&hours))
                 && (by_minute.is_empty() || by_minute.contains(&minutes))
@@ -281,9 +280,9 @@ impl DateTimeIter {
                 self.increment_minutely(minutes_div, by_hour, by_minute, increment_day)?;
             }
 
-            let hours = u8::try_from(self.hour % 24).expect("range 0-23 is covered by u8");
-            let minutes = u8::try_from(self.minute % 60).expect("range 0-59 is covered by u8");
-            let seconds = u8::try_from(self.second % 60).expect("range 0-59 is covered by u8");
+            let hours = (self.hour % 24) as u8;
+            let minutes = (self.minute % 60) as u8;
+            let seconds = (self.second % 60) as u8;
 
             if (by_hour.is_empty() || by_hour.contains(&hours))
                 && (by_minute.is_empty() || by_minute.contains(&minutes))

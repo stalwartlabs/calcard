@@ -1,12 +1,12 @@
 use super::{
     error::{RRuleError, ValidationError},
     get_day, get_hour, get_minute, get_month, get_second,
-    rruleset::RRuleSet,
-    timezone::Tz,
     validate::validate_rrule_forced,
-    RRuleIter,
 };
-use crate::icalendar::{ICalendarFrequency, ICalendarRecurrenceRule};
+use crate::{
+    common::timezone::Tz,
+    icalendar::{ICalendarFrequency, ICalendarRecurrenceRule},
+};
 use chrono::{DateTime, Datelike, Weekday};
 use std::cmp::Ordering;
 
@@ -30,9 +30,44 @@ pub struct RRule {
     pub(crate) by_easter: Option<i16>,
 }
 
-impl From<&ICalendarRecurrenceRule> for RRule {
-    fn from(value: &ICalendarRecurrenceRule) -> Self {
-        todo!()
+impl RRule {
+    pub fn from_floating_ical(ical: &ICalendarRecurrenceRule) -> Option<Self> {
+        Some(RRule {
+            freq: ical.freq,
+            interval: ical.interval.unwrap_or(1),
+            count: ical.count,
+            until: if let Some(until) = &ical.until {
+                until.to_date_time_with_tz(Tz::Floating)?.into()
+            } else {
+                None
+            },
+            week_start: ical.wkst.map(Into::into).unwrap_or(Weekday::Mon),
+            by_set_pos: ical.bysetpos.clone(),
+            by_month: ical.bymonth.clone(),
+            by_month_day: ical
+                .bymonthday
+                .iter()
+                .filter(|v| **v > 0)
+                .copied()
+                .collect(),
+            by_n_month_day: ical
+                .bymonthday
+                .iter()
+                .filter(|v| **v < 0)
+                .copied()
+                .collect(),
+            by_year_day: ical.byyearday.clone(),
+            by_week_no: ical.byweekno.clone(),
+            by_weekday: ical
+                .byday
+                .iter()
+                .map(|wday| NWeekday::new(wday.ordwk, wday.weekday.into()))
+                .collect(),
+            by_hour: ical.byhour.clone(),
+            by_minute: ical.byminute.clone(),
+            by_second: ical.bysecond.clone(),
+            by_easter: None,
+        })
     }
 }
 
@@ -44,19 +79,6 @@ pub enum NWeekday {
 
 impl RRule {
     pub(crate) fn finalize_parsed_rrule(mut self, dt_start: &DateTime<Tz>) -> Self {
-        // TEMP: move negative months to another list
-        let mut by_month_day = vec![];
-        let mut by_n_month_day = self.by_n_month_day;
-        for by_month_day_item in self.by_month_day {
-            match by_month_day_item.cmp(&0) {
-                Ordering::Greater => by_month_day.push(by_month_day_item),
-                Ordering::Less => by_n_month_day.push(by_month_day_item),
-                Ordering::Equal => {}
-            }
-        }
-        self.by_month_day = by_month_day;
-        self.by_n_month_day = by_n_month_day;
-
         // Can only be set to true if the feature flag is set.
         let by_easter_is_some = self.by_easter.is_some();
 
@@ -170,16 +192,6 @@ impl RRule {
         }
 
         Ok(rrule)
-    }
-
-    pub(crate) fn iter_with_ctx(&self, dt_start: DateTime<Tz>, limited: bool) -> RRuleIter {
-        RRuleIter::new(self, &dt_start, limited)
-    }
-
-    pub fn build(self, dt_start: DateTime<Tz>) -> Result<RRuleSet, RRuleError> {
-        let rrule = self.validate(dt_start)?;
-        let rrule_set = RRuleSet::new(dt_start).rrule(rrule);
-        Ok(rrule_set)
     }
 }
 

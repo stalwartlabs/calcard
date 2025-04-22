@@ -61,9 +61,7 @@ impl YearInfo {
         let year_len = get_year_len(year);
         let next_year_len = get_year_len(year + 1);
         let year_ordinal = days_since_unix_epoch(&first_year_day);
-        let year_start_weekday = u16::try_from(first_year_day.weekday().num_days_from_monday())
-            .expect("num_days_from_monday is between 0 and 6 which is covered by u16");
-
+        let year_start_weekday = first_year_day.weekday().num_days_from_monday() as u16;
         let base_masks = base_year_masks(year_start_weekday, year_len);
 
         let mut result = Self {
@@ -85,8 +83,7 @@ impl YearInfo {
 
         let mut week_no_mask = vec![0; usize::from(year_len) + 7];
 
-        let rrule_week_start = u16::try_from(rrule.week_start.num_days_from_monday())
-            .expect("num_days_from_monday is between 0 and 6 which is covered by u16");
+        let rrule_week_start = rrule.week_start.num_days_from_monday() as u16;
         let mut no1_week_start = pymod(7 - year_start_weekday + rrule_week_start, 7);
         let first_week_start = no1_week_start;
         let year_len_ext = if no1_week_start >= 4 {
@@ -94,8 +91,7 @@ impl YearInfo {
             // Number of days in the year, plus the days we got
             // from last year.
             let diff = i32::from(year_start_weekday) - i32::from(rrule_week_start);
-            result.year_len
-                + u16::try_from(pymod(diff, 7)).expect("to be positive because 7 is the modulus")
+            result.year_len + pymod(diff, 7) as u16
         } else {
             // Number of days in the year, minus the days we
             // left in last year.
@@ -107,8 +103,7 @@ impl YearInfo {
         let num_weeks = div + (year_mod / 4);
 
         for &(mut n) in &rrule.by_week_no {
-            let num_weeks =
-                i8::try_from(num_weeks).expect("num_weeks is 52-54 which is covered by i8::MAX");
+            let num_weeks = num_weeks as i8;
             if n < 0 {
                 n += num_weeks + 1;
             }
@@ -117,8 +112,7 @@ impl YearInfo {
             }
 
             let i = if n > 1 {
-                let n =
-                    u16::try_from(n).expect("We know that 1 < n < i8::MAX which is covered by u16");
+                let n = n as u16;
                 let mut i = no1_week_start + ((n - 1) * 7);
                 if no1_week_start != first_week_start {
                     i -= 7 - first_week_start;
@@ -166,33 +160,25 @@ impl YearInfo {
             let l_num_weeks = if rrule.by_week_no.contains(&-1) {
                 -1
             } else {
-                let l_year_weekday = u16::try_from(
-                    Utc.with_ymd_and_hms(year - 1, 1, 1, 0, 0, 0)
-                        // It should never fail, since there is always a 1st of January, is there?
-                        .unwrap()
-                        .weekday()
-                        .num_days_from_monday(),
-                )
-                .expect("num_days_from_monday is between 0 and 6 which is covered by u16");
+                let l_year_weekday = Utc
+                    .with_ymd_and_hms(year - 1, 1, 1, 0, 0, 0)
+                    // It should never fail, since there is always a 1st of January, is there?
+                    .unwrap()
+                    .weekday()
+                    .num_days_from_monday() as u16;
 
-                let rrule_week_start = u16::try_from(rrule.week_start.num_days_from_monday())
-                    .expect("num_days_from_monday is between 0 and 6 which is covered by u16");
+                let rrule_week_start = rrule.week_start.num_days_from_monday() as u16;
                 let ln_no1_week_start = pymod(7 - l_year_weekday + rrule_week_start, 7);
 
                 let l_year_len = get_year_len(year - 1);
                 let week_start = if ln_no1_week_start >= 4 {
                     l_year_len
-                        + u16::try_from(pymod(
-                            i32::from(l_year_weekday) - i32::from(rrule_week_start),
-                            7,
-                        ))
-                        .expect("7 is the modulo, so the range is 0-6, and u16 covers that range")
+                        + pymod(i32::from(l_year_weekday) - i32::from(rrule_week_start), 7) as u16
                 } else {
                     year_len - no1_week_start
                 };
 
-                52 + i8::try_from(pymod(week_start, 7) / 4)
-                    .expect("7 is the modulo, so the range is 0-6, and i8 covers that range")
+                (52 + pymod(week_start, 7) / 4) as i8
             };
 
             if rrule.by_week_no.contains(&l_num_weeks) {

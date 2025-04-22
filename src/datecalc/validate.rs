@@ -1,9 +1,8 @@
 use super::{
     error::ValidationError,
     rrule::{NWeekday, RRule},
-    timezone::Tz,
 };
-use crate::icalendar::ICalendarFrequency;
+use crate::{common::timezone::Tz, icalendar::ICalendarFrequency};
 use std::ops::RangeInclusive;
 
 pub(crate) static MONTH_RANGE: RangeInclusive<u8> = 1..=12;

@@ -64,8 +64,7 @@ impl MonthInfo {
             for by_weekday in &rrule.by_weekday {
                 // Only check Nth occurrences here
                 if let NWeekday::Nth(number, weekday) = by_weekday {
-                    let weekday = i16::try_from(weekday.num_days_from_monday())
-                        .expect("num_days_from_monday is between 0 and 6 which is covered by i16");
+                    let weekday = (weekday.num_days_from_monday()) as i16;
                     let nth_weekday = if *number < 0 {
                         let number = match u32::try_from(-number) {
                             Ok(num) => num,
@@ -80,13 +79,12 @@ impl MonthInfo {
                             _ => continue,
                         };
                         let nth_last_weekday = match weekday_mask.get(index) {
-                            Some(val) => i16::try_from(*val).expect("values in weekday mask are all between 0-6 which is covered by i32"),
+                            Some(val) => (*val) as i16,
                             None => continue,
                         };
 
                         // Adjust to get the correct weekday
-                        let modulo = u32::try_from(pymod(nth_last_weekday - weekday, 7))
-                            .expect("pymod is positive because 7 is the modulus");
+                        let modulo = (pymod(nth_last_weekday - weekday, 7)) as u32;
                         match nth_last_week.checked_sub(modulo) {
                             Some(val) => val,
                             None => continue,
@@ -102,13 +100,12 @@ impl MonthInfo {
                             _ => continue,
                         };
                         let nth_first_day_weekday = match weekday_mask.get(index) {
-                            Some(val) => i16::try_from(*val).expect("values in weekday mask are all between 0-6 which is covered by i32"),
+                            Some(val) => (*val) as i16,
                             None => continue,
                         };
 
                         // Adjust to get the correct weekday
-                        let a = u32::try_from(7 - nth_first_day_weekday + weekday)
-                            .expect("to be positive because nth_first_day_weekday is at most 6");
+                        let a = (7 - nth_first_day_weekday + weekday) as u32;
                         nth_first_day + pymod(a, 7)
                     };
                     if first <= nth_weekday && nth_weekday <= last {

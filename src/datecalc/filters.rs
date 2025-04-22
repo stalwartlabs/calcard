@@ -107,9 +107,8 @@ fn is_filtered_by_year_day(ii: &IterInfo, current_day: usize, rrule: &RRule) -> 
         _ => return true,
     };
 
-    let year_len = i16::try_from(ii.year_len()).expect("year length is always within range of i16");
-    let next_year_len =
-        i16::try_from(ii.next_year_len()).expect("year length is always within range of i16");
+    let year_len = (ii.year_len()) as i16;
+    let next_year_len = (ii.next_year_len()) as i16;
 
     if current_day < year_len {
         !rrule.by_year_day.contains(&(current_day + 1))

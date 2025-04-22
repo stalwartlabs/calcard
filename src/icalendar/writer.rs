@@ -372,7 +372,7 @@ impl Display for ICalendarRecurrenceRule {
             write!(f, ";UNTIL=")?;
             until.format_as_ical(f, &ICalendarValueType::DateTime)?;
         }
-        if let Some(count) = self.count {
+        if let Some(count) = self.count.filter(|c| *c > 0) {
             write!(f, ";COUNT={}", count)?;
         }
         if let Some(interval) = self.interval {

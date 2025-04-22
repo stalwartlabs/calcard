@@ -2,8 +2,8 @@ use super::counter_date::DateTimeIter;
 use super::easter::easter;
 use super::get_month;
 use super::rrule::{NWeekday, RRule};
-use super::timezone::Tz;
 use super::{monthinfo::MonthInfo, yearinfo::YearInfo};
+use crate::common::timezone::Tz;
 use crate::icalendar::ICalendarFrequency;
 use chrono::{Datelike, NaiveTime, TimeZone};
 
@@ -59,8 +59,7 @@ impl IterInfo {
     }
 
     pub fn rebuild(&mut self, counter_date: &DateTimeIter) {
-        let month = u8::try_from(counter_date.month).expect("range 1-12 is covered by u8");
-        self.rebuild_inner(counter_date.year, month, false);
+        self.rebuild_inner(counter_date.year, counter_date.month as u8, false);
     }
 
     pub fn year_len(&self) -> u16 {
@@ -114,7 +113,7 @@ impl IterInfo {
 
     pub fn month_dayset(&self, month: u32) -> Vec<usize> {
         let month_range = self.month_range();
-        let month = usize::try_from(month).expect("target arch should have at least 32 bits");
+        let month = month as usize;
         let start = usize::from(month_range[month - 1]);
         let end = usize::from(month_range[month]);
         (start..end).collect()
@@ -123,13 +122,10 @@ impl IterInfo {
     pub fn weekday_set(&self, year: i32, month: u32, day: u32) -> Vec<usize> {
         let set_len = usize::from(self.year_len() + 7);
 
-        let mut date_ordinal = usize::try_from(
-            chrono::Utc
-                .with_ymd_and_hms(year, month, day, 0, 0, 0)
-                .unwrap()
-                .ordinal0(),
-        )
-        .expect("target arch should have at least 32 bits");
+        let mut date_ordinal = chrono::Utc
+            .with_ymd_and_hms(year, month, day, 0, 0, 0)
+            .unwrap()
+            .ordinal0() as usize;
 
         let mut set = vec![];
 
@@ -155,7 +151,7 @@ impl IterInfo {
             .unwrap()
             .ordinal0();
 
-        vec![usize::try_from(date_ordinal).expect("target arch should have at least 32 bits")]
+        vec![date_ordinal as usize]
     }
 
     pub fn hour_timeset(&self, hour: u8) -> Vec<NaiveTime> {

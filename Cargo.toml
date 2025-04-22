@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ahash = "0.8.11"
 chrono = "0.4.40"
 chrono-tz = "0.10.3"
 hashify = "0.2.6"
@@ -18,5 +19,6 @@ rkyv = ["dep:rkyv"]
 serde = ["dep:serde"]
 
 [dev-dependencies]
+chrono = { version = "0.4.40", features = ["serde"] }
 serde = { version = "1.0.217", features = ["derive"] }
 rkyv = { version = "0.8" }

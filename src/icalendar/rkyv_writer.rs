@@ -375,7 +375,7 @@ impl Display for ArchivedICalendarRecurrenceRule {
             write!(f, ";UNTIL=")?;
             until.format_as_ical(f, &ArchivedICalendarValueType::DateTime)?;
         }
-        if let Some(count) = self.count.as_ref() {
+        if let Some(count) = self.count.as_ref().filter(|c| **c > 0) {
             write!(f, ";COUNT={}", count)?;
         }
         if let Some(interval) = self.interval.as_ref() {

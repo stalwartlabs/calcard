@@ -2,10 +2,10 @@ use crate::icalendar::ICalendarFrequency;
 
 use super::counter_date::DateTimeIter;
 use super::rrule::RRule;
-use super::timezone::Tz;
 use super::utils::add_time_to_date;
 use super::{build_pos_list, utils::date_from_ordinal, IterInfo, MAX_ITER_LOOP};
 use super::{get_hour, get_minute, get_second};
+use crate::common::timezone::Tz;
 use chrono::NaiveTime;
 use std::collections::VecDeque;
 
@@ -118,9 +118,7 @@ impl RRuleIter {
             if rrule.by_set_pos.is_empty() {
                 // Loop over `start..end`
                 for current_day in &dayset {
-                    let current_day = i64::try_from(*current_day).expect(
-                        "We control the dayset, and we know that it will always fit within an i64",
-                    );
+                    let current_day = *current_day as i64;
                     let year_ordinal = self.ii.year_ordinal();
                     // Ordinal conversion uses UTC: if we apply local-TZ here, then
                     // just below we'll end up double-applying.
@@ -173,12 +171,9 @@ impl RRuleIter {
                     | ICalendarFrequency::Minutely
                     | ICalendarFrequency::Secondly
             ) {
-                let hour =
-                    u8::try_from(self.counter_date.hour).expect("range 0-23 is covered by u8");
-                let minute =
-                    u8::try_from(self.counter_date.minute).expect("range 0-59 is covered by u8");
-                let second =
-                    u8::try_from(self.counter_date.second).expect("range 0-59 is covered by u8");
+                let hour = self.counter_date.hour as u8;
+                let minute = self.counter_date.minute as u8;
+                let second = self.counter_date.second as u8;
                 self.timeset = self.ii.get_timeset_unchecked(hour, minute, second);
             }
 
@@ -208,15 +203,5 @@ impl Iterator for RRuleIter {
             self.finished = true;
         }
         self.buffer.pop_front()
-    }
-}
-
-pub(crate) trait WasLimited {
-    fn was_limited(&self) -> bool;
-}
-
-impl WasLimited for RRuleIter {
-    fn was_limited(&self) -> bool {
-        self.was_limited
     }
 }

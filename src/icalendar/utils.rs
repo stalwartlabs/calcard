@@ -1,5 +1,5 @@
 use super::{
-    ICalendar, ICalendarComponent, ICalendarComponentType, ICalendarEntry, ICalendarParameter,
+    ICalendar, ICalendarComponent, ICalendarDuration, ICalendarEntry, ICalendarParameter,
     ICalendarProperty, ICalendarRecurrenceRule, ICalendarValue, Uri,
 };
 use crate::common::PartialDateTime;
@@ -18,12 +18,8 @@ impl ICalendar {
             .sum()
     }
 
-    pub fn is_timezone(&self) -> bool {
-        self.components
-            .iter()
-            .filter(|comp| matches!(comp.component_type, ICalendarComponentType::VTimezone))
-            .count()
-            == 1
+    pub fn component_by_id(&self, id: u16) -> Option<&ICalendarComponent> {
+        self.components.get(id as usize)
     }
 }
 
@@ -157,5 +153,17 @@ impl Uri {
             }
             Uri::Location(loc) => loc.len(),
         }
+    }
+}
+
+impl ICalendarDuration {
+    pub fn to_time_delta(&self) -> Option<chrono::TimeDelta> {
+        let secs = self.seconds as i64
+            + self.minutes as i64 * 60
+            + self.hours as i64 * 3600
+            + self.days as i64 * 86400
+            + self.weeks as i64 * 604800;
+
+        chrono::TimeDelta::new(if self.neg { -secs } else { secs }, 0)
     }
 }

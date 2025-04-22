@@ -9,19 +9,15 @@ mod monthinfo;
 mod pos_list;
 pub mod rrule;
 pub(crate) mod rrule_iter;
-mod rruleset;
-mod rruleset_iter;
-pub mod timezone;
 mod utils;
 mod validate;
 mod yearinfo;
 
+use crate::common::timezone::Tz;
 use chrono::{Datelike, Duration, NaiveTime, Timelike};
 use iterinfo::IterInfo;
 use pos_list::build_pos_list;
 pub(crate) use rrule_iter::RRuleIter;
-pub use rruleset_iter::RRuleSetIter;
-use timezone::Tz;
 
 /// Prevent loops when searching for the next event in the iterator.
 /// If after X number of iterations it still has not found an event,
