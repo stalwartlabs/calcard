@@ -171,6 +171,7 @@ impl PartialDateTime {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DateTimeResult {
     pub date_time: NaiveDateTime,
     pub offset: Option<FixedOffset>,

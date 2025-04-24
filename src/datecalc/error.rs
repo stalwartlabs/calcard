@@ -1,12 +1,14 @@
 use crate::icalendar::ICalendarFrequency;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub enum RRuleError {
     ValidationError(ValidationError),
     IterError(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub enum ValidationError {
     BySetPosWithoutByRule,
     InvalidFieldValue {
