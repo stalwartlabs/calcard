@@ -143,9 +143,12 @@ impl Token<'_> {
         Err(self.into_string())
     }
 
-    pub(crate) fn into_timestamp(self) -> std::result::Result<PartialDateTime, String> {
+    pub(crate) fn into_timestamp(
+        self,
+        require_time: bool,
+    ) -> std::result::Result<PartialDateTime, String> {
         let mut dt = PartialDateTime::default();
-        if dt.parse_timestamp(&mut self.text.iter().peekable()) {
+        if dt.parse_timestamp(&mut self.text.iter().peekable(), require_time) {
             Ok(dt)
         } else {
             Err(self.into_string())
@@ -188,7 +191,7 @@ impl Token<'_> {
 }
 
 impl PartialDateTime {
-    pub fn parse_timestamp(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+    pub fn parse_timestamp(&mut self, iter: &mut Peekable<Iter<u8>>, require_time: bool) -> bool {
         let mut idx = 0;
         for ch in iter {
             match ch {
@@ -237,7 +240,7 @@ impl PartialDateTime {
             idx += 1;
         }
 
-        self.has_date() && self.has_time()
+        self.has_date() && (!require_time || self.has_time())
     }
 
     pub(crate) fn parse_zone(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
@@ -422,7 +425,7 @@ impl FromStr for Timestamp {
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let mut dt = PartialDateTime::default();
-        dt.parse_timestamp(&mut s.as_bytes().iter().peekable());
+        dt.parse_timestamp(&mut s.as_bytes().iter().peekable(), true);
         dt.to_timestamp().map(Timestamp).ok_or(())
     }
 }
@@ -432,7 +435,7 @@ impl TryFrom<&[u8]> for Timestamp {
 
     fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
         let mut dt = PartialDateTime::default();
-        dt.parse_timestamp(&mut value.iter().peekable());
+        dt.parse_timestamp(&mut value.iter().peekable(), true);
         dt.to_timestamp().map(Timestamp).ok_or(())
     }
 }

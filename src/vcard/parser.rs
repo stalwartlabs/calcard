@@ -230,7 +230,7 @@ impl Parser<'_> {
                             .map(VCardValue::PartialDateTime)
                             .unwrap_or_else(VCardValue::Text),
                         VCardValueType::Timestamp if is_v4 => token
-                            .into_timestamp()
+                            .into_timestamp(true)
                             .map(VCardValue::PartialDateTime)
                             .unwrap_or_else(VCardValue::Text),
                         VCardValueType::UtcOffset if is_v4 => token
@@ -594,7 +594,7 @@ impl Token<'_> {
         self,
     ) -> std::result::Result<PartialDateTime, String> {
         let mut dt = PartialDateTime::default();
-        if dt.parse_timestamp(&mut self.text.iter().peekable()) {
+        if dt.parse_timestamp(&mut self.text.iter().peekable(), true) {
             Ok(dt)
         } else {
             let mut dt = PartialDateTime::default();

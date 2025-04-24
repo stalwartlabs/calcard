@@ -41,8 +41,8 @@ impl TzResolver<'_> {
             .unwrap_or(self.default)
     }
 
-    pub fn with_default(mut self, default: Tz) -> Self {
-        self.default = default;
+    pub fn with_default(mut self, default: impl Into<Tz>) -> Self {
+        self.default = default.into();
         self
     }
 }

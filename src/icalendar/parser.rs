@@ -252,10 +252,18 @@ impl Parser<'_> {
                                         .into_ical_date()
                                         .map(|data| ICalendarValue::PartialDateTime(Box::new(data)))
                                         .unwrap_or_else(ICalendarValue::Text),
-                                    ICalendarValueType::DateTime => token
-                                        .into_timestamp()
-                                        .map(|data| ICalendarValue::PartialDateTime(Box::new(data)))
-                                        .unwrap_or_else(ICalendarValue::Text),
+                                    ICalendarValueType::DateTime => {
+                                        match token.into_timestamp(false) {
+                                            Ok(timestamp) => {
+                                                if !timestamp.has_time() {
+                                                    params.data_type =
+                                                        Some(ICalendarValueType::Date);
+                                                }
+                                                ICalendarValue::PartialDateTime(Box::new(timestamp))
+                                            }
+                                            Err(other) => ICalendarValue::Text(other),
+                                        }
+                                    }
                                     ICalendarValueType::Time => token
                                         .into_ical_time()
                                         .map(|data| ICalendarValue::PartialDateTime(Box::new(data)))
@@ -865,7 +873,7 @@ impl TryFrom<&[u8]> for ICalendarDateTime {
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let mut dt = PartialDateTime::default();
-        if dt.parse_timestamp(&mut value.iter().peekable()) {
+        if dt.parse_timestamp(&mut value.iter().peekable(), true) {
             Ok(ICalendarDateTime(dt))
         } else {
             Err(())
@@ -879,12 +887,12 @@ impl TryFrom<&[u8]> for ICalendarPeriod {
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let mut iter = value.iter().peekable();
         let mut start = PartialDateTime::default();
-        if start.parse_timestamp(&mut iter) {
+        if start.parse_timestamp(&mut iter, true) {
             if let Some(duration) = ICalendarDuration::try_parse(&mut iter) {
                 Ok(ICalendarPeriod::Duration { start, duration })
             } else {
                 let mut end = PartialDateTime::default();
-                if end.parse_timestamp(&mut iter) {
+                if end.parse_timestamp(&mut iter, true) {
                     Ok(ICalendarPeriod::Range { start, end })
                 } else {
                     Err(())
