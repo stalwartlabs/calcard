@@ -1,6 +1,6 @@
 use super::{
     ICalendar, ICalendarComponent, ICalendarDuration, ICalendarEntry, ICalendarParameter,
-    ICalendarProperty, ICalendarRecurrenceRule, ICalendarValue, Uri,
+    ICalendarParameterName, ICalendarProperty, ICalendarRecurrenceRule, ICalendarValue, Uri,
 };
 use crate::common::PartialDateTime;
 
@@ -109,6 +109,104 @@ impl ICalendarEntry {
 }
 
 impl ICalendarParameter {
+    pub fn matches_name(&self, name: &ICalendarParameterName) -> bool {
+        match name {
+            ICalendarParameterName::Altrep => matches!(self, ICalendarParameter::Altrep(_)),
+            ICalendarParameterName::Cn => matches!(self, ICalendarParameter::Cn(_)),
+            ICalendarParameterName::Cutype => matches!(self, ICalendarParameter::Cutype(_)),
+            ICalendarParameterName::DelegatedFrom => {
+                matches!(self, ICalendarParameter::DelegatedFrom(_))
+            }
+            ICalendarParameterName::DelegatedTo => {
+                matches!(self, ICalendarParameter::DelegatedTo(_))
+            }
+            ICalendarParameterName::Dir => matches!(self, ICalendarParameter::Dir(_)),
+            ICalendarParameterName::Fmttype => matches!(self, ICalendarParameter::Fmttype(_)),
+            ICalendarParameterName::Fbtype => matches!(self, ICalendarParameter::Fbtype(_)),
+            ICalendarParameterName::Language => matches!(self, ICalendarParameter::Language(_)),
+            ICalendarParameterName::Member => matches!(self, ICalendarParameter::Member(_)),
+            ICalendarParameterName::Partstat => matches!(self, ICalendarParameter::Partstat(_)),
+            ICalendarParameterName::Range => matches!(self, ICalendarParameter::Range),
+            ICalendarParameterName::Related => matches!(self, ICalendarParameter::Related(_)),
+            ICalendarParameterName::Reltype => matches!(self, ICalendarParameter::Reltype(_)),
+            ICalendarParameterName::Role => matches!(self, ICalendarParameter::Role(_)),
+            ICalendarParameterName::Rsvp => matches!(self, ICalendarParameter::Rsvp(_)),
+            ICalendarParameterName::ScheduleAgent => {
+                matches!(self, ICalendarParameter::ScheduleAgent(_))
+            }
+            ICalendarParameterName::ScheduleForceSend => {
+                matches!(self, ICalendarParameter::ScheduleForceSend(_))
+            }
+            ICalendarParameterName::ScheduleStatus => {
+                matches!(self, ICalendarParameter::ScheduleStatus(_))
+            }
+            ICalendarParameterName::SentBy => matches!(self, ICalendarParameter::SentBy(_)),
+            ICalendarParameterName::Tzid => matches!(self, ICalendarParameter::Tzid(_)),
+            ICalendarParameterName::Value => matches!(self, ICalendarParameter::Value(_)),
+            ICalendarParameterName::Display => matches!(self, ICalendarParameter::Display(_)),
+            ICalendarParameterName::Email => matches!(self, ICalendarParameter::Email(_)),
+            ICalendarParameterName::Feature => matches!(self, ICalendarParameter::Feature(_)),
+            ICalendarParameterName::Label => matches!(self, ICalendarParameter::Label(_)),
+            ICalendarParameterName::Size => matches!(self, ICalendarParameter::Size(_)),
+            ICalendarParameterName::Filename => matches!(self, ICalendarParameter::Filename(_)),
+            ICalendarParameterName::ManagedId => {
+                matches!(self, ICalendarParameter::ManagedId(_))
+            }
+            ICalendarParameterName::Order => matches!(self, ICalendarParameter::Order(_)),
+            ICalendarParameterName::Schema => matches!(self, ICalendarParameter::Schema(_)),
+            ICalendarParameterName::Derived => matches!(self, ICalendarParameter::Derived(_)),
+            ICalendarParameterName::Gap => matches!(self, ICalendarParameter::Gap(_)),
+            ICalendarParameterName::Linkrel => matches!(self, ICalendarParameter::Linkrel(_)),
+            ICalendarParameterName::Other(name) => {
+                if let ICalendarParameter::Other(ref o) = self {
+                    o.iter().any(|s| s == name)
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    pub fn as_text(&self) -> Option<&str> {
+        match self {
+            ICalendarParameter::Altrep(uri) => uri.as_str(),
+            ICalendarParameter::Cn(v) => v.as_str().into(),
+            ICalendarParameter::Cutype(v) => v.as_str().into(),
+            ICalendarParameter::DelegatedFrom(uris) => uris.first().and_then(|u| u.as_str()),
+            ICalendarParameter::DelegatedTo(uris) => uris.first().and_then(|u| u.as_str()),
+            ICalendarParameter::Dir(v) => v.as_str(),
+            ICalendarParameter::Fmttype(v) => v.as_str().into(),
+            ICalendarParameter::Fbtype(v) => v.as_str().into(),
+            ICalendarParameter::Language(v) => v.as_str().into(),
+            ICalendarParameter::Member(uris) => uris.first().and_then(|u| u.as_str()),
+            ICalendarParameter::Partstat(v) => v.as_str().into(),
+            ICalendarParameter::Range => "THISANDFUTURE".into(),
+            ICalendarParameter::Related(v) => v.as_str().into(),
+            ICalendarParameter::Reltype(v) => v.as_str().into(),
+            ICalendarParameter::Role(v) => v.as_str().into(),
+            ICalendarParameter::Rsvp(v) => (if *v { "true" } else { "false" }).into(),
+            ICalendarParameter::ScheduleAgent(v) => v.as_str().into(),
+            ICalendarParameter::ScheduleForceSend(v) => v.as_str().into(),
+            ICalendarParameter::ScheduleStatus(v) => v.as_str().into(),
+            ICalendarParameter::SentBy(v) => v.as_str(),
+            ICalendarParameter::Tzid(v) => v.as_str().into(),
+            ICalendarParameter::Value(v) => v.as_str().into(),
+            ICalendarParameter::Display(items) => items.first().map(|s| s.as_str()),
+            ICalendarParameter::Email(v) => v.as_str().into(),
+            ICalendarParameter::Feature(items) => items.first().map(|s| s.as_str()),
+            ICalendarParameter::Label(v) => v.as_str().into(),
+            ICalendarParameter::Size(_) => None,
+            ICalendarParameter::Filename(v) => v.as_str().into(),
+            ICalendarParameter::ManagedId(v) => v.as_str().into(),
+            ICalendarParameter::Order(_) => None,
+            ICalendarParameter::Schema(v) => v.as_str(),
+            ICalendarParameter::Derived(v) => (if *v { "true" } else { "false" }).into(),
+            ICalendarParameter::Gap(_) => None,
+            ICalendarParameter::Linkrel(v) => v.as_str(),
+            ICalendarParameter::Other(items) => items.first().map(|s| s.as_str()),
+        }
+    }
+
     pub fn size(&self) -> usize {
         match self {
             ICalendarParameter::Altrep(s) => s.size(),
@@ -146,6 +244,13 @@ impl ICalendarParameter {
 }
 
 impl Uri {
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            Uri::Data(data) => data.content_type.as_deref(),
+            Uri::Location(loc) => loc.as_str().into(),
+        }
+    }
+
     pub fn size(&self) -> usize {
         match self {
             Uri::Data(data) => {

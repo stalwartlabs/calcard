@@ -15,19 +15,6 @@ impl ArchivedICalendar {
             .map(|component| component.size())
             .sum()
     }
-
-    pub fn is_timezone(&self) -> bool {
-        self.components
-            .iter()
-            .filter(|comp| {
-                matches!(
-                    comp.component_type,
-                    ArchivedICalendarComponentType::VTimezone
-                )
-            })
-            .count()
-            == 1
-    }
 }
 
 impl ArchivedICalendarComponent {
@@ -118,6 +105,126 @@ impl ArchivedICalendarEntry {
 }
 
 impl ArchivedICalendarParameter {
+    pub fn matches_name(&self, name: &ICalendarParameterName) -> bool {
+        match name {
+            ICalendarParameterName::Altrep => matches!(self, ArchivedICalendarParameter::Altrep(_)),
+            ICalendarParameterName::Cn => matches!(self, ArchivedICalendarParameter::Cn(_)),
+            ICalendarParameterName::Cutype => matches!(self, ArchivedICalendarParameter::Cutype(_)),
+            ICalendarParameterName::DelegatedFrom => {
+                matches!(self, ArchivedICalendarParameter::DelegatedFrom(_))
+            }
+            ICalendarParameterName::DelegatedTo => {
+                matches!(self, ArchivedICalendarParameter::DelegatedTo(_))
+            }
+            ICalendarParameterName::Dir => matches!(self, ArchivedICalendarParameter::Dir(_)),
+            ICalendarParameterName::Fmttype => {
+                matches!(self, ArchivedICalendarParameter::Fmttype(_))
+            }
+            ICalendarParameterName::Fbtype => matches!(self, ArchivedICalendarParameter::Fbtype(_)),
+            ICalendarParameterName::Language => {
+                matches!(self, ArchivedICalendarParameter::Language(_))
+            }
+            ICalendarParameterName::Member => matches!(self, ArchivedICalendarParameter::Member(_)),
+            ICalendarParameterName::Partstat => {
+                matches!(self, ArchivedICalendarParameter::Partstat(_))
+            }
+            ICalendarParameterName::Range => matches!(self, ArchivedICalendarParameter::Range),
+            ICalendarParameterName::Related => {
+                matches!(self, ArchivedICalendarParameter::Related(_))
+            }
+            ICalendarParameterName::Reltype => {
+                matches!(self, ArchivedICalendarParameter::Reltype(_))
+            }
+            ICalendarParameterName::Role => matches!(self, ArchivedICalendarParameter::Role(_)),
+            ICalendarParameterName::Rsvp => matches!(self, ArchivedICalendarParameter::Rsvp(_)),
+            ICalendarParameterName::ScheduleAgent => {
+                matches!(self, ArchivedICalendarParameter::ScheduleAgent(_))
+            }
+            ICalendarParameterName::ScheduleForceSend => {
+                matches!(self, ArchivedICalendarParameter::ScheduleForceSend(_))
+            }
+            ICalendarParameterName::ScheduleStatus => {
+                matches!(self, ArchivedICalendarParameter::ScheduleStatus(_))
+            }
+            ICalendarParameterName::SentBy => matches!(self, ArchivedICalendarParameter::SentBy(_)),
+            ICalendarParameterName::Tzid => matches!(self, ArchivedICalendarParameter::Tzid(_)),
+            ICalendarParameterName::Value => matches!(self, ArchivedICalendarParameter::Value(_)),
+            ICalendarParameterName::Display => {
+                matches!(self, ArchivedICalendarParameter::Display(_))
+            }
+            ICalendarParameterName::Email => matches!(self, ArchivedICalendarParameter::Email(_)),
+            ICalendarParameterName::Feature => {
+                matches!(self, ArchivedICalendarParameter::Feature(_))
+            }
+            ICalendarParameterName::Label => matches!(self, ArchivedICalendarParameter::Label(_)),
+            ICalendarParameterName::Size => matches!(self, ArchivedICalendarParameter::Size(_)),
+            ICalendarParameterName::Filename => {
+                matches!(self, ArchivedICalendarParameter::Filename(_))
+            }
+            ICalendarParameterName::ManagedId => {
+                matches!(self, ArchivedICalendarParameter::ManagedId(_))
+            }
+            ICalendarParameterName::Order => matches!(self, ArchivedICalendarParameter::Order(_)),
+            ICalendarParameterName::Schema => matches!(self, ArchivedICalendarParameter::Schema(_)),
+            ICalendarParameterName::Derived => {
+                matches!(self, ArchivedICalendarParameter::Derived(_))
+            }
+            ICalendarParameterName::Gap => matches!(self, ArchivedICalendarParameter::Gap(_)),
+            ICalendarParameterName::Linkrel => {
+                matches!(self, ArchivedICalendarParameter::Linkrel(_))
+            }
+            ICalendarParameterName::Other(name) => {
+                if let ArchivedICalendarParameter::Other(ref o) = self {
+                    o.iter().any(|s| s == name)
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    pub fn as_text(&self) -> Option<&str> {
+        match self {
+            ArchivedICalendarParameter::Altrep(uri) => uri.as_str(),
+            ArchivedICalendarParameter::Cn(v) => v.as_str().into(),
+            ArchivedICalendarParameter::Cutype(v) => v.as_str().into(),
+            ArchivedICalendarParameter::DelegatedFrom(uris) => {
+                uris.first().and_then(|u| u.as_str())
+            }
+            ArchivedICalendarParameter::DelegatedTo(uris) => uris.first().and_then(|u| u.as_str()),
+            ArchivedICalendarParameter::Dir(v) => v.as_str(),
+            ArchivedICalendarParameter::Fmttype(v) => v.as_str().into(),
+            ArchivedICalendarParameter::Fbtype(v) => v.as_str().into(),
+            ArchivedICalendarParameter::Language(v) => v.as_str().into(),
+            ArchivedICalendarParameter::Member(uris) => uris.first().and_then(|u| u.as_str()),
+            ArchivedICalendarParameter::Partstat(v) => v.as_str().into(),
+            ArchivedICalendarParameter::Range => "THISANDFUTURE".into(),
+            ArchivedICalendarParameter::Related(v) => v.as_str().into(),
+            ArchivedICalendarParameter::Reltype(v) => v.as_str().into(),
+            ArchivedICalendarParameter::Role(v) => v.as_str().into(),
+            ArchivedICalendarParameter::Rsvp(v) => (if *v { "true" } else { "false" }).into(),
+            ArchivedICalendarParameter::ScheduleAgent(v) => v.as_str().into(),
+            ArchivedICalendarParameter::ScheduleForceSend(v) => v.as_str().into(),
+            ArchivedICalendarParameter::ScheduleStatus(v) => v.as_str().into(),
+            ArchivedICalendarParameter::SentBy(v) => v.as_str(),
+            ArchivedICalendarParameter::Tzid(v) => v.as_str().into(),
+            ArchivedICalendarParameter::Value(v) => v.as_str().into(),
+            ArchivedICalendarParameter::Display(items) => items.first().map(|s| s.as_str()),
+            ArchivedICalendarParameter::Email(v) => v.as_str().into(),
+            ArchivedICalendarParameter::Feature(items) => items.first().map(|s| s.as_str()),
+            ArchivedICalendarParameter::Label(v) => v.as_str().into(),
+            ArchivedICalendarParameter::Size(_) => None,
+            ArchivedICalendarParameter::Filename(v) => v.as_str().into(),
+            ArchivedICalendarParameter::ManagedId(v) => v.as_str().into(),
+            ArchivedICalendarParameter::Order(_) => None,
+            ArchivedICalendarParameter::Schema(v) => v.as_str(),
+            ArchivedICalendarParameter::Derived(v) => (if *v { "true" } else { "false" }).into(),
+            ArchivedICalendarParameter::Gap(_) => None,
+            ArchivedICalendarParameter::Linkrel(v) => v.as_str(),
+            ArchivedICalendarParameter::Other(items) => items.first().map(|s| s.as_str()),
+        }
+    }
+
     pub fn size(&self) -> usize {
         match self {
             ArchivedICalendarParameter::Altrep(s) => s.size(),
@@ -155,6 +262,13 @@ impl ArchivedICalendarParameter {
 }
 
 impl ArchivedUri {
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            ArchivedUri::Data(data) => data.content_type.as_deref(),
+            ArchivedUri::Location(loc) => loc.as_str().into(),
+        }
+    }
+
     pub fn size(&self) -> usize {
         match self {
             ArchivedUri::Data(data) => {

@@ -160,14 +160,34 @@ impl PartialDateTime {
         }
         Some(dt)
     }
+}
 
-    pub fn tz_offset(&self) -> Option<i32> {
-        let secs = (self.tz_hour? as i32 * 3600) + (self.tz_minute.unwrap_or(0) as i32 * 60);
-        if self.tz_minus {
-            Some(-secs)
-        } else {
-            Some(secs)
+#[cfg(feature = "rkyv")]
+impl ArchivedPartialDateTime {
+    pub fn to_date_time(&self) -> Option<DateTimeResult> {
+        let mut dt = DateTimeResult {
+            date_time: NaiveDate::from_ymd_opt(
+                self.year.as_ref()?.to_native() as i32,
+                *self.month.as_ref()? as u32,
+                *self.day.as_ref()? as u32,
+            )?
+            .and_hms_opt(
+                self.hour.unwrap_or(0) as u32,
+                self.minute.unwrap_or(0) as u32,
+                self.second.unwrap_or(0) as u32,
+            )?,
+            offset: None,
+        };
+        if let Some(tz_hour) = self.tz_hour.as_ref() {
+            let secs = (*tz_hour as i32 * 3600) + (self.tz_minute.unwrap_or(0) as i32 * 60);
+            dt.offset = if self.tz_minus {
+                FixedOffset::west_opt(secs)?
+            } else {
+                FixedOffset::east_opt(secs)?
+            }
+            .into();
         }
+        Some(dt)
     }
 }
 

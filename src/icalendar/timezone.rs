@@ -10,6 +10,24 @@ pub struct TzResolver<'x> {
     default: Tz,
 }
 
+impl TzResolver<'_> {
+    pub fn resolve(&self, tz_name: Option<&str>) -> Tz {
+        tz_name
+            .and_then(|tz_name| {
+                self.tzs
+                    .get(tz_name)
+                    .copied()
+                    .or_else(|| Tz::from_str(tz_name).ok())
+            })
+            .unwrap_or(self.default)
+    }
+
+    pub fn with_default(mut self, default: impl Into<Tz>) -> Self {
+        self.default = default.into();
+        self
+    }
+}
+
 impl ICalendar {
     pub fn timezones(&self) -> impl Iterator<Item = &ICalendarComponent> {
         self.components
@@ -26,24 +44,6 @@ impl ICalendar {
             tzs: self.timezones().filter_map(|tz| tz.timezone()).collect(),
             default: Tz::Floating,
         }
-    }
-}
-
-impl TzResolver<'_> {
-    pub fn resolve(&self, tz_name: Option<&str>) -> Tz {
-        tz_name
-            .and_then(|tz_name| {
-                self.tzs
-                    .get(tz_name)
-                    .copied()
-                    .or_else(|| Tz::from_str(tz_name).ok())
-            })
-            .unwrap_or(self.default)
-    }
-
-    pub fn with_default(mut self, default: impl Into<Tz>) -> Self {
-        self.default = default.into();
-        self
     }
 }
 

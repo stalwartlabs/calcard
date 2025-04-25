@@ -5,8 +5,9 @@ use std::str::FromStr;
 
 use super::DateTimeResult;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub enum Tz {
+    #[default]
     Floating,
     Fixed(FixedOffset),
     Tz(chrono_tz::Tz),

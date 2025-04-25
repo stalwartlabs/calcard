@@ -23,7 +23,6 @@ pub struct CalendarExpand {
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct CalendarEvent<T> {
     pub comp_id: u16,
-    pub alarm_id: Option<u16>,
     pub start: DateTime<Tz>,
     pub end: T,
 }
@@ -71,26 +70,10 @@ impl ICalendar {
                     | ICalendarComponentType::VJournal
                     | ICalendarComponentType::VFreebusy
             ) {
-                let alarm_id = comp
-                    .component_ids
-                    .iter()
-                    .find(|id| {
-                        matches!(
-                            self.components[**id as usize].component_type,
-                            ICalendarComponentType::VAlarm
-                        )
-                    })
-                    .copied();
-
-                match comp.build_calendar_date(
-                    comp_id as u16,
-                    alarm_id,
-                    &tz_resolver,
-                    &mut expand.events,
-                ) {
+                match comp.build_calendar_date(comp_id as u16, &tz_resolver, &mut expand.events) {
                     Ok(Some(event)) => {
                         if event.rrule.is_some() {
-                            rrules.push((comp_id as u16, alarm_id, event));
+                            rrules.push((comp_id as u16, event));
                         } else if let Some(rid) = event.rid {
                             overridden.insert((event.rrule_seq, rid), (comp_id as u16, event));
                         } else if let Some(cal_event) = event.event {
@@ -109,7 +92,7 @@ impl ICalendar {
         }
 
         // Expand recurrences
-        for (mut comp_id, alarm_id, event) in rrules {
+        for (mut comp_id, event) in rrules {
             let rrule = event.rrule.unwrap();
             let floating_start = if let Some(floating_start) = Tz::Floating
                 .from_local_datetime(&event.dt_start.date_time)
@@ -175,7 +158,6 @@ impl ICalendar {
                             start: date,
                             end: TimeOrDelta::Delta(event.default_duration),
                             comp_id,
-                            alarm_id,
                         });
                     }
                     _ => {}
@@ -211,7 +193,6 @@ impl ICalendarComponent {
     fn build_calendar_date(
         &self,
         comp_id: u16,
-        alarm_id: Option<u16>,
         tz_resolver: &TzResolver,
         events: &mut Vec<CalendarEvent<TimeOrDelta<DateTime<Tz>, TimeDelta>>>,
     ) -> Result<Option<CalendarEventBuilder>, CalendarErrorType> {
@@ -361,7 +342,6 @@ impl ICalendarComponent {
                     start: dt_start_tz,
                     end: TimeOrDelta::Time(end),
                     comp_id,
-                    alarm_id,
                 });
             }
             dt_end.date_time - dt_start.date_time
@@ -374,7 +354,6 @@ impl ICalendarComponent {
                     start: dt_start_tz,
                     end: TimeOrDelta::Delta(duration),
                     comp_id,
-                    alarm_id,
                 });
             }
             duration
@@ -406,7 +385,6 @@ impl ICalendarComponent {
                     start: dt_start_tz,
                     end: TimeOrDelta::Delta(duration),
                     comp_id,
-                    alarm_id,
                 });
             }
             duration
@@ -426,7 +404,6 @@ impl ICalendarComponent {
                     start: date_start,
                     end: TimeOrDelta::Delta(default_duration),
                     comp_id,
-                    alarm_id,
                 });
             }
         }
@@ -440,7 +417,6 @@ impl ICalendarComponent {
                     start: date_start,
                     end: date_end,
                     comp_id,
-                    alarm_id,
                 });
             }
         }
@@ -461,7 +437,7 @@ impl ICalendarComponent {
 }
 
 impl TimeOrDelta<DateTimeResult, TimeDelta> {
-    fn into_date_time_with_tz(self, tz: Tz) -> Option<TimeOrDelta<DateTime<Tz>, TimeDelta>> {
+    pub fn into_date_time_with_tz(self, tz: Tz) -> Option<TimeOrDelta<DateTime<Tz>, TimeDelta>> {
         match self {
             TimeOrDelta::Time(time) => time.to_date_time_with_tz(tz).map(TimeOrDelta::Time),
             TimeOrDelta::Delta(delta) => Some(TimeOrDelta::Delta(delta)),
@@ -470,6 +446,16 @@ impl TimeOrDelta<DateTimeResult, TimeDelta> {
 }
 
 impl CalendarEvent<TimeOrDelta<DateTime<Tz>, TimeDelta>> {
+    pub fn timestamps(&self) -> (i64, i64) {
+        let timestamp = self.start.timestamp();
+        let end_timestamp = match self.end {
+            TimeOrDelta::Time(time) => time.timestamp(),
+            TimeOrDelta::Delta(delta) => timestamp + delta.num_seconds(),
+        };
+
+        (timestamp, end_timestamp)
+    }
+
     pub fn try_into_date_time(self) -> Option<CalendarEvent<DateTime<Tz>>> {
         match self.end {
             TimeOrDelta::Time(time) => Some(time),
@@ -483,7 +469,6 @@ impl CalendarEvent<TimeOrDelta<DateTime<Tz>, TimeDelta>> {
             start: self.start,
             end,
             comp_id: self.comp_id,
-            alarm_id: self.alarm_id,
         })
     }
 }

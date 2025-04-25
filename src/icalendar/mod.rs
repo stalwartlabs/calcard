@@ -10,6 +10,8 @@ pub mod utils;
 pub mod writer;
 
 #[cfg(feature = "rkyv")]
+pub mod rkyv_timezone;
+#[cfg(feature = "rkyv")]
 pub mod rkyv_types;
 #[cfg(feature = "rkyv")]
 pub mod rkyv_utils;
@@ -57,9 +59,9 @@ pub struct ICalendarComponent {
 )]
 #[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub struct ICalendarEntry {
-    name: ICalendarProperty,
-    params: Vec<ICalendarParameter>,
-    values: Vec<ICalendarValue>,
+    pub name: ICalendarProperty,
+    pub params: Vec<ICalendarParameter>,
+    pub values: Vec<ICalendarValue>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
