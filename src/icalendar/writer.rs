@@ -13,7 +13,7 @@ use crate::{
 
 use super::{
     ICalendar, ICalendarDay, ICalendarDuration, ICalendarEntry, ICalendarParameter,
-    ICalendarPeriod, ICalendarProperty, ICalendarRecurrenceRule, ICalendarValueType,
+    ICalendarPeriod, ICalendarRecurrenceRule, ICalendarValueType,
 };
 
 impl ICalendar {
@@ -27,12 +27,7 @@ impl ICalendar {
                 write!(out, "BEGIN:{}\r\n", component.component_type.as_str())?;
 
                 for entry in &component.entries {
-                    if !matches!(
-                        entry.name,
-                        ICalendarProperty::Begin | ICalendarProperty::End
-                    ) {
-                        entry.write_to(out)?;
-                    }
+                    entry.write_to(out)?;
                 }
 
                 if !component.component_ids.is_empty() {

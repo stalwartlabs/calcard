@@ -1,6 +1,7 @@
 use super::{
     ICalendar, ICalendarComponent, ICalendarDuration, ICalendarEntry, ICalendarParameter,
-    ICalendarParameterName, ICalendarProperty, ICalendarRecurrenceRule, ICalendarValue, Uri,
+    ICalendarParameterName, ICalendarProperty, ICalendarRecurrenceRule, ICalendarStatus,
+    ICalendarTransparency, ICalendarValue, Uri,
 };
 use crate::common::PartialDateTime;
 
@@ -43,6 +44,52 @@ impl ICalendarComponent {
 
     pub fn size(&self) -> usize {
         self.entries.iter().map(|entry| entry.size()).sum()
+    }
+
+    pub fn is_recurrent(&self) -> bool {
+        self.entries.iter().any(|entry| {
+            matches!(
+                entry.name,
+                ICalendarProperty::Rrule | ICalendarProperty::Rdate
+            )
+        })
+    }
+
+    pub fn is_recurrence_override(&self) -> bool {
+        self.entries
+            .iter()
+            .any(|entry| matches!(entry.name, ICalendarProperty::RecurrenceId))
+    }
+
+    pub fn is_recurrent_or_override(&self) -> bool {
+        self.entries.iter().any(|entry| {
+            matches!(
+                entry.name,
+                ICalendarProperty::Rrule
+                    | ICalendarProperty::Rdate
+                    | ICalendarProperty::RecurrenceId
+            )
+        })
+    }
+
+    pub fn status(&self) -> Option<&ICalendarStatus> {
+        self.entries
+            .iter()
+            .find_map(|entry| match (&entry.name, entry.values.first()) {
+                (ICalendarProperty::Status, Some(ICalendarValue::Status(status))) => Some(status),
+                _ => None,
+            })
+    }
+
+    pub fn transparency(&self) -> Option<&ICalendarTransparency> {
+        self.entries
+            .iter()
+            .find_map(|entry| match (&entry.name, entry.values.first()) {
+                (ICalendarProperty::Transp, Some(ICalendarValue::Transparency(trans))) => {
+                    Some(trans)
+                }
+                _ => None,
+            })
     }
 }
 

@@ -89,7 +89,7 @@ pub enum ICalendarValue {
     CalendarScale(CalendarScale),
     Method(ICalendarMethod),
     Classification(ICalendarClassification),
-    Status(ICalendarParticipationStatus),
+    Status(ICalendarStatus),
     Transparency(ICalendarTransparency),
     Action(ICalendarAction),
     BusyType(ICalendarFreeBusyType),
@@ -515,6 +515,16 @@ impl ICalendarComponentType {
             ICalendarComponentType::VLocation => "VLOCATION",
             ICalendarComponentType::VResource => "VRESOURCE",
         }
+    }
+
+    pub fn has_time_ranges(&self) -> bool {
+        matches!(
+            self,
+            ICalendarComponentType::VEvent
+                | ICalendarComponentType::VTodo
+                | ICalendarComponentType::VJournal
+                | ICalendarComponentType::VFreebusy
+        )
     }
 }
 
@@ -979,6 +989,61 @@ impl ICalendarParticipationRole {
             ICalendarParticipationRole::OptParticipant => "OPT-PARTICIPANT",
             ICalendarParticipationRole::NonParticipant => "NON-PARTICIPANT",
             ICalendarParticipationRole::Other(value) => value,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
+pub enum ICalendarStatus {
+    Tentative,   // [RFC5545, Section 3.8.1]
+    Confirmed,   // [RFC5545, Section 3.8.1]
+    Cancelled,   // [RFC5545, Section 3.8.1]
+    NeedsAction, // [RFC5545, Section 3.8.1]
+    Completed,   // [RFC5545, Section 3.8.1]
+    InProcess,   // [RFC5545, Section 3.8.1]
+    Draft,       // [RFC5545, Section 3.8.1]
+    Final,       // [RFC5545, Section 3.8.1]
+    Other(String),
+}
+
+impl From<Token<'_>> for ICalendarStatus {
+    fn from(token: Token<'_>) -> Self {
+        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+            "TENTATIVE" => ICalendarStatus::Tentative,
+            "CONFIRMED" => ICalendarStatus::Confirmed,
+            "CANCELLED" => ICalendarStatus::Cancelled,
+            "NEEDS-ACTION" => ICalendarStatus::NeedsAction,
+            "COMPLETED" => ICalendarStatus::Completed,
+            "IN-PROCESS" => ICalendarStatus::InProcess,
+            "DRAFT" => ICalendarStatus::Draft,
+            "FINAL" => ICalendarStatus::Final,
+        )
+        .unwrap_or_else(|| Self::Other(token.into_string()))
+    }
+}
+
+impl ICalendarStatus {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarStatus::Tentative => "TENTATIVE",
+            ICalendarStatus::Confirmed => "CONFIRMED",
+            ICalendarStatus::Cancelled => "CANCELLED",
+            ICalendarStatus::NeedsAction => "NEEDS-ACTION",
+            ICalendarStatus::Completed => "COMPLETED",
+            ICalendarStatus::InProcess => "IN-PROCESS",
+            ICalendarStatus::Draft => "DRAFT",
+            ICalendarStatus::Final => "FINAL",
+            ICalendarStatus::Other(value) => value,
         }
     }
 }
@@ -1708,6 +1773,12 @@ impl AsRef<str> for ICalendarParticipationRole {
 }
 
 impl AsRef<str> for ICalendarParticipationStatus {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for ICalendarStatus {
     fn as_ref(&self) -> &str {
         self.as_str()
     }

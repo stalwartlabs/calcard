@@ -1,4 +1,6 @@
-use crate::common::ArchivedPartialDateTime;
+use chrono::DateTime;
+
+use crate::common::{timezone::Tz, ArchivedPartialDateTime};
 
 use super::*;
 
@@ -37,6 +39,56 @@ impl ArchivedICalendarComponent {
 
     pub fn size(&self) -> usize {
         self.entries.iter().map(|entry| entry.size()).sum()
+    }
+
+    pub fn is_recurrent(&self) -> bool {
+        self.entries.iter().any(|entry| {
+            matches!(
+                entry.name,
+                ArchivedICalendarProperty::Rrule | ArchivedICalendarProperty::Rdate
+            )
+        })
+    }
+
+    pub fn is_recurrence_override(&self) -> bool {
+        self.entries
+            .iter()
+            .any(|entry| matches!(entry.name, ArchivedICalendarProperty::RecurrenceId))
+    }
+
+    pub fn is_recurrent_or_override(&self) -> bool {
+        self.entries.iter().any(|entry| {
+            matches!(
+                entry.name,
+                ArchivedICalendarProperty::Rrule
+                    | ArchivedICalendarProperty::Rdate
+                    | ArchivedICalendarProperty::RecurrenceId
+            )
+        })
+    }
+
+    pub fn status(&self) -> Option<&ArchivedICalendarStatus> {
+        self.entries
+            .iter()
+            .find_map(|entry| match (&entry.name, entry.values.first()) {
+                (
+                    ArchivedICalendarProperty::Status,
+                    Some(ArchivedICalendarValue::Status(status)),
+                ) => Some(status),
+                _ => None,
+            })
+    }
+
+    pub fn transparency(&self) -> Option<&ArchivedICalendarTransparency> {
+        self.entries
+            .iter()
+            .find_map(|entry| match (&entry.name, entry.values.first()) {
+                (
+                    ArchivedICalendarProperty::Transp,
+                    Some(ArchivedICalendarValue::Transparency(trans)),
+                ) => Some(trans),
+                _ => None,
+            })
     }
 }
 
@@ -276,5 +328,46 @@ impl ArchivedUri {
             }
             ArchivedUri::Location(loc) => loc.len(),
         }
+    }
+}
+
+impl ArchivedICalendarPeriod {
+    pub fn time_range(&self, tz: Tz) -> Option<(DateTime<Tz>, DateTime<Tz>)> {
+        match self {
+            ArchivedICalendarPeriod::Range { start, end } => {
+                if let (Some(start), Some(end)) = (
+                    start
+                        .to_date_time()
+                        .and_then(|start| start.to_date_time_with_tz(tz)),
+                    end.to_date_time()
+                        .and_then(|end| end.to_date_time_with_tz(tz)),
+                ) {
+                    Some((start, end))
+                } else {
+                    None
+                }
+            }
+            ArchivedICalendarPeriod::Duration { start, duration } => start
+                .to_date_time()
+                .and_then(|start| start.to_date_time_with_tz(tz))
+                .and_then(|start| {
+                    duration
+                        .to_time_delta()
+                        .and_then(|duration| start.checked_add_signed(duration))
+                        .map(|end| (start, end))
+                }),
+        }
+    }
+}
+
+impl ArchivedICalendarDuration {
+    pub fn to_time_delta(&self) -> Option<chrono::TimeDelta> {
+        let secs = self.seconds.to_native() as i64
+            + self.minutes.to_native() as i64 * 60
+            + self.hours.to_native() as i64 * 3600
+            + self.days.to_native() as i64 * 86400
+            + self.weeks.to_native() as i64 * 604800;
+
+        chrono::TimeDelta::new(if self.neg { -secs } else { secs }, 0)
     }
 }

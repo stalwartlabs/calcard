@@ -31,7 +31,7 @@ impl ArchivedICalendar {
                         entry.name,
                         ArchivedICalendarProperty::Begin | ArchivedICalendarProperty::End
                     ) {
-                        entry.write_to(out)?;
+                        entry.write_to(out, true)?;
                     }
                 }
 
@@ -54,7 +54,7 @@ impl ArchivedICalendar {
 }
 
 impl ArchivedICalendarEntry {
-    pub fn write_to(&self, out: &mut impl Write) -> std::fmt::Result {
+    pub fn write_to(&self, out: &mut impl Write, with_value: bool) -> std::fmt::Result {
         let mut line_len = 0;
 
         let entry_name = self.name.as_str();
@@ -219,90 +219,91 @@ impl ArchivedICalendarEntry {
 
         write!(out, ":")?;
 
-        let (default_type, separator) = self.name.default_types();
-        let separator = if !matches!(separator, ValueSeparator::Comma) {
-            ";"
-        } else {
-            ","
-        };
-        let default_type = default_type.unwrap_ical();
-
-        for (pos, value) in self.values.iter().enumerate() {
-            if pos > 0 {
-                write!(out, "{separator}")?;
-                line_len += 1;
-            }
-
-            if line_len + 1 > 75 {
-                write!(out, "\r\n ")?;
-                line_len = 1;
-            }
-
-            let text = match value {
-                ArchivedICalendarValue::Binary(v) => {
-                    write_bytes(out, &mut line_len, v)?;
-                    continue;
-                }
-                ArchivedICalendarValue::Boolean(v) => {
-                    let text = if *v { "TRUE" } else { "FALSE" };
-                    write!(out, "{text}")?;
-                    line_len += text.len();
-                    continue;
-                }
-                ArchivedICalendarValue::Uri(v) => {
-                    write_uri(out, &mut line_len, v, true)?;
-                    continue;
-                }
-                ArchivedICalendarValue::PartialDateTime(v) => {
-                    v.format_as_ical(out, value_type.unwrap_or(&default_type))?;
-                    line_len += 6;
-                    continue;
-                }
-                ArchivedICalendarValue::Duration(v) => {
-                    write!(out, "{}", v)?;
-                    line_len += 6;
-                    continue;
-                }
-                ArchivedICalendarValue::RecurrenceRule(v) => {
-                    write!(out, "{}", v)?;
-                    line_len += 6;
-                    continue;
-                }
-                ArchivedICalendarValue::Period(v) => {
-                    write!(out, "{}", v)?;
-                    line_len += 32;
-                    continue;
-                }
-                ArchivedICalendarValue::Float(v) => {
-                    write!(out, "{v}")?;
-                    line_len += 4;
-                    continue;
-                }
-                ArchivedICalendarValue::Integer(v) => {
-                    write!(out, "{v}")?;
-                    line_len += 4;
-                    continue;
-                }
-                ArchivedICalendarValue::Text(v) => {
-                    write_value(out, &mut line_len, v)?;
-                    continue;
-                }
-                ArchivedICalendarValue::CalendarScale(v) => v.as_str(),
-                ArchivedICalendarValue::Method(v) => v.as_str(),
-                ArchivedICalendarValue::Classification(v) => v.as_str(),
-                ArchivedICalendarValue::Status(v) => v.as_str(),
-                ArchivedICalendarValue::Transparency(v) => v.as_str(),
-                ArchivedICalendarValue::Action(v) => v.as_str(),
-                ArchivedICalendarValue::BusyType(v) => v.as_str(),
-                ArchivedICalendarValue::ParticipantType(v) => v.as_str(),
-                ArchivedICalendarValue::ResourceType(v) => v.as_str(),
-                ArchivedICalendarValue::Proximity(v) => v.as_str(),
+        if with_value {
+            let (default_type, separator) = self.name.default_types();
+            let separator = if !matches!(separator, ValueSeparator::Comma) {
+                ";"
+            } else {
+                ","
             };
+            let default_type = default_type.unwrap_ical();
 
-            write!(out, "{text}")?;
-            line_len += text.len();
+            for (pos, value) in self.values.iter().enumerate() {
+                if pos > 0 {
+                    write!(out, "{separator}")?;
+                    line_len += 1;
+                }
+
+                if line_len + 1 > 75 {
+                    write!(out, "\r\n ")?;
+                    line_len = 1;
+                }
+
+                let text = match value {
+                    ArchivedICalendarValue::Binary(v) => {
+                        write_bytes(out, &mut line_len, v)?;
+                        continue;
+                    }
+                    ArchivedICalendarValue::Boolean(v) => {
+                        let text = if *v { "TRUE" } else { "FALSE" };
+                        write!(out, "{text}")?;
+                        line_len += text.len();
+                        continue;
+                    }
+                    ArchivedICalendarValue::Uri(v) => {
+                        write_uri(out, &mut line_len, v, true)?;
+                        continue;
+                    }
+                    ArchivedICalendarValue::PartialDateTime(v) => {
+                        v.format_as_ical(out, value_type.unwrap_or(&default_type))?;
+                        line_len += 6;
+                        continue;
+                    }
+                    ArchivedICalendarValue::Duration(v) => {
+                        write!(out, "{}", v)?;
+                        line_len += 6;
+                        continue;
+                    }
+                    ArchivedICalendarValue::RecurrenceRule(v) => {
+                        write!(out, "{}", v)?;
+                        line_len += 6;
+                        continue;
+                    }
+                    ArchivedICalendarValue::Period(v) => {
+                        write!(out, "{}", v)?;
+                        line_len += 32;
+                        continue;
+                    }
+                    ArchivedICalendarValue::Float(v) => {
+                        write!(out, "{v}")?;
+                        line_len += 4;
+                        continue;
+                    }
+                    ArchivedICalendarValue::Integer(v) => {
+                        write!(out, "{v}")?;
+                        line_len += 4;
+                        continue;
+                    }
+                    ArchivedICalendarValue::Text(v) => {
+                        write_value(out, &mut line_len, v)?;
+                        continue;
+                    }
+                    ArchivedICalendarValue::CalendarScale(v) => v.as_str(),
+                    ArchivedICalendarValue::Method(v) => v.as_str(),
+                    ArchivedICalendarValue::Classification(v) => v.as_str(),
+                    ArchivedICalendarValue::Status(v) => v.as_str(),
+                    ArchivedICalendarValue::Transparency(v) => v.as_str(),
+                    ArchivedICalendarValue::Action(v) => v.as_str(),
+                    ArchivedICalendarValue::BusyType(v) => v.as_str(),
+                    ArchivedICalendarValue::ParticipantType(v) => v.as_str(),
+                    ArchivedICalendarValue::ResourceType(v) => v.as_str(),
+                    ArchivedICalendarValue::Proximity(v) => v.as_str(),
+                };
+
+                write!(out, "{text}")?;
+                line_len += text.len();
+            }
         }
-
         write!(out, "\r\n")
     }
 }

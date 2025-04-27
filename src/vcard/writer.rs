@@ -5,7 +5,7 @@ use crate::{
         parser::Timestamp,
         writer::{write_bytes, write_param, write_param_value, write_params, write_value},
     },
-    vcard::{VCardParameter, VCardProperty, VCardValue, ValueSeparator},
+    vcard::{VCardParameter, VCardValue, ValueSeparator},
 };
 
 use super::{PartialDateTime, VCard, VCardEntry, VCardValueType};
@@ -13,13 +13,9 @@ use super::{PartialDateTime, VCard, VCardEntry, VCardValueType};
 impl VCard {
     pub fn write_to(&self, out: &mut impl Write) -> std::fmt::Result {
         write!(out, "BEGIN:VCARD\r\n")?;
-
         for entry in &self.entries {
-            if !matches!(entry.name, VCardProperty::Begin | VCardProperty::End) {
-                entry.write_to(out)?;
-            }
+            entry.write_to(out)?;
         }
-
         write!(out, "END:VCARD\r\n")
     }
 }

@@ -1,5 +1,6 @@
 use crate::Token;
 use chrono::{FixedOffset, NaiveDate, NaiveDateTime};
+use mail_parser::DateTime;
 
 pub mod parser;
 pub mod timezone;
@@ -135,6 +136,22 @@ pub struct Data {
 }
 
 impl PartialDateTime {
+    pub fn from_utc_timestamp(value: i64) -> Self {
+        let dt = DateTime::from_timestamp(value);
+
+        PartialDateTime {
+            year: dt.year.into(),
+            month: dt.month.into(),
+            day: dt.day.into(),
+            hour: dt.hour.into(),
+            minute: dt.minute.into(),
+            second: dt.second.into(),
+            tz_hour: dt.tz_hour.into(),
+            tz_minute: dt.tz_minute.into(),
+            tz_minus: false,
+        }
+    }
+
     pub fn to_date_time(&self) -> Option<DateTimeResult> {
         let mut dt = DateTimeResult {
             date_time: NaiveDate::from_ymd_opt(

@@ -292,12 +292,15 @@ impl Parser<'_> {
                 }
             }
 
-            // Add types
-            if !params.data_types.is_empty() {
-                entry.params.push(VCardParameter::Value(params.data_types));
-            }
+            // Skip begin and end properties
+            if !matches!(entry.name, VCardProperty::Begin | VCardProperty::End) {
+                // Add types
+                if !params.data_types.is_empty() {
+                    entry.params.push(VCardParameter::Value(params.data_types));
+                }
 
-            vcard.entries.push(entry);
+                vcard.entries.push(entry);
+            }
         }
 
         Entry::VCard(vcard)

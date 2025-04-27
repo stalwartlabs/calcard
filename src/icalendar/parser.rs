@@ -340,9 +340,9 @@ impl Parser<'_> {
                                 ));
                             }
                             ValueType::Status => {
-                                entry.values.push(ICalendarValue::Status(
-                                    ICalendarParticipationStatus::from(token),
-                                ));
+                                entry
+                                    .values
+                                    .push(ICalendarValue::Status(ICalendarStatus::from(token)));
                             }
                             ValueType::Transparency => {
                                 entry.values.push(ICalendarValue::Transparency(
@@ -383,12 +383,18 @@ impl Parser<'_> {
                 }
             }
 
-            // Add types
-            if let Some(data_type) = params.data_type {
-                entry.params.push(ICalendarParameter::Value(data_type));
-            }
+            // Skip begin and end properties
+            if !matches!(
+                entry.name,
+                ICalendarProperty::Begin | ICalendarProperty::End
+            ) {
+                // Add types
+                if let Some(data_type) = params.data_type {
+                    entry.params.push(ICalendarParameter::Value(data_type));
+                }
 
-            ical.entries.push(entry);
+                ical.entries.push(entry);
+            }
         }
 
         if ical_stack.is_empty() || !self.strict {

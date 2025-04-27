@@ -158,15 +158,15 @@ impl ArchivedVCardEntry {
 
         write!(out, ":")?;
 
-        let (default_type, separator) = self.name.default_types();
-        let separator = if !matches!(separator, ValueSeparator::Comma) {
-            ";"
-        } else {
-            ","
-        };
-        let default_type = default_type.unwrap_vcard();
-
         if with_value {
+            let (default_type, separator) = self.name.default_types();
+            let separator = if !matches!(separator, ValueSeparator::Comma) {
+                ";"
+            } else {
+                ","
+            };
+            let default_type = default_type.unwrap_vcard();
+
             for (pos, value) in self.values.iter().enumerate() {
                 if pos > 0 {
                     write!(out, "{separator}")?;

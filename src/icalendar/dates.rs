@@ -12,19 +12,20 @@ use super::{
     ICalendarProperty, ICalendarValue,
 };
 
+#[allow(clippy::type_complexity)]
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct CalendarExpand {
-    pub events: Vec<CalendarEvent<TimeOrDelta<DateTime<Tz>, TimeDelta>>>,
+    pub events: Vec<CalendarEvent<DateTime<Tz>, TimeOrDelta<DateTime<Tz>, TimeDelta>>>,
     pub errors: Vec<CalendarError>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
-pub struct CalendarEvent<T> {
+pub struct CalendarEvent<S, E> {
     pub comp_id: u16,
-    pub start: DateTime<Tz>,
-    pub end: T,
+    pub start: S,
+    pub end: E,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,13 +64,7 @@ impl ICalendar {
         let mut overridden = AHashMap::new();
 
         for (comp_id, comp) in self.components.iter().enumerate() {
-            if matches!(
-                comp.component_type,
-                ICalendarComponentType::VEvent
-                    | ICalendarComponentType::VTodo
-                    | ICalendarComponentType::VJournal
-                    | ICalendarComponentType::VFreebusy
-            ) {
+            if comp.component_type.has_time_ranges() {
                 match comp.build_calendar_date(comp_id as u16, &tz_resolver, &mut expand.events) {
                     Ok(Some(event)) => {
                         if event.rrule.is_some() {
@@ -176,8 +171,9 @@ impl ICalendar {
     }
 }
 
+#[allow(clippy::type_complexity)]
 struct CalendarEventBuilder<'x> {
-    event: Option<CalendarEvent<TimeOrDelta<DateTime<Tz>, TimeDelta>>>,
+    event: Option<CalendarEvent<DateTime<Tz>, TimeOrDelta<DateTime<Tz>, TimeDelta>>>,
     dt_start: DateTimeResult,
     dt_start_tzid: Option<&'x str>,
     start_tz: Tz,
@@ -190,19 +186,19 @@ struct CalendarEventBuilder<'x> {
 }
 
 impl ICalendarComponent {
+    #[allow(clippy::type_complexity)]
     fn build_calendar_date(
         &self,
         comp_id: u16,
         tz_resolver: &TzResolver,
-        events: &mut Vec<CalendarEvent<TimeOrDelta<DateTime<Tz>, TimeDelta>>>,
+        events: &mut Vec<CalendarEvent<DateTime<Tz>, TimeOrDelta<DateTime<Tz>, TimeDelta>>>,
     ) -> Result<Option<CalendarEventBuilder>, CalendarErrorType> {
         let mut dt_start = None;
         let mut dt_start_tzid = None;
         let mut dt_start_has_time = false;
         let mut dt_end: Option<DateTimeResult> = None;
         let mut dt_end_tzid = None;
-        let mut due: Option<DateTimeResult> = None;
-        let mut due_tzid = None;
+        let mut todo_dates = vec![];
         let mut rid: Option<DateTimeResult> = None;
         let mut rid_tzid = None;
         let mut rid_this_and_future = false;
@@ -226,11 +222,13 @@ impl ICalendarComponent {
                         dt_end_tzid = entry.tz_id();
                     }
                 }
-                (ICalendarProperty::Due, Some(ICalendarValue::PartialDateTime(dt))) => {
-                    if let Some(dt) = dt.to_date_time() {
-                        due = Some(dt);
-                        due_tzid = entry.tz_id();
-                    }
+                (
+                    ICalendarProperty::Due
+                    | ICalendarProperty::Completed
+                    | ICalendarProperty::Created,
+                    Some(ICalendarValue::PartialDateTime(dt)),
+                ) if self.component_type == ICalendarComponentType::VTodo => {
+                    todo_dates.push((&entry.name, dt.to_date_time(), entry.tz_id()));
                 }
                 (ICalendarProperty::RecurrenceId, Some(ICalendarValue::PartialDateTime(dt))) => {
                     if let Some(dt) = dt.to_date_time() {
@@ -316,10 +314,48 @@ impl ICalendarComponent {
                     ICalendarComponentType::VEvent => {
                         return Err(CalendarErrorType::MissingDtStart);
                     }
-                    ICalendarComponentType::VTodo if due.is_some() => {
-                        dt_start_has_time = true;
-                        dt_start_tzid = due_tzid;
-                        due.unwrap()
+                    ICalendarComponentType::VTodo => {
+                        let mut due_idx = None;
+                        let mut completed_idx = None;
+                        let mut created_idx = None;
+
+                        for (idx, (prop, dt, _)) in todo_dates.iter().enumerate() {
+                            if dt.is_some() {
+                                match prop {
+                                    ICalendarProperty::Due => due_idx = Some(idx),
+                                    ICalendarProperty::Completed => completed_idx = Some(idx),
+                                    ICalendarProperty::Created => created_idx = Some(idx),
+                                    _ => (),
+                                }
+                            }
+                        }
+
+                        match (due_idx, completed_idx, created_idx) {
+                            (Some(due_idx), _, _) => {
+                                let due = &mut todo_dates[due_idx];
+                                dt_start_tzid = due.2;
+                                dt_start_has_time = true;
+                                due.1.take().unwrap()
+                            }
+                            (_, Some(completed_idx), Some(created_idx)) => {
+                                let completed = &mut todo_dates[completed_idx];
+                                dt_end = completed.1.take();
+                                dt_end_tzid = completed.2;
+
+                                let created = &mut todo_dates[created_idx];
+                                dt_start_tzid = created.2;
+                                created.1.take().unwrap()
+                            }
+                            (_, Some(date_idx), _) | (_, _, Some(date_idx)) => {
+                                let date = &mut todo_dates[date_idx];
+                                dt_start_tzid = date.2;
+                                dt_start_has_time = true;
+                                date.1.take().unwrap()
+                            }
+                            _ => {
+                                return Ok(None);
+                            }
+                        }
                     }
                     _ => {
                         return Ok(None);
@@ -357,6 +393,29 @@ impl ICalendarComponent {
                 });
             }
             duration
+        } else if let Some((due, due_tzid)) = todo_dates
+            .into_iter()
+            .filter_map(|(prop, dt, tz_id)| {
+                if prop == &ICalendarProperty::Due {
+                    dt.map(|dt| (dt, tz_id))
+                } else {
+                    None
+                }
+            })
+            .next()
+        {
+            let end = due
+                .to_date_time_with_tz(tz_resolver.resolve(due_tzid.or(dt_start_tzid)))
+                .ok_or(CalendarErrorType::InvalidDtEnd)?;
+
+            if rrule.is_none() {
+                event = Some(CalendarEvent {
+                    start: dt_start_tz,
+                    end: TimeOrDelta::Time(end),
+                    comp_id,
+                });
+            }
+            due.date_time - dt_start.date_time
         } else {
             /*
                For cases where a "VEVENT" calendar component
@@ -445,7 +504,7 @@ impl TimeOrDelta<DateTimeResult, TimeDelta> {
     }
 }
 
-impl CalendarEvent<TimeOrDelta<DateTime<Tz>, TimeDelta>> {
+impl CalendarEvent<DateTime<Tz>, TimeOrDelta<DateTime<Tz>, TimeDelta>> {
     pub fn timestamps(&self) -> (i64, i64) {
         let timestamp = self.start.timestamp();
         let end_timestamp = match self.end {
@@ -456,7 +515,7 @@ impl CalendarEvent<TimeOrDelta<DateTime<Tz>, TimeDelta>> {
         (timestamp, end_timestamp)
     }
 
-    pub fn try_into_date_time(self) -> Option<CalendarEvent<DateTime<Tz>>> {
+    pub fn try_into_date_time(self) -> Option<CalendarEvent<DateTime<Tz>, DateTime<Tz>>> {
         match self.end {
             TimeOrDelta::Time(time) => Some(time),
             TimeOrDelta::Delta(delta) => self

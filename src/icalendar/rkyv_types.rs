@@ -359,6 +359,16 @@ impl ArchivedICalendarComponentType {
             ArchivedICalendarComponentType::VResource => "VRESOURCE",
         }
     }
+
+    pub fn has_time_ranges(&self) -> bool {
+        matches!(
+            self,
+            ArchivedICalendarComponentType::VEvent
+                | ArchivedICalendarComponentType::VTodo
+                | ArchivedICalendarComponentType::VJournal
+                | ArchivedICalendarComponentType::VFreebusy
+        )
+    }
 }
 
 impl ArchivedICalendarDisplayType {
@@ -457,6 +467,22 @@ impl ArchivedICalendarParticipationStatus {
             ArchivedICalendarParticipationStatus::Completed => "COMPLETED",
             ArchivedICalendarParticipationStatus::InProcess => "IN-PROCESS",
             ArchivedICalendarParticipationStatus::Other(value) => value,
+        }
+    }
+}
+
+impl ArchivedICalendarStatus {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ArchivedICalendarStatus::Tentative => "TENTATIVE",
+            ArchivedICalendarStatus::Confirmed => "CONFIRMED",
+            ArchivedICalendarStatus::Cancelled => "CANCELLED",
+            ArchivedICalendarStatus::NeedsAction => "NEEDS-ACTION",
+            ArchivedICalendarStatus::Completed => "COMPLETED",
+            ArchivedICalendarStatus::InProcess => "IN-PROCESS",
+            ArchivedICalendarStatus::Draft => "DRAFT",
+            ArchivedICalendarStatus::Final => "FINAL",
+            ArchivedICalendarStatus::Other(value) => value,
         }
     }
 }
