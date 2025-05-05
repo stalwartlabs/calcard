@@ -1,7 +1,7 @@
 use super::{
-    ICalendar, ICalendarComponent, ICalendarDuration, ICalendarEntry, ICalendarParameter,
-    ICalendarParameterName, ICalendarProperty, ICalendarRecurrenceRule, ICalendarStatus,
-    ICalendarTransparency, ICalendarValue, Uri,
+    ICalendar, ICalendarComponent, ICalendarComponentType, ICalendarDuration, ICalendarEntry,
+    ICalendarParameter, ICalendarParameterName, ICalendarProperty, ICalendarRecurrenceRule,
+    ICalendarStatus, ICalendarTransparency, ICalendarValue, Uri,
 };
 use crate::common::PartialDateTime;
 
@@ -21,6 +21,16 @@ impl ICalendar {
 
     pub fn component_by_id(&self, id: u16) -> Option<&ICalendarComponent> {
         self.components.get(id as usize)
+    }
+
+    pub fn alarms_for_id(&self, id: u16) -> impl Iterator<Item = &ICalendarComponent> {
+        self.component_by_id(id)
+            .map_or(&[][..], |c| c.component_ids.as_slice())
+            .iter()
+            .filter_map(|id| {
+                self.component_by_id(*id)
+                    .filter(|c| c.component_type == ICalendarComponentType::VAlarm)
+            })
     }
 }
 
@@ -106,7 +116,18 @@ impl ICalendarValue {
 
     pub fn as_text(&self) -> Option<&str> {
         match self {
-            ICalendarValue::Text(s) => Some(s),
+            ICalendarValue::Text(s) => Some(s.as_str()),
+            ICalendarValue::Uri(v) => v.as_str(),
+            ICalendarValue::CalendarScale(v) => Some(v.as_str()),
+            ICalendarValue::Method(v) => Some(v.as_str()),
+            ICalendarValue::Classification(v) => Some(v.as_str()),
+            ICalendarValue::Status(v) => Some(v.as_str()),
+            ICalendarValue::Transparency(v) => Some(v.as_str()),
+            ICalendarValue::Action(v) => Some(v.as_str()),
+            ICalendarValue::BusyType(v) => Some(v.as_str()),
+            ICalendarValue::ParticipantType(v) => Some(v.as_str()),
+            ICalendarValue::ResourceType(v) => Some(v.as_str()),
+            ICalendarValue::Proximity(v) => Some(v.as_str()),
             _ => None,
         }
     }
@@ -310,12 +331,20 @@ impl Uri {
 
 impl ICalendarDuration {
     pub fn to_time_delta(&self) -> Option<chrono::TimeDelta> {
+        chrono::TimeDelta::new(self.as_seconds(), 0)
+    }
+
+    pub fn as_seconds(&self) -> i64 {
         let secs = self.seconds as i64
             + self.minutes as i64 * 60
             + self.hours as i64 * 3600
             + self.days as i64 * 86400
             + self.weeks as i64 * 604800;
 
-        chrono::TimeDelta::new(if self.neg { -secs } else { secs }, 0)
+        if self.neg {
+            -secs
+        } else {
+            secs
+        }
     }
 }

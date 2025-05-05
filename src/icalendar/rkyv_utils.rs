@@ -107,7 +107,18 @@ impl ArchivedICalendarValue {
 
     pub fn as_text(&self) -> Option<&str> {
         match self {
-            ArchivedICalendarValue::Text(ref s) => Some(s),
+            ArchivedICalendarValue::Text(s) => Some(s.as_str()),
+            ArchivedICalendarValue::Uri(v) => v.as_str(),
+            ArchivedICalendarValue::CalendarScale(v) => Some(v.as_str()),
+            ArchivedICalendarValue::Method(v) => Some(v.as_str()),
+            ArchivedICalendarValue::Classification(v) => Some(v.as_str()),
+            ArchivedICalendarValue::Status(v) => Some(v.as_str()),
+            ArchivedICalendarValue::Transparency(v) => Some(v.as_str()),
+            ArchivedICalendarValue::Action(v) => Some(v.as_str()),
+            ArchivedICalendarValue::BusyType(v) => Some(v.as_str()),
+            ArchivedICalendarValue::ParticipantType(v) => Some(v.as_str()),
+            ArchivedICalendarValue::ResourceType(v) => Some(v.as_str()),
+            ArchivedICalendarValue::Proximity(v) => Some(v.as_str()),
             _ => None,
         }
     }
@@ -360,14 +371,29 @@ impl ArchivedICalendarPeriod {
     }
 }
 
+impl ArchivedPartialDateTime {
+    pub fn to_date_time_with_tz(&self, tz: Tz) -> Option<DateTime<Tz>> {
+        self.to_date_time()
+            .and_then(|dt| dt.to_date_time_with_tz(tz))
+    }
+}
+
 impl ArchivedICalendarDuration {
     pub fn to_time_delta(&self) -> Option<chrono::TimeDelta> {
+        chrono::TimeDelta::new(self.as_seconds(), 0)
+    }
+
+    pub fn as_seconds(&self) -> i64 {
         let secs = self.seconds.to_native() as i64
             + self.minutes.to_native() as i64 * 60
             + self.hours.to_native() as i64 * 3600
             + self.days.to_native() as i64 * 86400
             + self.weeks.to_native() as i64 * 604800;
 
-        chrono::TimeDelta::new(if self.neg { -secs } else { secs }, 0)
+        if self.neg {
+            -secs
+        } else {
+            secs
+        }
     }
 }
