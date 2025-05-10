@@ -1,6 +1,11 @@
-use crate::common::{ArchivedData, ArchivedPartialDateTime};
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
 
 use super::*;
+use crate::common::{ArchivedData, ArchivedPartialDateTime};
 
 impl ArchivedVCard {
     pub fn uid(&self) -> Option<&str> {

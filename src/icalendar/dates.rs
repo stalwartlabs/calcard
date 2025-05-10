@@ -1,16 +1,21 @@
-use ahash::{AHashMap, AHashSet};
-use chrono::{DateTime, TimeDelta, TimeZone, Timelike};
-
-use crate::{
-    common::{timezone::Tz, DateTimeResult},
-    datecalc::{error::RRuleError, rrule::RRule, RRuleIter},
-    icalendar::ICalendarParameter,
-};
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
 
 use super::{
     timezone::TzResolver, ICalendar, ICalendarComponent, ICalendarComponentType, ICalendarPeriod,
     ICalendarProperty, ICalendarValue,
 };
+use crate::{
+    common::{timezone::Tz, DateTimeResult},
+    datecalc::{error::RRuleError, rrule::RRule, RRuleIter},
+    icalendar::ICalendarParameter,
+};
+use ahash::{AHashMap, AHashSet};
+use chrono::{DateTime, TimeDelta, TimeZone, Timelike};
+use std::fmt::{Display, Formatter};
 
 #[allow(clippy::type_complexity)]
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -190,9 +195,9 @@ impl ICalendarComponent {
     fn build_calendar_date(
         &self,
         comp_id: u16,
-        tz_resolver: &TzResolver,
+        tz_resolver: &TzResolver<'_>,
         events: &mut Vec<CalendarEvent<DateTime<Tz>, TimeOrDelta<DateTime<Tz>, TimeDelta>>>,
-    ) -> Result<Option<CalendarEventBuilder>, CalendarErrorType> {
+    ) -> Result<Option<CalendarEventBuilder<'_>>, CalendarErrorType> {
         let mut dt_start = None;
         let mut dt_start_tzid = None;
         let mut dt_start_has_time = false;
@@ -529,5 +534,17 @@ impl CalendarEvent<DateTime<Tz>, TimeOrDelta<DateTime<Tz>, TimeDelta>> {
             end,
             comp_id: self.comp_id,
         })
+    }
+}
+
+impl Display for CalendarErrorType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CalendarErrorType::MissingDtStart => write!(f, "Missing DTSTART property"),
+            CalendarErrorType::InvalidDtStart => write!(f, "Invalid DTSTART property"),
+            CalendarErrorType::InvalidDtEnd => write!(f, "Invalid DTEND property"),
+            CalendarErrorType::InvalidDuration => write!(f, "Invalid DURATION property"),
+            CalendarErrorType::RRule(err) => write!(f, "RRule error: {err}"),
+        }
     }
 }

@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 use crate::Token;
 use chrono::{FixedOffset, NaiveDate, NaiveDateTime};
 use mail_parser::DateTime;

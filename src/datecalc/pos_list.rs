@@ -1,6 +1,11 @@
-use crate::common::timezone::Tz;
+/*
+ * SPDX-FileCopyrightText: 2021 Fredrik Meringdal, Ralph Bisschops <https://github.com/fmeringdal/rust-rrule>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
 
 use super::utils::{add_time_to_date, date_from_ordinal, pymod};
+use crate::common::timezone::Tz;
 use chrono::NaiveTime;
 
 pub(crate) fn build_pos_list(

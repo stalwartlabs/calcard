@@ -1,4 +1,8 @@
-use std::fmt::{Display, Write};
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
 
 use crate::{
     common::{
@@ -7,6 +11,7 @@ use crate::{
     },
     vcard::*,
 };
+use std::fmt::{Display, Write};
 
 impl ArchivedVCard {
     pub fn write_to(&self, out: &mut impl Write) -> std::fmt::Result {

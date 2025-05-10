@@ -1,10 +1,13 @@
-use std::{borrow::Cow, iter::Peekable, slice::Iter};
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
 
-use mail_parser::decoders::{
-    base64::base64_decode, charsets::map::charset_decoder,
-    quoted_printable::quoted_printable_decode,
+use super::{
+    PartialDateTime, VCard, VCardEntry, VCardParameter, VCardParameterName, VCardType, VCardValue,
+    VCardValueType, ValueSeparator, ValueType,
 };
-
 use crate::{
     common::{
         parser::{parse_digits, parse_small_digits, Timestamp},
@@ -14,11 +17,11 @@ use crate::{
     vcard::VCardProperty,
     Entry, Parser, Token,
 };
-
-use super::{
-    PartialDateTime, VCard, VCardEntry, VCardParameter, VCardParameterName, VCardType, VCardValue,
-    VCardValueType, ValueSeparator, ValueType,
+use mail_parser::decoders::{
+    base64::base64_decode, charsets::map::charset_decoder,
+    quoted_printable::quoted_printable_decode,
 };
+use std::{borrow::Cow, iter::Peekable, slice::Iter};
 
 struct Params {
     params: Vec<VCardParameter>,
@@ -633,7 +636,7 @@ impl Token<'_> {
 }
 
 impl PartialDateTime {
-    pub fn parse_vcard_date_legacy(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+    pub fn parse_vcard_date_legacy(&mut self, iter: &mut Peekable<Iter<'_, u8>>) -> bool {
         let mut idx = 0;
 
         for ch in iter {
@@ -696,7 +699,7 @@ impl PartialDateTime {
         self.has_date() || self.has_zone()
     }
 
-    pub fn parse_vcard_zone_legacy(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+    pub fn parse_vcard_zone_legacy(&mut self, iter: &mut Peekable<Iter<'_, u8>>) -> bool {
         let mut idx = 0;
 
         for ch in iter {
@@ -736,7 +739,7 @@ impl PartialDateTime {
         self.tz_hour.is_some() && self.tz_minute.is_some()
     }
 
-    pub fn parse_vcard_date_time(&mut self, iter: &mut Peekable<Iter<u8>>) {
+    pub fn parse_vcard_date_time(&mut self, iter: &mut Peekable<Iter<'_, u8>>) {
         self.parse_vcard_date_noreduc(iter);
         if matches!(iter.peek(), Some(&&b'T' | &&b't')) {
             iter.next();
@@ -744,7 +747,7 @@ impl PartialDateTime {
         }
     }
 
-    pub fn parse_vcard_date_and_or_time(&mut self, iter: &mut Peekable<Iter<u8>>) {
+    pub fn parse_vcard_date_and_or_time(&mut self, iter: &mut Peekable<Iter<'_, u8>>) {
         self.parse_vcard_date(iter);
         if matches!(iter.peek(), Some(&&b'T' | &&b't')) {
             iter.next();
@@ -752,7 +755,7 @@ impl PartialDateTime {
         }
     }
 
-    pub fn parse_vcard_date(&mut self, iter: &mut Peekable<Iter<u8>>) {
+    pub fn parse_vcard_date(&mut self, iter: &mut Peekable<Iter<'_, u8>>) {
         parse_digits(iter, &mut self.year, 4, true);
         if self.year.is_some() && iter.peek() == Some(&&b'-') {
             iter.next();
@@ -763,13 +766,13 @@ impl PartialDateTime {
         }
     }
 
-    pub fn parse_vcard_date_noreduc(&mut self, iter: &mut Peekable<Iter<u8>>) {
+    pub fn parse_vcard_date_noreduc(&mut self, iter: &mut Peekable<Iter<'_, u8>>) {
         parse_digits(iter, &mut self.year, 4, true);
         parse_small_digits(iter, &mut self.month, 2, true);
         parse_small_digits(iter, &mut self.day, 2, false);
     }
 
-    pub fn parse_vcard_time(&mut self, iter: &mut Peekable<Iter<u8>>, mut notrunc: bool) {
+    pub fn parse_vcard_time(&mut self, iter: &mut Peekable<Iter<'_, u8>>, mut notrunc: bool) {
         for part in [&mut self.hour, &mut self.minute, &mut self.second] {
             match iter.peek() {
                 Some(b'0'..=b'9') => {

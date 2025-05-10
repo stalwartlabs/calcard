@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: 2021 Fredrik Meringdal, Ralph Bisschops <https://github.com/fmeringdal/rust-rrule>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 mod checks;
 mod counter_date;
 mod easter;

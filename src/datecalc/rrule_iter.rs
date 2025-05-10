@@ -1,4 +1,8 @@
-use crate::icalendar::ICalendarFrequency;
+/*
+ * SPDX-FileCopyrightText: 2021 Fredrik Meringdal, Ralph Bisschops <https://github.com/fmeringdal/rust-rrule>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
 
 use super::counter_date::DateTimeIter;
 use super::rrule::RRule;
@@ -6,6 +10,7 @@ use super::utils::add_time_to_date;
 use super::{build_pos_list, utils::date_from_ordinal, IterInfo, MAX_ITER_LOOP};
 use super::{get_hour, get_minute, get_second};
 use crate::common::timezone::Tz;
+use crate::icalendar::ICalendarFrequency;
 use chrono::NaiveTime;
 use std::collections::VecDeque;
 

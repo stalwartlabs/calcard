@@ -1,6 +1,11 @@
-use crate::common::{Data, PartialDateTime};
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
 
 use super::{VCard, VCardEntry, VCardParameter, VCardParameterName, VCardProperty, VCardValue};
+use crate::common::{Data, PartialDateTime};
 
 impl VCard {
     pub fn uid(&self) -> Option<&str> {

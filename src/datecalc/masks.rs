@@ -1,6 +1,8 @@
-// =============================================================================
-// Date masks
-// =============================================================================
+/*
+ * SPDX-FileCopyrightText: 2021 Fredrik Meringdal, Ralph Bisschops <https://github.com/fmeringdal/rust-rrule>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
 
 // Every mask is 7 days longer to handle cross-year weekly periods.
 

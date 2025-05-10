@@ -1,13 +1,16 @@
-use std::{borrow::Cow, iter::Peekable, slice::Iter, str::FromStr};
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
 
+use super::{tokenizer::Token, Data, PartialDateTime};
+use crate::Parser;
 use mail_parser::{
     decoders::{base64::base64_decode, hex::decode_hex},
     DateTime,
 };
-
-use crate::Parser;
-
-use super::{tokenizer::Token, Data, PartialDateTime};
+use std::{borrow::Cow, iter::Peekable, slice::Iter, str::FromStr};
 
 impl<'x> Parser<'x> {
     pub(crate) fn buf_to_string(&mut self) -> String {
@@ -191,7 +194,11 @@ impl Token<'_> {
 }
 
 impl PartialDateTime {
-    pub fn parse_timestamp(&mut self, iter: &mut Peekable<Iter<u8>>, require_time: bool) -> bool {
+    pub fn parse_timestamp(
+        &mut self,
+        iter: &mut Peekable<Iter<'_, u8>>,
+        require_time: bool,
+    ) -> bool {
         let mut idx = 0;
         for ch in iter {
             match ch {
@@ -243,7 +250,7 @@ impl PartialDateTime {
         self.has_date() && (!require_time || self.has_time())
     }
 
-    pub(crate) fn parse_zone(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+    pub(crate) fn parse_zone(&mut self, iter: &mut Peekable<Iter<'_, u8>>) -> bool {
         self.tz_minus = match iter.peek() {
             Some(b'-') => true,
             Some(b'+') => false,
@@ -330,7 +337,7 @@ impl PartialDateTime {
 }
 
 pub(crate) fn parse_digits(
-    iter: &mut Peekable<Iter<u8>>,
+    iter: &mut Peekable<Iter<'_, u8>>,
     target: &mut Option<u16>,
     num: usize,
     nullable: bool,
@@ -374,7 +381,7 @@ pub(crate) fn parse_digits(
 }
 
 pub(crate) fn parse_small_digits(
-    iter: &mut Peekable<Iter<u8>>,
+    iter: &mut Peekable<Iter<'_, u8>>,
     target: &mut Option<u8>,
     num: usize,
     nullable: bool,

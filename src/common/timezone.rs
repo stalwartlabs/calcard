@@ -1,9 +1,14 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
+use super::DateTimeResult;
 use crate::common::PartialDateTime;
 use chrono::{DateTime, FixedOffset, Offset, TimeZone, Utc};
 use hashify::tiny_map;
 use std::str::FromStr;
-
-use super::DateTimeResult;
 
 #[derive(Clone, Copy, Default)]
 pub enum Tz {
@@ -11,11 +16,6 @@ pub enum Tz {
     Floating,
     Fixed(FixedOffset),
     Tz(chrono_tz::Tz),
-}
-
-pub enum Types {
-    Type1(i16),
-    Type2(u16),
 }
 
 impl PartialDateTime {

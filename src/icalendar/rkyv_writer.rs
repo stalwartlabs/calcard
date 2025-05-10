@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
+use super::*;
 use crate::{
     common::{
         writer::{write_bytes, write_param, write_param_value, write_params, write_value},
@@ -9,8 +16,6 @@ use std::{
     fmt::{Display, Write},
     slice::Iter,
 };
-
-use super::*;
 
 impl ArchivedICalendar {
     pub fn write_to(&self, out: &mut impl Write) -> std::fmt::Result {

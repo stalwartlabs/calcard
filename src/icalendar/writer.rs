@@ -1,8 +1,13 @@
-use std::{
-    fmt::{Display, Write},
-    slice::Iter,
-};
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
 
+use super::{
+    ICalendar, ICalendarDay, ICalendarDuration, ICalendarEntry, ICalendarParameter,
+    ICalendarPeriod, ICalendarRecurrenceRule, ICalendarValueType,
+};
 use crate::{
     common::{
         writer::{write_bytes, write_param, write_param_value, write_params, write_value},
@@ -10,10 +15,9 @@ use crate::{
     },
     icalendar::{ICalendarValue, Uri, ValueSeparator},
 };
-
-use super::{
-    ICalendar, ICalendarDay, ICalendarDuration, ICalendarEntry, ICalendarParameter,
-    ICalendarPeriod, ICalendarRecurrenceRule, ICalendarValueType,
+use std::{
+    fmt::{Display, Write},
+    slice::Iter,
 };
 
 impl ICalendar {

@@ -1,12 +1,16 @@
-use std::str::FromStr;
-
-use crate::common::timezone::Tz;
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
 
 use super::{
     ArchivedICalendar, ArchivedICalendarComponent, ArchivedICalendarComponentType,
     ArchivedICalendarEntry, ArchivedICalendarParameter, ArchivedICalendarProperty,
     ArchivedICalendarValue,
 };
+use crate::common::timezone::Tz;
+use std::str::FromStr;
 
 impl ArchivedICalendar {
     pub fn timezones(&self) -> impl Iterator<Item = &ArchivedICalendarComponent> {

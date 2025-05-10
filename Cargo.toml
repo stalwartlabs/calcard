@@ -1,15 +1,24 @@
 [package]
 name = "calcard"
+description = "iCalendar/vCard parser and generator"
 version = "0.1.0"
+authors = [ "Stalwart Labs <hello@stalw.art>"]
+license = "Apache-2.0 OR MIT"
 edition = "2021"
+repository = "https://github.com/stalwartlabs/calcard"
+homepage = "https://github.com/stalwartlabs/calcard"
+keywords = ["icalendar", "ical", "vcard", "parser", "generator", "builder"]
+categories = ["date-and-time", "email", "parser-implementations"]
+readme = "README.md"
+resolver = "2"
 
 [dependencies]
 ahash = "0.8.11"
 chrono = "0.4.40"
 chrono-tz = "0.10.3"
 hashify = "0.2.6"
-mail-builder = { version = "0.4", no-default-features = true }
-mail-parser = "0.10.2"
+mail-builder = { version = "0.4" }
+mail-parser = "0.10"
 rkyv = { version = "0.8", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 
@@ -23,3 +32,6 @@ chrono = { version = "0.4.40", features = ["serde"] }
 serde = { version = "1.0.217", features = ["derive"] }
 rkyv = { version = "0.8" }
 serde_json = "1.0.140"
+
+[lib]
+doctest = false

@@ -1,10 +1,10 @@
-use std::{borrow::Cow, iter::Peekable, slice::Iter};
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
 
-use mail_parser::decoders::{
-    base64::base64_decode, charsets::map::charset_decoder,
-    quoted_printable::quoted_printable_decode,
-};
-
+use super::*;
 use crate::{
     common::{
         parser::{parse_digits, parse_small_digits, Integer},
@@ -13,8 +13,11 @@ use crate::{
     icalendar::{ICalendarDay, ICalendarWeekday},
     Entry, Parser, StopChar, Token,
 };
-
-use super::*;
+use mail_parser::decoders::{
+    base64::base64_decode, charsets::map::charset_decoder,
+    quoted_printable::quoted_printable_decode,
+};
+use std::{borrow::Cow, iter::Peekable, slice::Iter};
 
 struct Params {
     params: Vec<ICalendarParameter>,
@@ -80,21 +83,20 @@ impl Parser<'_> {
                     if params.stop_char == StopChar::Colon {
                         self.expect_single_value();
                         if let Some(token) = self.token() {
-                            if let Ok(component_type) =
+                            let component_type =
                                 ICalendarComponentType::try_from(token.text.as_ref())
-                            {
-                                ical_stack.push(ical_idx);
-                                ical.component_ids.push(next_component_id);
-                                ical_components.push(ICalendarComponent {
-                                    component_type,
-                                    ..Default::default()
-                                });
-                                ical_idx = next_component_id as usize;
-                                next_component_id += 1;
-                                ical = ical_components.last_mut().unwrap();
-                            } else if self.strict {
-                                return Entry::InvalidComponentType(token.into_string());
-                            }
+                                    .unwrap_or_else(|_| {
+                                        ICalendarComponentType::Other(token.into_string())
+                                    });
+                            ical_stack.push(ical_idx);
+                            ical.component_ids.push(next_component_id);
+                            ical_components.push(ICalendarComponent {
+                                component_type,
+                                ..Default::default()
+                            });
+                            ical_idx = next_component_id as usize;
+                            next_component_id += 1;
+                            ical = ical_components.last_mut().unwrap();
                         }
                     }
 
@@ -108,24 +110,23 @@ impl Parser<'_> {
                     if params.stop_char == StopChar::Colon {
                         self.expect_single_value();
                         if let Some(token) = self.token() {
-                            if let Ok(component_type) =
+                            let component_type =
                                 ICalendarComponentType::try_from(token.text.as_ref())
-                            {
-                                if ical.component_type == component_type || !self.strict {
-                                    if let Some(parent_ical_idx) = ical_stack.pop() {
-                                        ical_idx = parent_ical_idx;
-                                        ical = ical_components.get_mut(ical_idx).unwrap();
-                                    } else {
-                                        break;
-                                    }
+                                    .unwrap_or_else(|_| {
+                                        ICalendarComponentType::Other(token.into_string())
+                                    });
+                            if ical.component_type == component_type || !self.strict {
+                                if let Some(parent_ical_idx) = ical_stack.pop() {
+                                    ical_idx = parent_ical_idx;
+                                    ical = ical_components.get_mut(ical_idx).unwrap();
                                 } else {
-                                    return Entry::UnexpectedComponentEnd {
-                                        expected: ical.component_type,
-                                        found: component_type,
-                                    };
+                                    break;
                                 }
-                            } else if self.strict {
-                                return Entry::InvalidComponentType(token.into_string());
+                            } else {
+                                return Entry::UnexpectedComponentEnd {
+                                    expected: ical.component_type.clone(),
+                                    found: component_type,
+                                };
                             }
                         }
                     }
@@ -402,7 +403,7 @@ impl Parser<'_> {
                 components: ical_components,
             })
         } else {
-            Entry::UnterminatedComponent(ical.component_type)
+            Entry::UnterminatedComponent(ical.component_type.clone())
         }
     }
 
@@ -853,13 +854,13 @@ impl Token<'_> {
 }
 
 impl PartialDateTime {
-    pub fn parse_ical_date(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+    pub fn parse_ical_date(&mut self, iter: &mut Peekable<Iter<'_, u8>>) -> bool {
         parse_digits(iter, &mut self.year, 4, false)
             && parse_small_digits(iter, &mut self.month, 2, false)
             && parse_small_digits(iter, &mut self.day, 2, false)
     }
 
-    pub fn parse_ical_time(&mut self, iter: &mut Peekable<Iter<u8>>) -> bool {
+    pub fn parse_ical_time(&mut self, iter: &mut Peekable<Iter<'_, u8>>) -> bool {
         if parse_small_digits(iter, &mut self.hour, 2, false)
             && parse_small_digits(iter, &mut self.minute, 2, false)
             && parse_small_digits(iter, &mut self.second, 2, false)
@@ -911,7 +912,7 @@ impl TryFrom<&[u8]> for ICalendarPeriod {
 }
 
 impl ICalendarDuration {
-    fn try_parse(iter: &mut Peekable<Iter<u8>>) -> Option<Self> {
+    fn try_parse(iter: &mut Peekable<Iter<'_, u8>>) -> Option<Self> {
         let mut dur = ICalendarDuration::default();
         loop {
             match iter.peek() {

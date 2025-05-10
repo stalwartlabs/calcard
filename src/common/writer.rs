@@ -1,9 +1,13 @@
-use std::fmt::{Display, Write};
-
-use mail_builder::encoders::base64::*;
-use mail_parser::DateTime;
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
 
 use super::parser::Timestamp;
+use mail_builder::encoders::base64::*;
+use mail_parser::DateTime;
+use std::fmt::{Display, Write};
 
 pub(crate) fn write_value(
     out: &mut impl Write,

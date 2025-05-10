@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: 2021 Fredrik Meringdal, Ralph Bisschops <https://github.com/fmeringdal/rust-rrule>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 use super::{error::ValidationError, validate::YEAR_RANGE};
 
 pub(crate) fn check_year_range(year: i32) -> Result<(), ValidationError> {

@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 use crate::{
     common::{CalendarScale, Data, PartialDateTime},
     Entry, Parser, Token,
@@ -445,7 +451,7 @@ impl ICalendarClassification {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -471,6 +477,7 @@ pub enum ICalendarComponentType {
     Participant,   // [RFC9073, Section 7.1]
     VLocation,     // [RFC9073, Section 7.2] [RFC Errata 7381]
     VResource,     // [RFC9073, Section 7.3]
+    Other(String),
 }
 
 impl TryFrom<&[u8]> for ICalendarComponentType {
@@ -514,6 +521,7 @@ impl ICalendarComponentType {
             ICalendarComponentType::Participant => "PARTICIPANT",
             ICalendarComponentType::VLocation => "VLOCATION",
             ICalendarComponentType::VResource => "VRESOURCE",
+            ICalendarComponentType::Other(name) => name.as_str(),
         }
     }
 
@@ -623,7 +631,7 @@ impl ICalendarFeatureType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)

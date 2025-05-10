@@ -1,5 +1,10 @@
-use std::fmt::{Display, Write};
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
 
+use super::{PartialDateTime, VCard, VCardEntry, VCardValueType};
 use crate::{
     common::{
         parser::Timestamp,
@@ -7,8 +12,7 @@ use crate::{
     },
     vcard::{VCardParameter, VCardValue, ValueSeparator},
 };
-
-use super::{PartialDateTime, VCard, VCardEntry, VCardValueType};
+use std::fmt::{Display, Write};
 
 impl VCard {
     pub fn write_to(&self, out: &mut impl Write) -> std::fmt::Result {

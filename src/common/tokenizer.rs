@@ -1,6 +1,11 @@
-use std::borrow::Cow;
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
 
 use crate::Parser;
+use std::borrow::Cow;
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Token<'x> {

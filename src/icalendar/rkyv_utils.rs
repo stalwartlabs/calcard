@@ -1,8 +1,12 @@
-use chrono::DateTime;
-
-use crate::common::{timezone::Tz, ArchivedPartialDateTime};
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
 
 use super::*;
+use crate::common::{timezone::Tz, ArchivedPartialDateTime};
+use chrono::DateTime;
 
 impl ArchivedICalendar {
     pub fn uids(&self) -> impl Iterator<Item = &str> {

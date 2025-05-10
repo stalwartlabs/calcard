@@ -1,3 +1,11 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+#![doc = include_str!("../README.md")]
+#![deny(rust_2018_idioms)]
+#![forbid(unsafe_code)]
 use common::tokenizer::{StopChar, Token};
 use icalendar::{ICalendar, ICalendarComponentType};
 use std::{
@@ -16,7 +24,6 @@ pub enum Entry {
     VCard(VCard),
     ICalendar(ICalendar),
     InvalidLine(String),
-    InvalidComponentType(String),
     UnexpectedComponentEnd {
         expected: ICalendarComponentType,
         found: ICalendarComponentType,
@@ -90,7 +97,7 @@ impl<'x> Parser<'x> {
                                 b"VLOCATION" => { return self.icalendar(ICalendarComponentType::VLocation); },
                                 b"VRESOURCE" => { return self.icalendar(ICalendarComponentType::VResource); },
                                 _ => {
-                                    return Entry::InvalidLine(token.into_string());
+                                    return self.icalendar(ICalendarComponentType::Other(token.into_string()));
                                 }
                             )
                         }

@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: 2020 Stalwart Labs LLC <hello@stalw.art>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 use super::*;
 
 impl ArchivedICalendarProperty {
@@ -357,6 +363,7 @@ impl ArchivedICalendarComponentType {
             ArchivedICalendarComponentType::Participant => "PARTICIPANT",
             ArchivedICalendarComponentType::VLocation => "VLOCATION",
             ArchivedICalendarComponentType::VResource => "VRESOURCE",
+            ArchivedICalendarComponentType::Other(name) => name.as_str(),
         }
     }
 
