@@ -7,7 +7,7 @@ license = "Apache-2.0 OR MIT"
 edition = "2021"
 repository = "https://github.com/stalwartlabs/calcard"
 homepage = "https://github.com/stalwartlabs/calcard"
-keywords = ["icalendar", "ical", "vcard", "parser", "generator", "builder"]
+keywords = ["icalendar", "vcard", "parser", "generator", "builder"]
 categories = ["date-and-time", "email", "parser-implementations"]
 readme = "README.md"
 resolver = "2"
@@ -23,7 +23,7 @@ rkyv = { version = "0.8", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 
 [features]
-default = ["rkyv"]
+default = []
 rkyv = ["dep:rkyv"]
 serde = ["dep:serde"]
 
