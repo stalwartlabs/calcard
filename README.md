@@ -85,8 +85,8 @@ To fuzz the library with `cargo-fuzz`:
 
 ```bash
  $ cargo +nightly fuzz run fuzz_all
- $ cargo +nightly fuzz run fuzz_all
- $ cargo +nightly fuzz run fuzz_all
+ $ cargo +nightly fuzz run fuzz_random
+ $ cargo +nightly fuzz run fuzz_structured
 ```
 
 ## License
