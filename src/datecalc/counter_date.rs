@@ -185,7 +185,7 @@ impl DateTimeIter {
                 Some("please decrease `INTERVAL`"),
             )?;
             let new_hours = (self.hour % 24) as u8;
-            if by_hour.is_empty() || by_hour.iter().any(|bh| *bh == new_hours) {
+            if by_hour.is_empty() || by_hour.contains(&new_hours) {
                 break;
             }
             if prev_hours.contains(&new_hours) {

@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use super::{VCard, VCardEntry, VCardParameter, VCardParameterName, VCardProperty, VCardValue};
+use super::{
+    VCard, VCardEntry, VCardParameter, VCardParameterName, VCardProperty, VCardValue, VCardVersion,
+};
 use crate::common::{Data, PartialDateTime};
 
 impl VCard {
@@ -23,6 +25,18 @@ impl VCard {
         prop: &'y VCardProperty,
     ) -> impl Iterator<Item = &'x VCardEntry> + 'x {
         self.entries.iter().filter(move |entry| &entry.name == prop)
+    }
+
+    pub fn version(&self) -> Option<VCardVersion> {
+        self.entries
+            .iter()
+            .find(|e| e.name == VCardProperty::Version)
+            .and_then(|e| {
+                e.values
+                    .first()
+                    .and_then(|v| v.as_text())
+                    .and_then(VCardVersion::try_parse)
+            })
     }
 }
 

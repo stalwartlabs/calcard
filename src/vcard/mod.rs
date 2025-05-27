@@ -34,6 +34,15 @@ pub struct VCard {
     pub entries: Vec<VCardEntry>,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum VCardVersion {
+    V2_0 = 20,
+    V2_1 = 21,
+    V3_0 = 30,
+    #[default]
+    V4_0 = 40,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde",

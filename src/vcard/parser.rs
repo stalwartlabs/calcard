@@ -6,7 +6,7 @@
 
 use super::{
     PartialDateTime, VCard, VCardEntry, VCardParameter, VCardParameterName, VCardType, VCardValue,
-    VCardValueType, ValueSeparator, ValueType,
+    VCardValueType, VCardVersion, ValueSeparator, ValueType,
 };
 use crate::{
     common::{
@@ -550,6 +550,17 @@ impl VCardParameterName {
             b"JSPTR" => VCardParameterName::Jsptr,
         )
         .unwrap_or_else(|| VCardParameterName::Other(input.into()))
+    }
+}
+
+impl VCardVersion {
+    pub fn try_parse(input: &str) -> Option<Self> {
+        hashify::tiny_map!(input.as_bytes(),
+            b"4.0" => VCardVersion::V4_0,
+            b"3.0" => VCardVersion::V3_0,
+            b"2.1" => VCardVersion::V2_1,
+            b"2.0" => VCardVersion::V2_0,
+        )
     }
 }
 
