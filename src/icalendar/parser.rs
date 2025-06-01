@@ -403,7 +403,7 @@ impl Parser<'_> {
                 components: ical_components,
             })
         } else {
-            Entry::UnterminatedComponent(ical.component_type.clone())
+            Entry::UnterminatedComponent(ical.component_type.clone().into_str())
         }
     }
 

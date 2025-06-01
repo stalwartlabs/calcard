@@ -9,6 +9,7 @@
 use common::tokenizer::{StopChar, Token};
 use icalendar::{ICalendar, ICalendarComponentType};
 use std::{
+    borrow::Cow,
     iter::{Enumerate, Peekable},
     slice::Iter,
 };
@@ -28,7 +29,7 @@ pub enum Entry {
         expected: ICalendarComponentType,
         found: ICalendarComponentType,
     },
-    UnterminatedComponent(ICalendarComponentType),
+    UnterminatedComponent(Cow<'static, str>),
     Eof,
 }
 

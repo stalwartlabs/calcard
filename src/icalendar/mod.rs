@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
+use std::borrow::Cow;
+
 use crate::{
     common::{CalendarScale, Data, PartialDateTime},
     Entry, Parser, Token,
@@ -522,6 +524,26 @@ impl ICalendarComponentType {
             ICalendarComponentType::VLocation => "VLOCATION",
             ICalendarComponentType::VResource => "VRESOURCE",
             ICalendarComponentType::Other(name) => name.as_str(),
+        }
+    }
+
+    pub fn into_str(self) -> Cow<'static, str> {
+        match self {
+            ICalendarComponentType::VCalendar => "VCALENDAR".into(),
+            ICalendarComponentType::VEvent => "VEVENT".into(),
+            ICalendarComponentType::VTodo => "VTODO".into(),
+            ICalendarComponentType::VJournal => "VJOURNAL".into(),
+            ICalendarComponentType::VFreebusy => "VFREEBUSY".into(),
+            ICalendarComponentType::VTimezone => "VTIMEZONE".into(),
+            ICalendarComponentType::VAlarm => "VALARM".into(),
+            ICalendarComponentType::Standard => "STANDARD".into(),
+            ICalendarComponentType::Daylight => "DAYLIGHT".into(),
+            ICalendarComponentType::VAvailability => "VAVAILABILITY".into(),
+            ICalendarComponentType::Available => "AVAILABLE".into(),
+            ICalendarComponentType::Participant => "PARTICIPANT".into(),
+            ICalendarComponentType::VLocation => "VLOCATION".into(),
+            ICalendarComponentType::VResource => "VRESOURCE".into(),
+            ICalendarComponentType::Other(name) => name.into(),
         }
     }
 

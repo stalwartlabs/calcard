@@ -36,6 +36,7 @@ impl Parser<'_> {
     pub fn vcard(&mut self) -> Entry {
         let mut vcard = VCard::default();
         let mut is_v4 = true;
+        let mut is_valid = false;
 
         'outer: loop {
             // Fetch property name
@@ -122,6 +123,7 @@ impl Parser<'_> {
                         self.expect_multi_value_semicolon();
                     }
                     ValueSeparator::Skip => {
+                        is_valid = entry.name == VCardProperty::End;
                         self.expect_single_value();
                         self.token();
                         break 'outer;
@@ -295,18 +297,19 @@ impl Parser<'_> {
                 }
             }
 
-            // Skip begin and end properties
-            if !matches!(entry.name, VCardProperty::Begin | VCardProperty::End) {
-                // Add types
-                if !params.data_types.is_empty() {
-                    entry.params.push(VCardParameter::Value(params.data_types));
-                }
-
-                vcard.entries.push(entry);
+            // Add types
+            if !params.data_types.is_empty() {
+                entry.params.push(VCardParameter::Value(params.data_types));
             }
+
+            vcard.entries.push(entry);
         }
 
-        Entry::VCard(vcard)
+        if is_valid || !self.strict {
+            Entry::VCard(vcard)
+        } else {
+            Entry::UnterminatedComponent("BEGIN".into())
+        }
     }
 
     fn vcard_parameters(&mut self, params: &mut Params) {
