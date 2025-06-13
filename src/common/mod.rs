@@ -13,7 +13,7 @@ pub mod timezone;
 pub mod tokenizer;
 pub mod writer;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -35,7 +35,7 @@ pub struct PartialDateTime {
     pub tz_minus: bool,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -126,7 +126,7 @@ impl Encoding {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -142,6 +142,10 @@ pub struct Data {
 }
 
 impl PartialDateTime {
+    pub fn now() -> Self {
+        Self::from_utc_timestamp(chrono::Utc::now().timestamp())
+    }
+
     pub fn from_utc_timestamp(value: i64) -> Self {
         let dt = DateTime::from_timestamp(value);
 

@@ -95,7 +95,11 @@ impl Parser<'_> {
                                 ..Default::default()
                             });
                             ical_idx = next_component_id as usize;
-                            next_component_id += 1;
+                            if let Some(id) = next_component_id.checked_add(1) {
+                                next_component_id = id;
+                            } else {
+                                return Entry::TooManyComponents;
+                            }
                             ical = ical_components.last_mut().unwrap();
                         }
                     }

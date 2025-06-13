@@ -21,6 +21,7 @@ pub mod icalendar;
 pub mod vcard;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Entry {
     VCard(VCard),
     ICalendar(ICalendar),
@@ -30,6 +31,7 @@ pub enum Entry {
         found: ICalendarComponentType,
     },
     UnterminatedComponent(Cow<'static, str>),
+    TooManyComponents,
     Eof,
 }
 
