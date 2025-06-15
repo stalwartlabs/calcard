@@ -4,11 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use std::borrow::Cow;
-
 use crate::{
     common::{CalendarScale, Data, PartialDateTime},
     Entry, Parser, Token,
+};
+use std::{
+    borrow::Cow,
+    hash::{Hash, Hasher},
 };
 
 pub mod builder;
@@ -41,7 +43,7 @@ pub struct ICalendar {
     pub components: Vec<ICalendarComponent>,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -332,7 +334,7 @@ pub enum ICalendarPeriod {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -421,7 +423,7 @@ impl ICalendarUserTypes {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -461,7 +463,7 @@ impl ICalendarClassification {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -704,7 +706,7 @@ impl ICalendarFreeBusyType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -875,7 +877,7 @@ pub struct ICalendarDuration {
     pub seconds: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -927,7 +929,7 @@ impl Related {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -1380,7 +1382,7 @@ impl ICalendarProperty {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -1493,7 +1495,7 @@ impl ICalendarRelationshipType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -1695,7 +1697,7 @@ impl ICalendarValueType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -2171,6 +2173,93 @@ impl ICalendar {
         match parser.entry() {
             Entry::ICalendar(icalendar) => Ok(icalendar),
             other => Err(other),
+        }
+    }
+}
+
+impl Hash for ICalendarValue {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            ICalendarValue::Binary(value) => {
+                state.write_u8(0);
+                value.hash(state);
+            }
+            ICalendarValue::Boolean(value) => {
+                state.write_u8(1);
+                value.hash(state);
+            }
+            ICalendarValue::Uri(value) => {
+                state.write_u8(2);
+                value.hash(state);
+            }
+            ICalendarValue::PartialDateTime(value) => {
+                state.write_u8(3);
+                value.hash(state);
+            }
+            ICalendarValue::Duration(value) => {
+                state.write_u8(4);
+                value.hash(state);
+            }
+            ICalendarValue::RecurrenceRule(value) => {
+                state.write_u8(5);
+                value.hash(state);
+            }
+            ICalendarValue::Period(value) => {
+                state.write_u8(6);
+                value.hash(state);
+            }
+            ICalendarValue::Float(value) => {
+                state.write_u8(7);
+                value.to_bits().hash(state);
+            }
+            ICalendarValue::Integer(value) => {
+                state.write_u8(8);
+                value.hash(state);
+            }
+            ICalendarValue::Text(value) => {
+                state.write_u8(9);
+                value.hash(state);
+            }
+            ICalendarValue::CalendarScale(value) => {
+                state.write_u8(10);
+                value.hash(state);
+            }
+            ICalendarValue::Method(value) => {
+                state.write_u8(11);
+                value.hash(state);
+            }
+            ICalendarValue::Classification(value) => {
+                state.write_u8(12);
+                value.hash(state);
+            }
+            ICalendarValue::Status(value) => {
+                state.write_u8(13);
+                value.hash(state);
+            }
+            ICalendarValue::Transparency(value) => {
+                state.write_u8(14);
+                value.hash(state);
+            }
+            ICalendarValue::Action(value) => {
+                state.write_u8(15);
+                value.hash(state);
+            }
+            ICalendarValue::BusyType(value) => {
+                state.write_u8(16);
+                value.hash(state);
+            }
+            ICalendarValue::ParticipantType(value) => {
+                state.write_u8(17);
+                value.hash(state);
+            }
+            ICalendarValue::ResourceType(value) => {
+                state.write_u8(18);
+                value.hash(state);
+            }
+            ICalendarValue::Proximity(value) => {
+                state.write_u8(19);
+                value.hash(state);
+            }
         }
     }
 }
