@@ -62,7 +62,7 @@ impl ICalendar {
                 let tz_component_id = self.components.len();
                 self.components[0]
                     .component_ids
-                    .push(tz_component_id as u16);
+                    .insert(1, tz_component_id as u16);
                 self.components.push(ICalendarComponent {
                     component_type: ICalendarComponentType::VTimezone,
                     entries: component.entries.clone(),

@@ -566,6 +566,16 @@ impl ICalendarComponentType {
                 | ICalendarComponentType::VFreebusy
         )
     }
+
+    pub fn is_scheduling_object(&self) -> bool {
+        matches!(
+            self,
+            ICalendarComponentType::VEvent
+                | ICalendarComponentType::VTodo
+                | ICalendarComponentType::VJournal
+                | ICalendarComponentType::VFreebusy
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
