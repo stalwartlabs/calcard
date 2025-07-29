@@ -98,14 +98,20 @@ impl AsRef<str> for ArchivedCalendarScale {
 
 impl From<Token<'_>> for CalendarScale {
     fn from(token: Token<'_>) -> Self {
-        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+        CalendarScale::parse(token.text.as_ref())
+            .unwrap_or_else(|| CalendarScale::Other(token.into_string()))
+    }
+}
+
+impl CalendarScale {
+    pub fn parse(value: &[u8]) -> Option<Self> {
+        hashify::tiny_map_ignore_case!(value,
             "gregorian" => CalendarScale::Gregorian,
             "chinese" => CalendarScale::Chinese,
             "islamic-civil" => CalendarScale::IslamicCivil,
             "hebrew" => CalendarScale::Hebrew,
             "ethiopic" => CalendarScale::Ethiopic,
         )
-        .unwrap_or_else(|| CalendarScale::Other(token.into_string()))
     }
 }
 

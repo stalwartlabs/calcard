@@ -9,6 +9,7 @@ use crate::{
     Entry, Parser,
 };
 
+pub mod builder;
 pub mod parser;
 pub mod utils;
 pub mod writer;

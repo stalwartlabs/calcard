@@ -18,6 +18,7 @@ use vcard::VCard;
 pub mod common;
 pub mod datecalc;
 pub mod icalendar;
+pub mod jscontact;
 pub mod vcard;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

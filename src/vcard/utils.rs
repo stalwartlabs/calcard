@@ -48,6 +48,13 @@ impl VCardValue {
         }
     }
 
+    pub fn into_text(self) -> Option<String> {
+        match self {
+            VCardValue::Text(s) => Some(s),
+            _ => None,
+        }
+    }
+
     pub fn as_integer(&self) -> Option<i64> {
         match self {
             VCardValue::Integer(ref i) => Some(*i),
