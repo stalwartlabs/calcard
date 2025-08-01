@@ -5,7 +5,7 @@
  */
 
 use crate::{
-    common::{timezone::Tz, CalendarScale},
+    common::CalendarScale,
     jscontact::{
         Context, Feature, GrammaticalGender, JSContact, JSContactKind, JSContactPhoneticSystem,
         JSContactProperty, JSContactRelation, JSContactType, JSContactValue,
@@ -36,7 +36,7 @@ impl Element for JSContactValue {
                 JSContactProperty::Created
                 | JSContactProperty::Updated
                 | JSContactProperty::Utc => DateTime::parse_from_rfc3339(value)
-                    .map(|dt| JSContactValue::UTCDateTime(dt.with_timezone(&Tz::UTC)))
+                    .map(|dt| JSContactValue::Timestamp(dt.timestamp()))
                     .ok(),
                 JSContactProperty::Kind => JSContactKind::from_str(value)
                     .ok()
@@ -65,7 +65,9 @@ impl Element for JSContactValue {
             JSContactValue::Level(v) => v.as_str().into(),
             JSContactValue::Relation(v) => v.as_str().into(),
             JSContactValue::PhoneticSystem(v) => v.as_str().into(),
-            JSContactValue::UTCDateTime(v) => v.to_rfc3339().into(),
+            JSContactValue::Timestamp(v) => mail_parser::DateTime::from_timestamp(*v)
+                .to_rfc3339()
+                .into(),
             JSContactValue::CalendarScale(v) => v.as_str().into(),
         }
     }
@@ -80,6 +82,9 @@ impl jmap_tools::Property for JSContactProperty {
             Some(Key::Property(JSContactProperty::Features)) => Feature::from_str(value)
                 .ok()
                 .map(JSContactProperty::Feature),
+            Some(Key::Property(JSContactProperty::SortAs)) => JSContactKind::from_str(value)
+                .ok()
+                .map(JSContactProperty::SortAsKind),
             _ => JSContactProperty::from_str(value).ok(),
         }
     }

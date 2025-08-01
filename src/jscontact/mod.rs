@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use crate::common::{timezone::Tz, CalendarScale};
-use chrono::DateTime;
+use crate::common::CalendarScale;
 use jmap_tools::Value;
 use std::str::FromStr;
 
@@ -17,7 +16,7 @@ pub struct JSContact<'x>(pub Value<'x, JSContactProperty, JSContactValue>);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum JSContactValue {
-    UTCDateTime(DateTime<Tz>),
+    Timestamp(i64),
     Type(JSContactType),
     GrammaticalGender(GrammaticalGender),
     Kind(JSContactKind),
@@ -106,6 +105,7 @@ pub enum JSContactProperty {
     Year,
     Context(Context),
     Feature(Feature),
+    SortAsKind(JSContactKind),
 }
 
 impl FromStr for JSContactProperty {
@@ -273,6 +273,7 @@ impl JSContactProperty {
             JSContactProperty::Year => "year",
             JSContactProperty::Context(context) => context.as_str(),
             JSContactProperty::Feature(feature) => feature.as_str(),
+            JSContactProperty::SortAsKind(kind) => kind.as_str(),
         }
     }
 }
@@ -807,6 +808,7 @@ pub enum JSContactPhoneticSystem {
     Ipa,
     Jyut,
     Piny,
+    Script,
 }
 
 impl FromStr for JSContactPhoneticSystem {
@@ -816,6 +818,7 @@ impl FromStr for JSContactPhoneticSystem {
             "ipa" => JSContactPhoneticSystem::Ipa,
             "jyut" => JSContactPhoneticSystem::Jyut,
             "piny" => JSContactPhoneticSystem::Piny,
+            "script" => JSContactPhoneticSystem::Script,
         )
         .copied()
         .ok_or(())
@@ -828,6 +831,7 @@ impl JSContactPhoneticSystem {
             JSContactPhoneticSystem::Ipa => "ipa",
             JSContactPhoneticSystem::Jyut => "jyut",
             JSContactPhoneticSystem::Piny => "piny",
+            JSContactPhoneticSystem::Script => "script",
         }
     }
 }

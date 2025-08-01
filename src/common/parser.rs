@@ -315,7 +315,7 @@ impl PartialDateTime {
         self.tz_hour.is_some()
     }
 
-    pub fn to_timestamp(&self) -> Option<i64> {
+    fn to_datetime(&self) -> Option<DateTime> {
         if self.has_date() && self.has_time() {
             DateTime {
                 year: self.year.unwrap(),
@@ -328,11 +328,18 @@ impl PartialDateTime {
                 tz_hour: self.tz_hour.unwrap_or_default(),
                 tz_minute: self.tz_minute.unwrap_or_default(),
             }
-            .to_timestamp()
             .into()
         } else {
             None
         }
+    }
+
+    pub fn to_rfc3339(&self) -> Option<String> {
+        self.to_datetime().map(|dt| dt.to_rfc3339())
+    }
+
+    pub fn to_timestamp(&self) -> Option<i64> {
+        self.to_datetime().map(|dt| dt.to_timestamp())
     }
 }
 

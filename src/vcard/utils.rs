@@ -7,7 +7,10 @@
 use super::{
     VCard, VCardEntry, VCardParameter, VCardParameterName, VCardProperty, VCardValue, VCardVersion,
 };
-use crate::common::{Data, PartialDateTime};
+use crate::{
+    common::{Data, PartialDateTime},
+    vcard::VCardPhonetic,
+};
 
 impl VCard {
     pub fn uid(&self) -> Option<&str> {
@@ -40,10 +43,44 @@ impl VCard {
     }
 }
 
+impl VCardEntry {
+    pub fn language(&self) -> Option<&str> {
+        self.params.iter().find_map(|p| match p {
+            VCardParameter::Language(lang) => Some(lang.as_str()),
+            _ => None,
+        })
+    }
+
+    pub fn alt_id(&self) -> Option<&str> {
+        self.params.iter().find_map(|p| match p {
+            VCardParameter::Altid(altid) => Some(altid.as_str()),
+            _ => None,
+        })
+    }
+
+    pub fn phonetic_system(&self) -> Option<&VCardPhonetic> {
+        self.params.iter().find_map(|p| match p {
+            VCardParameter::Phonetic(script) => Some(script),
+            _ => None,
+        })
+    }
+
+    pub fn phonetic_script(&self) -> Option<&str> {
+        self.params.iter().find_map(|p| match p {
+            VCardParameter::Script(script) => Some(script.as_str()),
+            _ => None,
+        })
+    }
+}
+
 impl VCardValue {
     pub fn as_text(&self) -> Option<&str> {
         match self {
             VCardValue::Text(ref s) => Some(s),
+            VCardValue::Binary(data) => std::str::from_utf8(data.data.as_slice()).ok(),
+            VCardValue::Sex(vcard_sex) => vcard_sex.as_str().into(),
+            VCardValue::GramGender(vcard_gram_gender) => vcard_gram_gender.as_str().into(),
+            VCardValue::Kind(vcard_kind) => vcard_kind.as_str().into(),
             _ => None,
         }
     }
@@ -51,6 +88,11 @@ impl VCardValue {
     pub fn into_text(self) -> Option<String> {
         match self {
             VCardValue::Text(s) => Some(s),
+            VCardValue::Sex(vcard_sex) => vcard_sex.as_str().to_string().into(),
+            VCardValue::GramGender(vcard_gram_gender) => {
+                vcard_gram_gender.as_str().to_string().into()
+            }
+            VCardValue::Kind(vcard_kind) => vcard_kind.as_str().to_string().into(),
             _ => None,
         }
     }

@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use crate::vcard::{VCardEntry, VCardKind, VCardParameter, VCardProperty, VCardValue};
+use crate::vcard::{
+    VCardEntry, VCardKind, VCardParameter, VCardProperty, VCardValue, VCardValueType,
+};
 
 impl VCardEntry {
     pub fn new(name: VCardProperty) -> Self {
@@ -29,6 +31,19 @@ impl VCardEntry {
     pub fn with_param(mut self, param: impl Into<VCardParameter>) -> Self {
         self.params.push(param.into());
         self
+    }
+
+    pub fn with_param_opt(mut self, param: Option<impl Into<VCardParameter>>) -> Self {
+        if let Some(param) = param {
+            self.params.push(param.into());
+        }
+        self
+    }
+
+    pub fn is_type(&self, typ: &VCardValueType) -> bool {
+        self.params
+            .iter()
+            .any(|p| matches!(p, VCardParameter::Value(v) if v.contains(typ)))
     }
 }
 
