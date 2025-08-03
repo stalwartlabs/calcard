@@ -8,7 +8,7 @@ use super::{
     VCard, VCardEntry, VCardParameter, VCardParameterName, VCardProperty, VCardValue, VCardVersion,
 };
 use crate::{
-    common::{Data, PartialDateTime},
+    common::{writer::write_bytes, Data, PartialDateTime},
     vcard::VCardPhonetic,
 };
 
@@ -76,11 +76,10 @@ impl VCardEntry {
 impl VCardValue {
     pub fn as_text(&self) -> Option<&str> {
         match self {
-            VCardValue::Text(ref s) => Some(s),
-            VCardValue::Binary(data) => std::str::from_utf8(data.data.as_slice()).ok(),
-            VCardValue::Sex(vcard_sex) => vcard_sex.as_str().into(),
-            VCardValue::GramGender(vcard_gram_gender) => vcard_gram_gender.as_str().into(),
-            VCardValue::Kind(vcard_kind) => vcard_kind.as_str().into(),
+            VCardValue::Text(v) => Some(v.as_str()),
+            VCardValue::Sex(v) => v.as_str().into(),
+            VCardValue::GramGender(v) => v.as_str().into(),
+            VCardValue::Kind(v) => v.as_str().into(),
             _ => None,
         }
     }
@@ -88,11 +87,17 @@ impl VCardValue {
     pub fn into_text(self) -> Option<String> {
         match self {
             VCardValue::Text(s) => Some(s),
-            VCardValue::Sex(vcard_sex) => vcard_sex.as_str().to_string().into(),
-            VCardValue::GramGender(vcard_gram_gender) => {
-                vcard_gram_gender.as_str().to_string().into()
-            }
-            VCardValue::Kind(vcard_kind) => vcard_kind.as_str().to_string().into(),
+            VCardValue::Sex(v) => v.as_str().to_string().into(),
+            VCardValue::GramGender(v) => v.as_str().to_string().into(),
+            VCardValue::Kind(v) => v.as_str().to_string().into(),
+            _ => None,
+        }
+    }
+
+    pub fn into_uri(self) -> Option<String> {
+        match self {
+            VCardValue::Binary(v) => Some(v.to_string()),
+            VCardValue::Text(v) => Some(v),
             _ => None,
         }
     }
@@ -130,6 +135,23 @@ impl VCardValue {
             VCardValue::Binary(ref d) => Some(d),
             _ => None,
         }
+    }
+}
+
+impl Data {
+    #[allow(clippy::inherent_to_string)]
+    pub fn to_string(&self) -> String {
+        use std::fmt::Write;
+        let mut out = String::with_capacity(
+            self.data.len().div_ceil(4) + self.content_type.as_ref().map_or(0, |ct| ct.len() + 5),
+        );
+        let _ = write!(&mut out, "data:");
+        if let Some(ct) = &self.content_type {
+            let _ = write!(&mut out, "{ct};");
+        }
+        let _ = write!(&mut out, "base64\\,");
+        let _ = write_bytes(&mut out, &mut 0, &self.data);
+        out
     }
 }
 

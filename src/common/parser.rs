@@ -84,66 +84,10 @@ impl<'x> Parser<'x> {
 
 impl Token<'_> {
     pub(crate) fn into_uri_bytes(self) -> std::result::Result<Data, String> {
-        if self
-            .text
-            .as_ref()
-            .get(0..5)
-            .unwrap_or_default()
-            .eq_ignore_ascii_case(b"data:")
-        {
-            let mut bin = Data::default();
-            let text = self.text.as_ref().get(5..).unwrap_or_default();
-            let mut offset_start = 0;
-            let mut is_base64 = false;
-
-            for (idx, ch) in text.iter().enumerate() {
-                match ch {
-                    b';' => {
-                        if idx > 0 {
-                            bin.content_type = Some(
-                                std::str::from_utf8(&text[offset_start..idx])
-                                    .unwrap_or_default()
-                                    .to_string(),
-                            );
-                        }
-                        offset_start = idx + 1;
-                    }
-                    b',' => {
-                        if idx != offset_start {
-                            let text = text.get(offset_start..idx).unwrap_or_default();
-                            if text.eq_ignore_ascii_case(b"base64") {
-                                is_base64 = true;
-                            } else if bin.content_type.is_none() {
-                                bin.content_type =
-                                    Some(std::str::from_utf8(text).unwrap_or_default().to_string());
-                            }
-                        }
-
-                        offset_start = idx + 1;
-                        break;
-                    }
-                    _ => {}
-                }
-            }
-
-            let text = text.get(offset_start..).unwrap_or_default();
-            if !text.is_empty() {
-                if is_base64 {
-                    if let Some(bytes) = base64_decode(text) {
-                        bin.data = bytes;
-                        return Ok(bin);
-                    }
-                } else {
-                    let (success, bytes) = decode_hex(text);
-                    if success {
-                        bin.data = bytes;
-                        return Ok(bin);
-                    }
-                }
-            }
+        match Data::try_parse(self.text.as_ref()) {
+            Some(data) => Ok(data),
+            None => Err(self.into_string()),
         }
-
-        Err(self.into_string())
     }
 
     pub(crate) fn into_timestamp(
@@ -190,6 +134,70 @@ impl Token<'_> {
 
     pub(crate) fn into_boolean(self) -> bool {
         self.text.as_ref().eq_ignore_ascii_case(b"true")
+    }
+}
+
+impl Data {
+    pub fn try_parse(text: &[u8]) -> Option<Self> {
+        if text
+            .as_ref()
+            .get(0..5)
+            .unwrap_or_default()
+            .eq_ignore_ascii_case(b"data:")
+        {
+            let mut bin = Data::default();
+            let text = text.as_ref().get(5..).unwrap_or_default();
+            let mut offset_start = 0;
+            let mut is_base64 = false;
+
+            for (idx, ch) in text.iter().enumerate() {
+                match ch {
+                    b';' => {
+                        if idx > 0 {
+                            bin.content_type = Some(
+                                std::str::from_utf8(&text[offset_start..idx])
+                                    .unwrap_or_default()
+                                    .to_string(),
+                            );
+                        }
+                        offset_start = idx + 1;
+                    }
+                    b',' => {
+                        if idx != offset_start {
+                            let text = text.get(offset_start..idx).unwrap_or_default();
+                            if text.eq_ignore_ascii_case(b"base64") {
+                                is_base64 = true;
+                            } else if bin.content_type.is_none() {
+                                bin.content_type =
+                                    Some(std::str::from_utf8(text).unwrap_or_default().to_string());
+                            }
+                        }
+
+                        offset_start = idx + 1;
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+
+            let text = text.get(offset_start..).unwrap_or_default();
+            if !text.is_empty() {
+                if is_base64 {
+                    if let Some(bytes) = base64_decode(text) {
+                        bin.data = bytes;
+                        return Some(bin);
+                    }
+                } else {
+                    let (success, bytes) = decode_hex(text);
+                    if success {
+                        bin.data = bytes;
+                        return Some(bin);
+                    }
+                }
+            }
+        }
+
+        None
     }
 }
 

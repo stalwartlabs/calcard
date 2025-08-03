@@ -18,6 +18,11 @@ impl VCardEntry {
         }
     }
 
+    pub fn with_params(mut self, params: Vec<VCardParameter>) -> Self {
+        self.params = params;
+        self
+    }
+
     pub fn with_group(mut self, group: Option<String>) -> Self {
         self.group = group;
         self
@@ -31,6 +36,10 @@ impl VCardEntry {
     pub fn with_param(mut self, param: impl Into<VCardParameter>) -> Self {
         self.params.push(param.into());
         self
+    }
+
+    pub fn add_param(&mut self, param: impl Into<VCardParameter>) {
+        self.params.push(param.into());
     }
 
     pub fn with_param_opt(mut self, param: Option<impl Into<VCardParameter>>) -> Self {

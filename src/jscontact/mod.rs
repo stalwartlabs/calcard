@@ -18,7 +18,7 @@ pub struct JSContact<'x>(pub Value<'x, JSContactProperty, JSContactValue>);
 pub enum JSContactValue {
     Timestamp(i64),
     Type(JSContactType),
-    GrammaticalGender(GrammaticalGender),
+    GrammaticalGender(JSContactGrammaticalGender),
     Kind(JSContactKind),
     Level(JSContactLevel),
     Relation(JSContactRelation),
@@ -42,6 +42,7 @@ pub enum JSContactProperty {
     Coordinates,
     CountryCode,
     Created,
+    CryptoKeys,
     Date,
     Day,
     DefaultSeparator,
@@ -126,6 +127,7 @@ impl FromStr for JSContactProperty {
             "coordinates" => JSContactProperty::Coordinates,
             "countryCode" => JSContactProperty::CountryCode,
             "created" => JSContactProperty::Created,
+            "cryptoKeys" => JSContactProperty::CryptoKeys,
             "date" => JSContactProperty::Date,
             "day" => JSContactProperty::Day,
             "defaultSeparator" => JSContactProperty::DefaultSeparator,
@@ -210,6 +212,7 @@ impl JSContactProperty {
             JSContactProperty::Coordinates => "coordinates",
             JSContactProperty::CountryCode => "countryCode",
             JSContactProperty::Created => "created",
+            JSContactProperty::CryptoKeys => "cryptoKeys",
             JSContactProperty::Date => "date",
             JSContactProperty::Day => "day",
             JSContactProperty::DefaultSeparator => "defaultSeparator",
@@ -498,7 +501,7 @@ impl Feature {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum GrammaticalGender {
+pub enum JSContactGrammaticalGender {
     Animate,
     Common,
     Feminine,
@@ -507,31 +510,31 @@ pub enum GrammaticalGender {
     Neuter,
 }
 
-impl FromStr for GrammaticalGender {
+impl FromStr for JSContactGrammaticalGender {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        hashify::map!(s.as_bytes(), GrammaticalGender,
-            "animate" => GrammaticalGender::Animate,
-            "common" => GrammaticalGender::Common,
-            "feminine" => GrammaticalGender::Feminine,
-            "inanimate" => GrammaticalGender::Inanimate,
-            "masculine" => GrammaticalGender::Masculine,
-            "neuter" => GrammaticalGender::Neuter,
+        hashify::map!(s.as_bytes(), JSContactGrammaticalGender,
+            "animate" => JSContactGrammaticalGender::Animate,
+            "common" => JSContactGrammaticalGender::Common,
+            "feminine" => JSContactGrammaticalGender::Feminine,
+            "inanimate" => JSContactGrammaticalGender::Inanimate,
+            "masculine" => JSContactGrammaticalGender::Masculine,
+            "neuter" => JSContactGrammaticalGender::Neuter,
         )
         .copied()
         .ok_or(())
     }
 }
 
-impl GrammaticalGender {
+impl JSContactGrammaticalGender {
     pub fn as_str(&self) -> &'static str {
         match self {
-            GrammaticalGender::Animate => "animate",
-            GrammaticalGender::Common => "common",
-            GrammaticalGender::Feminine => "feminine",
-            GrammaticalGender::Inanimate => "inanimate",
-            GrammaticalGender::Masculine => "masculine",
-            GrammaticalGender::Neuter => "neuter",
+            JSContactGrammaticalGender::Animate => "animate",
+            JSContactGrammaticalGender::Common => "common",
+            JSContactGrammaticalGender::Feminine => "feminine",
+            JSContactGrammaticalGender::Inanimate => "inanimate",
+            JSContactGrammaticalGender::Masculine => "masculine",
+            JSContactGrammaticalGender::Neuter => "neuter",
         }
     }
 }

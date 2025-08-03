@@ -7,8 +7,9 @@
 use crate::{
     common::CalendarScale,
     jscontact::{
-        Context, Feature, GrammaticalGender, JSContact, JSContactKind, JSContactPhoneticSystem,
-        JSContactProperty, JSContactRelation, JSContactType, JSContactValue,
+        Context, Feature, JSContact, JSContactGrammaticalGender, JSContactKind,
+        JSContactPhoneticSystem, JSContactProperty, JSContactRelation, JSContactType,
+        JSContactValue,
     },
 };
 use chrono::DateTime;
@@ -41,7 +42,7 @@ impl Element for JSContactValue {
                 JSContactProperty::Kind => JSContactKind::from_str(value)
                     .ok()
                     .map(JSContactValue::Kind),
-                JSContactProperty::GrammaticalGender => GrammaticalGender::from_str(value)
+                JSContactProperty::GrammaticalGender => JSContactGrammaticalGender::from_str(value)
                     .ok()
                     .map(JSContactValue::GrammaticalGender),
                 JSContactProperty::PhoneticSystem => JSContactPhoneticSystem::from_str(value)
