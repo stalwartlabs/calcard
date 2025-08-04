@@ -33,6 +33,11 @@ impl VCardEntry {
         self
     }
 
+    pub fn with_values(mut self, values: Vec<VCardValue>) -> Self {
+        self.values = values;
+        self
+    }
+
     pub fn with_param(mut self, param: impl Into<VCardParameter>) -> Self {
         self.params.push(param.into());
         self

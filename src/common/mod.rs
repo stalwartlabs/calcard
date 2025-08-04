@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
+use std::borrow::Cow;
+
 use crate::Token;
 use chrono::{FixedOffset, NaiveDate, NaiveDateTime};
 use mail_parser::DateTime;
@@ -65,6 +67,17 @@ impl CalendarScale {
             CalendarScale::Hebrew => "HEBREW",
             CalendarScale::Ethiopic => "ETHIOPIC",
             CalendarScale::Other(ref s) => s,
+        }
+    }
+
+    pub fn into_string(self) -> Cow<'static, str> {
+        match self {
+            CalendarScale::Gregorian => Cow::Borrowed("GREGORIAN"),
+            CalendarScale::Chinese => Cow::Borrowed("CHINESE"),
+            CalendarScale::IslamicCivil => Cow::Borrowed("ISLAMIC-CIVIL"),
+            CalendarScale::Hebrew => Cow::Borrowed("HEBREW"),
+            CalendarScale::Ethiopic => Cow::Borrowed("ETHIOPIC"),
+            CalendarScale::Other(s) => Cow::Owned(s),
         }
     }
 }

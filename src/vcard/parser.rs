@@ -554,6 +554,70 @@ impl VCardParameterName {
         )
         .unwrap_or_else(|| VCardParameterName::Other(input.into()))
     }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            VCardParameterName::Language => "LANGUAGE",
+            VCardParameterName::Value => "VALUE",
+            VCardParameterName::Pref => "PREF",
+            VCardParameterName::Altid => "ALTID",
+            VCardParameterName::Pid => "PID",
+            VCardParameterName::Type => "TYPE",
+            VCardParameterName::Mediatype => "MEDIATYPE",
+            VCardParameterName::Calscale => "CALSCALE",
+            VCardParameterName::SortAs => "SORT-AS",
+            VCardParameterName::Geo => "GEO",
+            VCardParameterName::Tz => "TZ",
+            VCardParameterName::Index => "INDEX",
+            VCardParameterName::Level => "LEVEL",
+            VCardParameterName::Group => "GROUP",
+            VCardParameterName::Cc => "CC",
+            VCardParameterName::Author => "AUTHOR",
+            VCardParameterName::AuthorName => "AUTHOR-NAME",
+            VCardParameterName::Created => "CREATED",
+            VCardParameterName::Derived => "DERIVED",
+            VCardParameterName::Label => "LABEL",
+            VCardParameterName::Phonetic => "PHONETIC",
+            VCardParameterName::PropId => "PROP-ID",
+            VCardParameterName::Script => "SCRIPT",
+            VCardParameterName::ServiceType => "SERVICE-TYPE",
+            VCardParameterName::Username => "USERNAME",
+            VCardParameterName::Jsptr => "JSPTR",
+            VCardParameterName::Other(name) => name,
+        }
+    }
+
+    pub fn into_string(self) -> Cow<'static, str> {
+        match self {
+            VCardParameterName::Language => "LANGUAGE".into(),
+            VCardParameterName::Value => "VALUE".into(),
+            VCardParameterName::Pref => "PREF".into(),
+            VCardParameterName::Altid => "ALTID".into(),
+            VCardParameterName::Pid => "PID".into(),
+            VCardParameterName::Type => "TYPE".into(),
+            VCardParameterName::Mediatype => "MEDIATYPE".into(),
+            VCardParameterName::Calscale => "CALSCALE".into(),
+            VCardParameterName::SortAs => "SORT-AS".into(),
+            VCardParameterName::Geo => "GEO".into(),
+            VCardParameterName::Tz => "TZ".into(),
+            VCardParameterName::Index => "INDEX".into(),
+            VCardParameterName::Level => "LEVEL".into(),
+            VCardParameterName::Group => "GROUP".into(),
+            VCardParameterName::Cc => "CC".into(),
+            VCardParameterName::Author => "AUTHOR".into(),
+            VCardParameterName::AuthorName => "AUTHOR-NAME".into(),
+            VCardParameterName::Created => "CREATED".into(),
+            VCardParameterName::Derived => "DERIVED".into(),
+            VCardParameterName::Label => "LABEL".into(),
+            VCardParameterName::Phonetic => "PHONETIC".into(),
+            VCardParameterName::PropId => "PROP-ID".into(),
+            VCardParameterName::Script => "SCRIPT".into(),
+            VCardParameterName::ServiceType => "SERVICE-TYPE".into(),
+            VCardParameterName::Username => "USERNAME".into(),
+            VCardParameterName::Jsptr => "JSPTR".into(),
+            VCardParameterName::Other(name) => name.into(),
+        }
+    }
 }
 
 impl VCardVersion {

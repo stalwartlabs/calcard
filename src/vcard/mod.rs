@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
+use std::borrow::Cow;
+
 use crate::{
     common::{tokenizer::Token, CalendarScale, Data, PartialDateTime},
     Entry, Parser,
@@ -245,6 +247,64 @@ impl VCardProperty {
             VCardProperty::Begin => "BEGIN",
             VCardProperty::End => "END",
             VCardProperty::Other(ref s) => s,
+        }
+    }
+
+    pub fn into_string(self) -> Cow<'static, str> {
+        match self {
+            VCardProperty::Source => Cow::Borrowed("SOURCE"),
+            VCardProperty::Kind => Cow::Borrowed("KIND"),
+            VCardProperty::Xml => Cow::Borrowed("XML"),
+            VCardProperty::Fn => Cow::Borrowed("FN"),
+            VCardProperty::N => Cow::Borrowed("N"),
+            VCardProperty::Nickname => Cow::Borrowed("NICKNAME"),
+            VCardProperty::Photo => Cow::Borrowed("PHOTO"),
+            VCardProperty::Bday => Cow::Borrowed("BDAY"),
+            VCardProperty::Anniversary => Cow::Borrowed("ANNIVERSARY"),
+            VCardProperty::Gender => Cow::Borrowed("GENDER"),
+            VCardProperty::Adr => Cow::Borrowed("ADR"),
+            VCardProperty::Tel => Cow::Borrowed("TEL"),
+            VCardProperty::Email => Cow::Borrowed("EMAIL"),
+            VCardProperty::Impp => Cow::Borrowed("IMPP"),
+            VCardProperty::Lang => Cow::Borrowed("LANG"),
+            VCardProperty::Tz => Cow::Borrowed("TZ"),
+            VCardProperty::Geo => Cow::Borrowed("GEO"),
+            VCardProperty::Title => Cow::Borrowed("TITLE"),
+            VCardProperty::Role => Cow::Borrowed("ROLE"),
+            VCardProperty::Logo => Cow::Borrowed("LOGO"),
+            VCardProperty::Org => Cow::Borrowed("ORG"),
+            VCardProperty::Member => Cow::Borrowed("MEMBER"),
+            VCardProperty::Related => Cow::Borrowed("RELATED"),
+            VCardProperty::Categories => Cow::Borrowed("CATEGORIES"),
+            VCardProperty::Note => Cow::Borrowed("NOTE"),
+            VCardProperty::Prodid => Cow::Borrowed("PRODID"),
+            VCardProperty::Rev => Cow::Borrowed("REV"),
+            VCardProperty::Sound => Cow::Borrowed("SOUND"),
+            VCardProperty::Uid => Cow::Borrowed("UID"),
+            VCardProperty::Clientpidmap => Cow::Borrowed("CLIENTPIDMAP"),
+            VCardProperty::Url => Cow::Borrowed("URL"),
+            VCardProperty::Version => Cow::Borrowed("VERSION"),
+            VCardProperty::Key => Cow::Borrowed("KEY"),
+            VCardProperty::Fburl => Cow::Borrowed("FBURL"),
+            VCardProperty::Caladruri => Cow::Borrowed("CALADRURI"),
+            VCardProperty::Caluri => Cow::Borrowed("CALURI"),
+            VCardProperty::Birthplace => Cow::Borrowed("BIRTHPLACE"),
+            VCardProperty::Deathplace => Cow::Borrowed("DEATHPLACE"),
+            VCardProperty::Deathdate => Cow::Borrowed("DEATHDATE"),
+            VCardProperty::Expertise => Cow::Borrowed("EXPERTISE"),
+            VCardProperty::Hobby => Cow::Borrowed("HOBBY"),
+            VCardProperty::Interest => Cow::Borrowed("INTEREST"),
+            VCardProperty::OrgDirectory => Cow::Borrowed("ORG-DIRECTORY"),
+            VCardProperty::ContactUri => Cow::Borrowed("CONTACT-URI"),
+            VCardProperty::Created => Cow::Borrowed("CREATED"),
+            VCardProperty::Gramgender => Cow::Borrowed("GRAMGENDER"),
+            VCardProperty::Language => Cow::Borrowed("LANGUAGE"),
+            VCardProperty::Pronouns => Cow::Borrowed("PRONOUNS"),
+            VCardProperty::Socialprofile => Cow::Borrowed("SOCIALPROFILE"),
+            VCardProperty::Jsprop => Cow::Borrowed("JSPROP"),
+            VCardProperty::Begin => Cow::Borrowed("BEGIN"),
+            VCardProperty::End => Cow::Borrowed("END"),
+            VCardProperty::Other(s) => Cow::Owned(s),
         }
     }
 
@@ -521,6 +581,24 @@ impl VCardValueType {
             VCardValueType::Other(ref s) => s,
         }
     }
+
+    pub fn into_string(self) -> Cow<'static, str> {
+        match self {
+            VCardValueType::Boolean => Cow::Borrowed("BOOLEAN"),
+            VCardValueType::Date => Cow::Borrowed("DATE"),
+            VCardValueType::DateAndOrTime => Cow::Borrowed("DATE-AND-OR-TIME"),
+            VCardValueType::DateTime => Cow::Borrowed("DATE-TIME"),
+            VCardValueType::Float => Cow::Borrowed("FLOAT"),
+            VCardValueType::Integer => Cow::Borrowed("INTEGER"),
+            VCardValueType::LanguageTag => Cow::Borrowed("LANGUAGE-TAG"),
+            VCardValueType::Text => Cow::Borrowed("TEXT"),
+            VCardValueType::Time => Cow::Borrowed("TIME"),
+            VCardValueType::Timestamp => Cow::Borrowed("TIMESTAMP"),
+            VCardValueType::Uri => Cow::Borrowed("URI"),
+            VCardValueType::UtcOffset => Cow::Borrowed("UTC-OFFSET"),
+            VCardValueType::Other(s) => Cow::Owned(s),
+        }
+    }
 }
 
 impl AsRef<str> for VCardValueType {
@@ -584,7 +662,7 @@ impl TryFrom<&[u8]> for VCardLevel {
 }
 
 impl VCardLevel {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             VCardLevel::Beginner => "BEGINNER",
             VCardLevel::Average => "AVERAGE",
@@ -641,6 +719,16 @@ impl VCardPhonetic {
             VCardPhonetic::Piny => "PINY",
             VCardPhonetic::Script => "SCRIPT",
             VCardPhonetic::Other(ref s) => s,
+        }
+    }
+
+    pub fn into_string(self) -> Cow<'static, str> {
+        match self {
+            VCardPhonetic::Ipa => Cow::Borrowed("IPA"),
+            VCardPhonetic::Jyut => Cow::Borrowed("JYUT"),
+            VCardPhonetic::Piny => Cow::Borrowed("PINY"),
+            VCardPhonetic::Script => Cow::Borrowed("SCRIPT"),
+            VCardPhonetic::Other(s) => Cow::Owned(s),
         }
     }
 }
@@ -777,6 +865,45 @@ impl VCardType {
             VCardType::Other(ref s) => s,
         }
     }
+
+    pub fn into_string(self) -> Cow<'static, str> {
+        // all variants
+        match self {
+            VCardType::Work => Cow::Borrowed("WORK"),
+            VCardType::Home => Cow::Borrowed("HOME"),
+            VCardType::Billing => Cow::Borrowed("BILLING"),
+            VCardType::Delivery => Cow::Borrowed("DELIVERY"),
+            VCardType::Contact => Cow::Borrowed("CONTACT"),
+            VCardType::Acquaintance => Cow::Borrowed("ACQUAINTANCE"),
+            VCardType::Friend => Cow::Borrowed("FRIEND"),
+            VCardType::Met => Cow::Borrowed("MET"),
+            VCardType::CoWorker => Cow::Borrowed("CO-WORKER"),
+            VCardType::Colleague => Cow::Borrowed("COLLEAGUE"),
+            VCardType::CoResident => Cow::Borrowed("CO-RESIDENT"),
+            VCardType::Neighbor => Cow::Borrowed("NEIGHBOR"),
+            VCardType::Child => Cow::Borrowed("CHILD"),
+            VCardType::Parent => Cow::Borrowed("PARENT"),
+            VCardType::Sibling => Cow::Borrowed("SIBLING"),
+            VCardType::Spouse => Cow::Borrowed("SPOUSE"),
+            VCardType::Kin => Cow::Borrowed("KIN"),
+            VCardType::Muse => Cow::Borrowed("MUSE"),
+            VCardType::Crush => Cow::Borrowed("CRUSH"),
+            VCardType::Date => Cow::Borrowed("DATE"),
+            VCardType::Sweetheart => Cow::Borrowed("SWEETHEART"),
+            VCardType::Me => Cow::Borrowed("ME"),
+            VCardType::Agent => Cow::Borrowed("AGENT"),
+            VCardType::Emergency => Cow::Borrowed("EMERGENCY"),
+            VCardType::Text => Cow::Borrowed("TEXT"),
+            VCardType::Voice => Cow::Borrowed("VOICE"),
+            VCardType::Fax => Cow::Borrowed("FAX"),
+            VCardType::Cell => Cow::Borrowed("CELL"),
+            VCardType::Video => Cow::Borrowed("VIDEO"),
+            VCardType::Pager => Cow::Borrowed("PAGER"),
+            VCardType::Textphone => Cow::Borrowed("TEXTPHONE"),
+            VCardType::MainNumber => Cow::Owned(String::from("MAIN-NUMBER")),
+            VCardType::Other(s) => Cow::Owned(s),
+        }
+    }
 }
 
 impl AsRef<str> for VCardType {
@@ -827,7 +954,7 @@ impl TryFrom<&[u8]> for VCardGramGender {
 }
 
 impl VCardGramGender {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             VCardGramGender::Animate => "ANIMATE",
             VCardGramGender::Common => "COMMON",
@@ -872,7 +999,7 @@ impl TryFrom<&[u8]> for VCardSex {
 }
 
 impl VCardSex {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             VCardSex::Male => "M",
             VCardSex::Female => "F",
@@ -918,7 +1045,7 @@ impl TryFrom<&[u8]> for VCardKind {
 }
 
 impl VCardKind {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             VCardKind::Individual => "INDIVIDUAL",
             VCardKind::Group => "GROUP",

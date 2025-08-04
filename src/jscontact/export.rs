@@ -7,11 +7,11 @@
 use crate::{
     common::{CalendarScale, Data, PartialDateTime},
     jscontact::{
-        JSContact, JSContactGrammaticalGender, JSContactKind, JSContactPhoneticSystem,
-        JSContactProperty, JSContactValue,
+        JSContact, JSContactGrammaticalGender, JSContactKind, JSContactLevel,
+        JSContactPhoneticSystem, JSContactProperty, JSContactValue,
     },
     vcard::{
-        VCard, VCardEntry, VCardGramGender, VCardKind, VCardParameter, VCardPhonetic,
+        VCard, VCardEntry, VCardGramGender, VCardKind, VCardLevel, VCardParameter, VCardPhonetic,
         VCardProperty, VCardType, VCardValue, VCardValueType,
     },
 };
@@ -27,18 +27,25 @@ impl JSContact<'_> {
             };
 
             match property {
-                JSContactProperty::Uid => {
-                    if let Some(text) = value.into_string() {
-                        vcard
-                            .entries
-                            .push(VCardEntry::new(VCardProperty::Uid).with_value(text));
-                    }
-                }
-                JSContactProperty::Kind => {
-                    if let Some(kind) = convert_value(value) {
-                        vcard
-                            .entries
-                            .push(VCardEntry::new(VCardProperty::Kind).with_value(kind));
+                JSContactProperty::Uid
+                | JSContactProperty::Kind
+                | JSContactProperty::Language
+                | JSContactProperty::ProdId
+                | JSContactProperty::Created
+                | JSContactProperty::Updated => {
+                    if let Some(value) = convert_value(value) {
+                        vcard.entries.push(
+                            VCardEntry::new(match property {
+                                JSContactProperty::Uid => VCardProperty::Uid,
+                                JSContactProperty::Kind => VCardProperty::Kind,
+                                JSContactProperty::Language => VCardProperty::Language,
+                                JSContactProperty::ProdId => VCardProperty::Prodid,
+                                JSContactProperty::Created => VCardProperty::Created,
+                                JSContactProperty::Updated => VCardProperty::Rev,
+                                _ => unreachable!(),
+                            })
+                            .with_value(value),
+                        );
                     }
                 }
                 JSContactProperty::Directories => {
@@ -102,23 +109,20 @@ impl JSContact<'_> {
                 }
                 JSContactProperty::Anniversaries => {
                     for (name, value) in value.into_expanded_object() {
-                        let vcard_properties = value
-                            .as_object()
-                            .and_then(|obj| obj.get(&Key::Property(JSContactProperty::Kind)))
-                            .and_then(|v| match v {
-                                Value::Element(JSContactValue::Kind(JSContactKind::Birth)) => {
-                                    Some((VCardProperty::Bday, Some(VCardProperty::Birthplace)))
-                                }
-                                Value::Element(JSContactValue::Kind(JSContactKind::Death)) => Some(
+                        if let Some((vcard_property, mut vcard_place_property)) = map_kind(
+                            &value,
+                            [
+                                (
+                                    JSContactKind::Birth,
+                                    (VCardProperty::Bday, Some(VCardProperty::Birthplace)),
+                                ),
+                                (
+                                    JSContactKind::Death,
                                     (VCardProperty::Deathdate, Some(VCardProperty::Deathplace)),
                                 ),
-                                Value::Element(JSContactValue::Kind(JSContactKind::Wedding)) => {
-                                    Some((VCardProperty::Anniversary, None))
-                                }
-                                _ => None,
-                            });
-
-                        if let Some((vcard_property, mut vcard_place_property)) = vcard_properties {
+                                (JSContactKind::Wedding, (VCardProperty::Anniversary, None)),
+                            ],
+                        ) {
                             let mut date = None;
                             let mut place = None;
                             let mut calscale = None;
@@ -427,23 +431,14 @@ impl JSContact<'_> {
                 }
                 JSContactProperty::Media => {
                     for (name, value) in value.into_expanded_object() {
-                        let entry_type = value
-                            .as_object()
-                            .and_then(|obj| obj.get(&Key::Property(JSContactProperty::Kind)))
-                            .and_then(|v| match v {
-                                Value::Element(JSContactValue::Kind(JSContactKind::Photo)) => {
-                                    Some(VCardProperty::Photo)
-                                }
-                                Value::Element(JSContactValue::Kind(JSContactKind::Logo)) => {
-                                    Some(VCardProperty::Logo)
-                                }
-                                Value::Element(JSContactValue::Kind(JSContactKind::Sound)) => {
-                                    Some(VCardProperty::Sound)
-                                }
-                                _ => None,
-                            });
-
-                        if let Some(entry_type) = entry_type {
+                        if let Some(entry_type) = map_kind(
+                            &value,
+                            [
+                                (JSContactKind::Photo, VCardProperty::Photo),
+                                (JSContactKind::Logo, VCardProperty::Logo),
+                                (JSContactKind::Sound, VCardProperty::Sound),
+                            ],
+                        ) {
                             let mut entry = VCardEntry::new(entry_type)
                                 .with_param(VCardParameter::PropId(name.into_string()));
 
@@ -502,6 +497,8 @@ impl JSContact<'_> {
                                         let mut comp_value = None;
                                         let mut comp_pos = None;
 
+                                        let todo = "map GEO and TZ";
+                                        let todo = "map to the next slot when filled (some props map to same pos)";
                                         for (key, value) in components.into_expanded_object() {
                                             match key {
                                                 Key::Property(JSContactProperty::Kind) => {
@@ -643,29 +640,560 @@ impl JSContact<'_> {
                         );
                     }
                 }
+                JSContactProperty::Organizations => {
+                    for (name, value) in value.into_expanded_object() {
+                        let mut entry = VCardEntry::new(VCardProperty::Org)
+                            .with_param(VCardParameter::PropId(name.into_string()));
 
-                JSContactProperty::Language => todo!(),
-                JSContactProperty::Members => todo!(),
-                JSContactProperty::ProdId => todo!(),
-                JSContactProperty::Created => todo!(),
-                JSContactProperty::Updated => todo!(),
-                JSContactProperty::Organizations => todo!(),
-                JSContactProperty::Titles => todo!(),
-                JSContactProperty::Emails => todo!(),
-                JSContactProperty::OnlineServices => todo!(),
-                JSContactProperty::Phones => todo!(),
-                JSContactProperty::PreferredLanguages => todo!(),
-                JSContactProperty::Calendars => todo!(),
-                JSContactProperty::SchedulingAddresses => todo!(),
-                JSContactProperty::Links => todo!(),
-                JSContactProperty::Localizations => todo!(),
-                JSContactProperty::Keywords => todo!(),
-                JSContactProperty::Notes => todo!(),
-                JSContactProperty::PersonalInfo => todo!(),
-                JSContactProperty::RelatedTo => todo!(),
-                JSContactProperty::VCardName => todo!(),
-                JSContactProperty::VCardParams => todo!(),
-                JSContactProperty::VCardProps => todo!(),
+                        for (prop, value) in value.into_expanded_object() {
+                            match prop {
+                                Key::Property(JSContactProperty::Name) => {
+                                    if let Some(name) = convert_value(value) {
+                                        if entry.values.is_empty() {
+                                            entry.values = vec![name];
+                                        } else {
+                                            entry.values.insert(0, name);
+                                        }
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Units) => {
+                                    for item in value.into_array().unwrap_or_default() {
+                                        for (key, value) in item.into_expanded_object() {
+                                            match key {
+                                                Key::Property(JSContactProperty::Name) => {
+                                                    if let Some(name) = convert_value(value) {
+                                                        entry.values.push(name);
+                                                    }
+                                                }
+                                                _ => {
+                                                    let todo = "map unsupported vCard properties";
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                Key::Property(JSContactProperty::SortAs) => {
+                                    if let Some(sort_as) = value.into_string() {
+                                        entry.add_param(VCardParameter::SortAs(sort_as));
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Contexts) => {
+                                    if let Some(types) = convert_types(value) {
+                                        entry.params.push(VCardParameter::Type(types));
+                                    }
+                                }
+                                _ => {
+                                    let todo = "map unsupported vCard properties";
+                                }
+                            }
+                        }
+
+                        if !entry.values.is_empty() {
+                            vcard.entries.push(entry);
+                        }
+                    }
+                }
+                JSContactProperty::Members => {
+                    for (name, set) in value.into_expanded_boolean_set() {
+                        if set {
+                            vcard.entries.push(
+                                VCardEntry::new(VCardProperty::Member)
+                                    .with_value(name.into_string()),
+                            );
+                        }
+                    }
+                }
+                JSContactProperty::Keywords => {
+                    let mut keywords = Vec::new();
+                    for (name, set) in value.into_expanded_boolean_set() {
+                        if set {
+                            keywords.push(VCardValue::Text(name.into_string()));
+                        }
+                    }
+                    if !keywords.is_empty() {
+                        vcard
+                            .entries
+                            .push(VCardEntry::new(VCardProperty::Categories).with_values(keywords));
+                    }
+                }
+                JSContactProperty::Titles => {
+                    for (name, value) in value.into_expanded_object() {
+                        if let Some(entry_type) = map_kind(
+                            &value,
+                            [
+                                (JSContactKind::Title, VCardProperty::Title),
+                                (JSContactKind::Role, VCardProperty::Role),
+                            ],
+                        ) {
+                            let mut entry = VCardEntry::new(entry_type)
+                                .with_param(VCardParameter::PropId(name.into_string()));
+
+                            for (prop, value) in value.into_expanded_object() {
+                                match prop {
+                                    Key::Property(JSContactProperty::Name) => {
+                                        if let Some(name) = convert_value(value) {
+                                            entry.values = vec![name];
+                                        }
+                                    }
+                                    Key::Property(JSContactProperty::Pref) => {
+                                        if let Some(pref) = value.as_i64() {
+                                            entry.add_param(VCardParameter::Pref(pref as u32));
+                                        }
+                                    }
+                                    Key::Property(JSContactProperty::Contexts) => {
+                                        if let Some(types) = convert_types(value) {
+                                            entry.params.push(VCardParameter::Type(types));
+                                        }
+                                    }
+                                    Key::Property(JSContactProperty::Kind) => {}
+                                    _ => {
+                                        let todo = "organizationId";
+                                        let todo = "map unsupported vCard properties";
+                                    }
+                                }
+                            }
+
+                            if !entry.values.is_empty() {
+                                vcard.entries.push(entry);
+                            }
+                        } else {
+                            let todo = "map unsupported vCard properties";
+                        }
+                    }
+                }
+                JSContactProperty::Emails => {
+                    for (name, value) in value.into_expanded_object() {
+                        let mut entry = VCardEntry::new(VCardProperty::Email)
+                            .with_param(VCardParameter::PropId(name.into_string()));
+
+                        for (prop, value) in value.into_expanded_object() {
+                            match prop {
+                                Key::Property(JSContactProperty::Address) => {
+                                    if let Some(email) = value.into_string() {
+                                        entry.values = vec![VCardValue::Text(email)];
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Contexts) => {
+                                    if let Some(types) = convert_types(value) {
+                                        entry.params.push(VCardParameter::Type(types));
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Pref) => {
+                                    if let Some(pref) = value.as_i64() {
+                                        entry.add_param(VCardParameter::Pref(pref as u32));
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Label) => {
+                                    if let Some(label) = value.into_string() {
+                                        entry.params.push(VCardParameter::Label(label));
+                                    }
+                                }
+                                _ => {
+                                    let todo = "map unsupported vCard properties";
+                                }
+                            }
+                        }
+
+                        if !entry.values.is_empty() {
+                            vcard.entries.push(entry);
+                        }
+                    }
+                }
+                JSContactProperty::OnlineServices => {
+                    for (name, value) in value.into_expanded_object() {
+                        let mut entry = VCardEntry::new(VCardProperty::Socialprofile)
+                            .with_param(VCardParameter::PropId(name.into_string()));
+
+                        for (prop, value) in value.into_expanded_object() {
+                            match prop {
+                                Key::Property(JSContactProperty::Uri) => {
+                                    if let Some(service) = value.into_string() {
+                                        entry.values = vec![VCardValue::Text(service)];
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Service) => {
+                                    if let Some(service) = value.into_string() {
+                                        entry.add_param(VCardParameter::ServiceType(service));
+                                    }
+                                }
+                                Key::Property(JSContactProperty::User) => {
+                                    if let Some(username) = value.into_string() {
+                                        entry.add_param(VCardParameter::Username(username));
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Contexts) => {
+                                    if let Some(types) = convert_types(value) {
+                                        entry.params.push(VCardParameter::Type(types));
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Label) => {
+                                    if let Some(label) = value.into_string() {
+                                        entry.add_param(VCardParameter::Label(label));
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Pref) => {
+                                    if let Some(pref) = value.as_i64() {
+                                        entry.add_param(VCardParameter::Pref(pref as u32));
+                                    }
+                                }
+                                Key::Property(JSContactProperty::VCardName) => {
+                                    if let Some(name) = value.into_string() {
+                                        entry.name = match VCardProperty::try_from(name.as_bytes())
+                                        {
+                                            Ok(prop) => prop,
+                                            Err(_) => VCardProperty::Other(name),
+                                        };
+                                    }
+                                }
+                                _ => {
+                                    let todo = "map unsupported vCard properties";
+                                }
+                            }
+                        }
+
+                        if !entry.values.is_empty() {
+                            vcard.entries.push(entry);
+                        }
+                    }
+                }
+                JSContactProperty::Phones => {
+                    for (name, value) in value.into_expanded_object() {
+                        let mut entry = VCardEntry::new(VCardProperty::Tel)
+                            .with_param(VCardParameter::PropId(name.into_string()));
+                        let mut types = vec![];
+
+                        for (prop, value) in value.into_expanded_object() {
+                            match prop {
+                                Key::Property(JSContactProperty::Number) => {
+                                    if let Some(email) = value.into_string() {
+                                        entry.values = vec![VCardValue::Text(email)];
+                                    }
+                                }
+                                Key::Property(
+                                    JSContactProperty::Contexts | JSContactProperty::Features,
+                                ) => {
+                                    if let Some(types_) = convert_types(value) {
+                                        if types.is_empty() {
+                                            types = types_;
+                                        } else {
+                                            types.extend(types_);
+                                        }
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Pref) => {
+                                    if let Some(pref) = value.as_i64() {
+                                        entry.add_param(VCardParameter::Pref(pref as u32));
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Label) => {
+                                    if let Some(label) = value.into_string() {
+                                        entry.params.push(VCardParameter::Label(label));
+                                    }
+                                }
+                                _ => {
+                                    let todo = "map unsupported vCard properties";
+                                }
+                            }
+                        }
+
+                        if !entry.values.is_empty() {
+                            if !types.is_empty() {
+                                entry.params.push(VCardParameter::Type(types));
+                            }
+                            vcard.entries.push(entry);
+                        }
+                    }
+                }
+                JSContactProperty::PreferredLanguages => {
+                    for (name, value) in value.into_expanded_object() {
+                        let mut entry = VCardEntry::new(VCardProperty::Lang)
+                            .with_param(VCardParameter::PropId(name.into_string()));
+
+                        for (prop, value) in value.into_expanded_object() {
+                            match prop {
+                                Key::Property(JSContactProperty::Language) => {
+                                    if let Some(lang) = value.into_string() {
+                                        entry.values = vec![VCardValue::Text(lang)];
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Pref) => {
+                                    if let Some(pref) = value.as_i64() {
+                                        entry.add_param(VCardParameter::Pref(pref as u32));
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Contexts) => {
+                                    if let Some(types) = convert_types(value) {
+                                        entry.params.push(VCardParameter::Type(types));
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Label) => {
+                                    if let Some(label) = value.into_string() {
+                                        entry.params.push(VCardParameter::Label(label));
+                                    }
+                                }
+                                _ => {
+                                    let todo = "map unsupported vCard properties";
+                                }
+                            }
+                        }
+
+                        if !entry.values.is_empty() {
+                            vcard.entries.push(entry);
+                        }
+                    }
+                }
+                JSContactProperty::Calendars => {
+                    for (name, value) in value.into_expanded_object() {
+                        if let Some(entry_type) = map_kind(
+                            &value,
+                            [
+                                (JSContactKind::FreeBusy, VCardProperty::Fburl),
+                                (JSContactKind::Calendar, VCardProperty::Caluri),
+                            ],
+                        ) {
+                            let mut entry = VCardEntry::new(entry_type)
+                                .with_param(VCardParameter::PropId(name.into_string()));
+
+                            for (prop, value) in value.into_expanded_object() {
+                                match prop {
+                                    Key::Property(JSContactProperty::Uri) => {
+                                        if let Some(name) = convert_value(value) {
+                                            entry.values = vec![name];
+                                        }
+                                    }
+                                    Key::Property(JSContactProperty::MediaType) => {
+                                        if let Some(text) = value.into_string() {
+                                            entry.params.push(VCardParameter::Mediatype(text));
+                                        }
+                                    }
+                                    Key::Property(JSContactProperty::Label) => {
+                                        if let Some(text) = value.into_string() {
+                                            entry.params.push(VCardParameter::Label(text));
+                                        }
+                                    }
+                                    Key::Property(JSContactProperty::Pref) => {
+                                        if let Some(pref) = value.as_i64() {
+                                            entry.add_param(VCardParameter::Pref(pref as u32));
+                                        }
+                                    }
+                                    Key::Property(JSContactProperty::Contexts) => {
+                                        if let Some(types) = convert_types(value) {
+                                            entry.params.push(VCardParameter::Type(types));
+                                        }
+                                    }
+                                    Key::Property(JSContactProperty::Kind) => {}
+                                    _ => {
+                                        let todo = "map unsupported vCard properties";
+                                    }
+                                }
+                            }
+
+                            if !entry.values.is_empty() {
+                                vcard.entries.push(entry);
+                            }
+                        } else {
+                            let todo = "map unsupported vCard properties";
+                        }
+                    }
+                }
+                JSContactProperty::SchedulingAddresses
+                | JSContactProperty::CryptoKeys
+                | JSContactProperty::Links => {
+                    let property = match property {
+                        JSContactProperty::SchedulingAddresses => VCardProperty::Caladruri,
+                        JSContactProperty::CryptoKeys => VCardProperty::Key,
+                        JSContactProperty::Links => VCardProperty::Url,
+                        _ => unreachable!(),
+                    };
+
+                    for (name, value) in value.into_expanded_object() {
+                        let mut entry = VCardEntry::new(property.clone())
+                            .with_param(VCardParameter::PropId(name.into_string()));
+
+                        for (prop, value) in value.into_expanded_object() {
+                            match prop {
+                                Key::Property(JSContactProperty::Uri) => {
+                                    if let Some(name) = convert_value(value) {
+                                        entry.values = vec![name];
+                                    }
+                                }
+                                Key::Property(JSContactProperty::MediaType) => {
+                                    if let Some(text) = value.into_string() {
+                                        entry.params.push(VCardParameter::Mediatype(text));
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Label) => {
+                                    if let Some(text) = value.into_string() {
+                                        entry.params.push(VCardParameter::Label(text));
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Pref) => {
+                                    if let Some(pref) = value.as_i64() {
+                                        entry.add_param(VCardParameter::Pref(pref as u32));
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Contexts) => {
+                                    if let Some(types) = convert_types(value) {
+                                        entry.params.push(VCardParameter::Type(types));
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Kind) => {
+                                    if matches!(
+                                        value,
+                                        Value::Element(JSContactValue::Kind(
+                                            JSContactKind::Contact
+                                        ))
+                                    ) {
+                                        entry.name = VCardProperty::ContactUri;
+                                    }
+                                }
+                                _ => {
+                                    let todo = "map unsupported vCard properties";
+                                }
+                            }
+                        }
+
+                        if !entry.values.is_empty() {
+                            vcard.entries.push(entry);
+                        }
+                    }
+                }
+                JSContactProperty::Notes => {
+                    for (name, value) in value.into_expanded_object() {
+                        let mut entry = VCardEntry::new(VCardProperty::Note)
+                            .with_param(VCardParameter::PropId(name.into_string()));
+
+                        for (prop, value) in value.into_expanded_object() {
+                            match prop {
+                                Key::Property(JSContactProperty::Note) => {
+                                    if let Some(text) = value.into_string() {
+                                        entry.values = vec![VCardValue::Text(text)];
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Created) => {
+                                    if let Value::Element(JSContactValue::Timestamp(t)) = value {
+                                        entry.params.push(VCardParameter::Created(t));
+                                    }
+                                }
+                                Key::Property(JSContactProperty::Author) => {
+                                    for (name, value) in value.into_expanded_object() {
+                                        match name {
+                                            Key::Property(JSContactProperty::Name) => {
+                                                if let Some(name) = value.into_string() {
+                                                    entry.add_param(VCardParameter::AuthorName(
+                                                        name,
+                                                    ));
+                                                }
+                                            }
+                                            Key::Property(JSContactProperty::Uri) => {
+                                                if let Some(uri) = value.into_string() {
+                                                    entry.add_param(VCardParameter::Author(uri));
+                                                }
+                                            }
+                                            _ => {
+                                                let todo = "map unsupported vCard properties";
+                                            }
+                                        }
+                                    }
+                                }
+
+                                _ => {
+                                    let todo = "map unsupported vCard properties";
+                                }
+                            }
+                        }
+
+                        if !entry.values.is_empty() {
+                            vcard.entries.push(entry);
+                        }
+                    }
+                }
+                JSContactProperty::PersonalInfo => {
+                    for (name, value) in value.into_expanded_object() {
+                        if let Some(entry_type) = map_kind(
+                            &value,
+                            [
+                                (JSContactKind::Expertise, VCardProperty::Expertise),
+                                (JSContactKind::Hobby, VCardProperty::Hobby),
+                                (JSContactKind::Interest, VCardProperty::Interest),
+                            ],
+                        ) {
+                            let mut entry = VCardEntry::new(entry_type)
+                                .with_param(VCardParameter::PropId(name.into_string()));
+
+                            for (prop, value) in value.into_expanded_object() {
+                                match prop {
+                                    Key::Property(JSContactProperty::Value) => {
+                                        if let Some(name) = convert_value(value) {
+                                            entry.values = vec![name];
+                                        }
+                                    }
+                                    Key::Property(JSContactProperty::Label) => {
+                                        if let Some(label) = value.into_string() {
+                                            entry.add_param(VCardParameter::Label(label));
+                                        }
+                                    }
+                                    Key::Property(JSContactProperty::ListAs) => {
+                                        if let Some(pref) = value.as_i64() {
+                                            entry.add_param(VCardParameter::Index(pref as u32));
+                                        }
+                                    }
+                                    Key::Property(JSContactProperty::Level) => {
+                                        if let Ok(level) = VCardLevel::try_from(value) {
+                                            entry.params.push(VCardParameter::Level(level));
+                                        }
+                                    }
+                                    Key::Property(JSContactProperty::Kind) => {}
+                                    _ => {
+                                        let todo = "organizationId";
+                                        let todo = "map unsupported vCard properties";
+                                    }
+                                }
+                            }
+
+                            if !entry.values.is_empty() {
+                                vcard.entries.push(entry);
+                            }
+                        } else {
+                            let todo = "map unsupported vCard properties";
+                        }
+                    }
+                }
+                JSContactProperty::RelatedTo => {
+                    for (name, value) in value.into_expanded_object() {
+                        let mut entry = VCardEntry::new(VCardProperty::Related)
+                            .with_value(name.to_string().into_owned());
+                        let mut types = vec![];
+
+                        for (prop, value) in value.into_expanded_object() {
+                            if let Key::Property(JSContactProperty::Relation) = prop {
+                                for (typ, set) in value.into_expanded_boolean_set() {
+                                    if set {
+                                        let typ = typ.to_string();
+                                        match VCardType::try_from(typ.as_ref().as_bytes()) {
+                                            Ok(typ) => types.push(typ),
+                                            Err(_) => {
+                                                types.push(VCardType::Other(typ.into_owned()));
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                let todo = "map unsupported vCard properties";
+                            }
+                        }
+
+                        if !types.is_empty() {
+                            entry.params.push(VCardParameter::Type(types));
+                        }
+
+                        vcard.entries.push(entry);
+                    }
+                }
+                JSContactProperty::Localizations => {}
+                JSContactProperty::VCardName => {}
+                JSContactProperty::VCardParams => {}
+                JSContactProperty::VCardProps => {}
                 _ => (),
             }
         }
@@ -779,6 +1307,28 @@ fn convert_types(value: Value<'_, JSContactProperty, JSContactValue>) -> Option<
     }
 }
 
+fn map_kind<T>(
+    value: &Value<'_, JSContactProperty, JSContactValue>,
+    types: impl IntoIterator<Item = (JSContactKind, T)>,
+) -> Option<T> {
+    value
+        .as_object()
+        .and_then(|obj| obj.get(&Key::Property(JSContactProperty::Kind)))
+        .and_then(|v| match v {
+            Value::Element(JSContactValue::Kind(kind)) => {
+                types.into_iter().find_map(|(js_kind, vcard_property)| {
+                    if js_kind == *kind {
+                        Some(vcard_property)
+                    } else {
+                        None
+                    }
+                })
+            }
+
+            _ => None,
+        })
+}
+
 impl TryFrom<Value<'_, JSContactProperty, JSContactValue>> for VCardPhonetic {
     type Error = ();
 
@@ -791,6 +1341,22 @@ impl TryFrom<Value<'_, JSContactProperty, JSContactValue>> for VCardPhonetic {
                 JSContactPhoneticSystem::Script => VCardPhonetic::Script,
             }),
             Value::Str(text) => Ok(VCardPhonetic::Other(text.into_owned())),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Value<'_, JSContactProperty, JSContactValue>> for VCardLevel {
+    type Error = ();
+
+    fn try_from(value: Value<'_, JSContactProperty, JSContactValue>) -> Result<Self, Self::Error> {
+        match value {
+            Value::Element(JSContactValue::Level(level)) => Ok(match level {
+                JSContactLevel::High => VCardLevel::High,
+                JSContactLevel::Low => VCardLevel::Low,
+                JSContactLevel::Medium => VCardLevel::Medium,
+            }),
+            Value::Str(text) => VCardLevel::try_from(text.as_ref().as_bytes()),
             _ => Err(()),
         }
     }
