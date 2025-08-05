@@ -13,7 +13,7 @@ use crate::{
     },
 };
 use chrono::DateTime;
-use jmap_tools::{Element, Key, Value};
+use jmap_tools::{Element, JsonPointer, Key, Value};
 use std::{borrow::Cow, str::FromStr};
 
 impl<'x> JSContact<'x> {
@@ -58,7 +58,7 @@ impl Element for JSContactValue {
         }
     }
 
-    fn to_string(&self) -> Cow<'_, str> {
+    fn to_cow(&self) -> Cow<'_, str> {
         match self {
             JSContactValue::Type(v) => v.as_str().into(),
             JSContactValue::GrammaticalGender(v) => v.as_str().into(),
@@ -86,11 +86,32 @@ impl jmap_tools::Property for JSContactProperty {
             Some(Key::Property(JSContactProperty::SortAs)) => JSContactKind::from_str(value)
                 .ok()
                 .map(JSContactProperty::SortAsKind),
+            Some(Key::Property(
+                JSContactProperty::ConvertedProperties | JSContactProperty::Localizations,
+            )) => JSContactProperty::Pointer(JsonPointer::parse(value)).into(),
+            Some(Key::Property(JSContactProperty::Pointer(ptr))) => {
+                if let Some(Key::Property(prop)) = ptr.last().and_then(|p| p.as_key()) {
+                    match prop {
+                        JSContactProperty::Contexts => Context::from_str(value)
+                            .ok()
+                            .map(JSContactProperty::Context),
+                        JSContactProperty::Features => Feature::from_str(value)
+                            .ok()
+                            .map(JSContactProperty::Feature),
+                        JSContactProperty::SortAs => JSContactKind::from_str(value)
+                            .ok()
+                            .map(JSContactProperty::SortAsKind),
+                        _ => JSContactProperty::from_str(value).ok(),
+                    }
+                } else {
+                    JSContactProperty::from_str(value).ok()
+                }
+            }
             _ => JSContactProperty::from_str(value).ok(),
         }
     }
 
-    fn to_string(&self) -> Cow<'static, str> {
-        self.as_str().into()
+    fn to_cow(&self) -> Cow<'static, str> {
+        self.to_string()
     }
 }

@@ -17,8 +17,11 @@ use crate::{
     },
 };
 use ahash::AHashMap;
-use jmap_tools::{JsonPointer, Key, Map, Value};
-use std::{borrow::Cow, collections::HashMap};
+use jmap_tools::{JsonPointer, JsonPointerHandler, Key, Map, Property, Value};
+use std::{
+    borrow::Cow,
+    collections::{hash_map::Entry, HashMap},
+};
 
 struct PropIdKey {
     prop: VCardProperty,
@@ -28,14 +31,25 @@ struct PropIdKey {
     prop_id: String,
 }
 
+#[derive(Debug, Default)]
+struct VCardConvertedProperty {
+    name: Option<VCardProperty>,
+    params: VCardParams,
+}
+
+#[derive(Debug, Default)]
+struct VCardParams(
+    AHashMap<VCardParameterName, Vec<Value<'static, JSContactProperty, JSContactValue>>>,
+);
+
 #[allow(clippy::type_complexity)]
 struct State {
     entries: AHashMap<
         Key<'static, JSContactProperty>,
         Value<'static, JSContactProperty, JSContactValue>,
     >,
-    converted_properties: Map<'static, JSContactProperty, JSContactValue>,
-    components: Vec<Value<'static, JSContactProperty, JSContactValue>>,
+    vcard_converted_properties: AHashMap<String, VCardConvertedProperty>,
+    vcard_properties: Vec<Value<'static, JSContactProperty, JSContactValue>>,
     localizations:
         HashMap<String, Vec<(String, Value<'static, JSContactProperty, JSContactValue>)>>,
     default_language: Option<String>,
@@ -57,6 +71,7 @@ struct EntryState {
 impl VCard {
     pub fn into_jscontact(mut self) -> JSContact<'static> {
         let mut state = State::new(&mut self);
+        let mut patch_objects = Vec::new();
 
         for entry in self.entries {
             let mut entry = EntryState::new(entry);
@@ -68,7 +83,7 @@ impl VCard {
                             state
                                 .entries
                                 .insert(Key::Property(JSContactProperty::Kind), kind);
-                            entry.set_converted_to(&[JSContactProperty::Kind.as_str()]);
+                            entry.set_converted_to(&[JSContactProperty::Kind.to_string().as_ref()]);
                         }
                     }
                 }
@@ -177,14 +192,14 @@ impl VCard {
                             if let Some(lang) = params.language() {
                                 let path = format!(
                                     "{}/{}/{}/{}",
-                                    JSContactProperty::Anniversaries.as_str(),
+                                    JSContactProperty::Anniversaries.to_cow().as_ref(),
                                     patch_id.unwrap(),
-                                    JSContactProperty::Place.as_str(),
-                                    JSContactProperty::Full.as_str()
+                                    JSContactProperty::Place.to_cow().as_ref(),
+                                    JSContactProperty::Full.to_cow().as_ref()
                                 );
 
                                 entry.set_converted_to(&[
-                                    JSContactProperty::Localizations.as_str(),
+                                    JSContactProperty::Localizations.to_cow().as_ref(),
                                     lang.as_str(),
                                     path.as_str(),
                                 ]);
@@ -202,7 +217,7 @@ impl VCard {
                                     JSContactProperty::Coordinates
                                 };
                                 let mut place =
-                                    Some(Map::from(vec![(Key::Property(prop_name), text)]));
+                                    Some(Map::from(vec![(Key::Property(prop_name.clone()), text)]));
 
                                 if let Some(anniversary) = patch_id.clone().and_then(|patch_id| {
                                     entries
@@ -245,10 +260,10 @@ impl VCard {
                                 let patch_id = patch_id.unwrap();
 
                                 entry.set_converted_to(&[
-                                    JSContactProperty::Anniversaries.as_str(),
-                                    patch_id.as_str(),
-                                    JSContactProperty::Place.as_str(),
-                                    prop_name.as_str(),
+                                    JSContactProperty::Anniversaries.to_cow().as_ref(),
+                                    patch_id.as_ref(),
+                                    JSContactProperty::Place.to_cow().as_ref(),
+                                    prop_name.to_cow().as_ref(),
                                 ]);
 
                                 state.track_prop(
@@ -278,12 +293,12 @@ impl VCard {
                             {
                                 let path = format!(
                                     "{}/{}",
-                                    JSContactProperty::Name.as_str(),
-                                    JSContactProperty::Full.as_str()
+                                    JSContactProperty::Name.to_cow().as_ref(),
+                                    JSContactProperty::Full.to_cow().as_ref()
                                 );
 
                                 entry.set_converted_to(&[
-                                    JSContactProperty::Localizations.as_str(),
+                                    JSContactProperty::Localizations.to_cow().as_ref(),
                                     lang.as_str(),
                                     path.as_str(),
                                 ]);
@@ -299,8 +314,8 @@ impl VCard {
                                     .get_mut_object_or_insert(JSContactProperty::Name)
                                     .insert(Key::Property(JSContactProperty::Name), text);
                                 entry.set_converted_to(&[
-                                    JSContactProperty::Name.as_str(),
-                                    JSContactProperty::Full.as_str(),
+                                    JSContactProperty::Name.to_cow().as_ref(),
+                                    JSContactProperty::Full.to_cow().as_ref(),
                                 ]);
                             }
                         }
@@ -397,12 +412,12 @@ impl VCard {
                         if let Some(lang) = params.language() {
                             let path = format!(
                                 "{}/{}",
-                                JSContactProperty::Name.as_str(),
-                                JSContactProperty::Components.as_str(),
+                                JSContactProperty::Name.to_cow().as_ref(),
+                                JSContactProperty::Components.to_cow().as_ref(),
                             );
 
                             entry.set_converted_to(&[
-                                JSContactProperty::Localizations.as_str(),
+                                JSContactProperty::Localizations.to_cow().as_ref(),
                                 lang.as_str(),
                                 path.as_str(),
                             ]);
@@ -415,7 +430,7 @@ impl VCard {
                                 locale.push((
                                     format!(
                                         "{}/{}",
-                                        JSContactProperty::Name.as_str(),
+                                        JSContactProperty::Name.to_cow().as_ref(),
                                         prop.to_string()
                                     ),
                                     value,
@@ -429,8 +444,8 @@ impl VCard {
                                 Value::Array(components),
                             );
                             entry.set_converted_to(&[
-                                JSContactProperty::Name.as_str(),
-                                JSContactProperty::Components.as_str(),
+                                JSContactProperty::Name.to_cow().as_ref(),
+                                JSContactProperty::Components.to_cow().as_ref(),
                             ]);
                         }
                     }
@@ -444,8 +459,8 @@ impl VCard {
                                 .insert(JSContactProperty::GrammaticalGender, gram_gender);
                             state.has_gram_gender = true;
                             entry.set_converted_to(&[
-                                JSContactProperty::SpeakToAs.as_str(),
-                                JSContactProperty::GrammaticalGender.as_str(),
+                                JSContactProperty::SpeakToAs.to_cow().as_ref(),
+                                JSContactProperty::GrammaticalGender.to_cow().as_ref(),
                             ]);
                         }
                     }
@@ -534,15 +549,7 @@ impl VCard {
                                     entry.entry.group.as_deref(),
                                     alt_id.as_deref(),
                                 )
-                            })
-                            .and_then(|prop_id| {
-                                state
-                                    .entries
-                                    .get(&Key::Property(JSContactProperty::Addresses))
-                                    .and_then(|v| v.as_object())
-                                    .and_then(|v| v.get(&Key::Borrowed(prop_id)))
-                            })
-                            .and_then(|v| v.as_object());
+                            });
 
                         if addr_patch.is_none() {
                             entry
@@ -620,34 +627,27 @@ impl VCard {
                         .collect::<Vec<_>>();
 
                     if let Some(lang) = params.language() {
-                        let prop_id = prop_id.as_deref().unwrap();
                         let path = format!(
                             "{}/{}/{}",
-                            JSContactProperty::Addresses.as_str(),
-                            prop_id,
-                            JSContactProperty::Components.as_str(),
+                            JSContactProperty::Addresses.to_cow().as_ref(),
+                            addr_patch.unwrap(),
+                            JSContactProperty::Components.to_cow().as_ref(),
                         );
                         entry.set_converted_to(&[
-                            JSContactProperty::Localizations.as_str(),
+                            JSContactProperty::Localizations.to_cow().as_ref(),
                             lang.as_str(),
                             path.as_str(),
                         ]);
 
                         let locale = state.localizations.entry(lang).or_default();
 
-                        locale.push((path, Value::Array(components)));
-
+                        let base_path = path.rsplit_once('/').unwrap().0;
                         for (prop_name, value) in params.into_iter(&entry.entry.name) {
-                            locale.push((
-                                format!(
-                                    "{}/{}/{}",
-                                    JSContactProperty::Addresses.as_str(),
-                                    prop_id,
-                                    prop_name.to_string()
-                                ),
-                                value,
-                            ));
+                            locale
+                                .push((format!("{}/{}", base_path, prop_name.to_string()), value));
                         }
+
+                        locale.push((path, Value::Array(components)));
                     } else {
                         let entries = state.get_mut_object_or_insert(JSContactProperty::Addresses);
                         let mut addr = Map::from(Vec::with_capacity(4));
@@ -661,9 +661,9 @@ impl VCard {
                         let prop_id = entries.insert_named(prop_id, Value::Object(addr));
 
                         entry.set_converted_to(&[
-                            JSContactProperty::Addresses.as_str(),
+                            JSContactProperty::Addresses.to_cow().as_ref(),
                             prop_id.as_str(),
-                            JSContactProperty::Components.as_str(),
+                            JSContactProperty::Components.to_cow().as_ref(),
                         ]);
 
                         state.track_prop(
@@ -720,17 +720,17 @@ impl VCard {
                     );
                 }
                 VCardProperty::Language | VCardProperty::Prodid | VCardProperty::Uid => {
-                    let key = match &entry.entry.name {
+                    let key = Key::Property(match &entry.entry.name {
                         VCardProperty::Language => JSContactProperty::Language,
                         VCardProperty::Prodid => JSContactProperty::ProdId,
                         VCardProperty::Uid => JSContactProperty::Uid,
                         _ => unreachable!(),
-                    };
+                    });
 
-                    if !state.has_property(key) {
+                    if !state.entries.contains_key(&key) {
                         if let Some(text) = entry.to_text() {
-                            state.entries.insert(Key::Property(key), text);
-                            entry.set_converted_to(&[key.as_str()]);
+                            entry.set_converted_to(&[key.to_string().as_ref()]);
+                            state.entries.insert(key, text);
                         }
                     }
                 }
@@ -887,25 +887,25 @@ impl VCard {
                         JSContactProperty::Keywords
                     };
 
+                    entry.set_converted_to(&[key.to_cow().as_ref()]);
+
                     let obj = state.get_mut_object_or_insert(key);
 
                     for key in entry.text_parts() {
                         obj.insert(Key::Owned(key), Value::Bool(true));
                     }
-
-                    entry.set_converted_to(&[key.as_str()]);
                 }
                 VCardProperty::Created | VCardProperty::Rev => {
-                    let key = match &entry.entry.name {
+                    let key = Key::Property(match &entry.entry.name {
                         VCardProperty::Created => JSContactProperty::Created,
                         VCardProperty::Rev => JSContactProperty::Updated,
                         _ => unreachable!(),
-                    };
+                    });
 
-                    if !state.has_property(key) {
+                    if !state.entries.contains_key(&key) {
                         if let Some(text) = entry.to_timestamp() {
-                            state.entries.insert(Key::Property(key), text);
-                            entry.set_converted_to(&[key.as_str()]);
+                            entry.set_converted_to(&[key.to_string().as_ref()]);
+                            state.entries.insert(key, text);
                         }
                     }
                 }
@@ -973,7 +973,7 @@ impl VCard {
                         let mut params = state
                             .extract_params(&mut entry.entry.params, &[VCardParameterName::Type]);
                         entry.set_converted_to(&[
-                            JSContactProperty::RelatedTo.as_str(),
+                            JSContactProperty::RelatedTo.to_cow().as_ref(),
                             text.as_ref(),
                         ]);
                         state
@@ -993,8 +993,13 @@ impl VCard {
                 }
                 VCardProperty::Tz | VCardProperty::Geo => {
                     let (key, value) = match &entry.entry.name {
-                        VCardProperty::Tz => (JSContactProperty::TimeZone, entry.to_tz()),
-                        VCardProperty::Geo => (JSContactProperty::Coordinates, entry.to_text()),
+                        VCardProperty::Tz => {
+                            (Key::Property(JSContactProperty::TimeZone), entry.to_tz())
+                        }
+                        VCardProperty::Geo => (
+                            Key::Property(JSContactProperty::Coordinates),
+                            entry.to_text(),
+                        ),
                         _ => unreachable!(),
                     };
 
@@ -1012,19 +1017,19 @@ impl VCard {
                             .clone()
                             .and_then(|prop_id| addresses.get_mut(&Key::Owned(prop_id)))
                             .and_then(|v| v.as_object_mut())
-                            .filter(|v| !v.contains_key(&Key::Property(key)))
+                            .filter(|v| !v.contains_key(&key))
                         {
                             entry.set_converted_to(&[
-                                key.as_str(),
+                                key.to_string().as_ref(),
                                 prop_id.clone().unwrap().as_str(),
                             ]);
                             addr.insert(key, value);
                         } else {
                             let prop_id = addresses.insert_named(
                                 None,
-                                Value::Object(Map::from(vec![(Key::Property(key), value)])),
+                                Value::Object(Map::from(vec![(key.clone(), value)])),
                             );
-                            entry.set_converted_to(&[key.as_str(), prop_id.as_str()]);
+                            entry.set_converted_to(&[key.to_string().as_ref(), prop_id.as_str()]);
                         }
                     }
                 }
@@ -1033,11 +1038,11 @@ impl VCard {
                 {
                     if let Some(prop) = state.find_entry_by_group(entry.entry.group.as_deref()) {
                         let prop_id = prop.prop_id.to_string();
-                        let prop_js = prop.prop_js;
+                        let prop_js = Key::Property(prop.prop_js.clone());
 
                         if let Some(obj) = state
                             .entries
-                            .get_mut(&Key::Property(prop_js))
+                            .get_mut(&prop_js)
                             .and_then(|v| v.as_object_mut())
                             .and_then(|v| v.get_mut(&Key::Owned(prop_id.clone())))
                             .and_then(|v| v.as_object_mut())
@@ -1049,16 +1054,25 @@ impl VCard {
                                     value,
                                 );
                                 entry.set_converted_to(&[
-                                    prop_js.as_str(),
+                                    prop_js.to_string().as_ref(),
                                     prop_id.as_str(),
-                                    JSContactProperty::Label.as_str(),
+                                    JSContactProperty::Label.to_cow().as_ref(),
                                 ]);
                             }
                         }
                     }
                 }
                 VCardProperty::Jsprop => {
-                    let todo = "map";
+                    if let Some(VCardParameter::Jsptr(ptr)) = entry.entry.params.first() {
+                        let ptr = JsonPointer::<JSContactProperty>::parse(ptr);
+
+                        if let Some(VCardValue::Text(text)) = entry.entry.values.first() {
+                            if let Ok(jscontact) = JSContact::parse(text) {
+                                patch_objects.push((ptr, jscontact.0.into_owned()));
+                                continue;
+                            }
+                        }
+                    }
                 }
                 VCardProperty::Version
                 | VCardProperty::Xml
@@ -1073,7 +1087,13 @@ impl VCard {
             state.add_conversion_props(entry);
         }
 
-        state.into_jscontact()
+        let mut jscontact = state.into_jscontact();
+
+        for (ptr, patch) in patch_objects {
+            jscontact.0.patch_jptr(ptr.iter(), patch);
+        }
+
+        jscontact
     }
 }
 
@@ -1142,9 +1162,9 @@ impl State {
             entries,
             default_language,
             localizations: Default::default(),
-            prop_ids: Vec::new(),
-            converted_properties: Map::from(vec![]),
-            components: Default::default(),
+            prop_ids: Default::default(),
+            vcard_converted_properties: Default::default(),
+            vcard_properties: Default::default(),
             name_alt_id,
             has_fn: false,
             has_n: false,
@@ -1196,26 +1216,26 @@ impl State {
                         )
                     })
                     .map(|prop_id| {
-                        if let Some(sub_property) = sub_property {
+                        if let Some(sub_property) = sub_property.as_ref() {
                             format!(
                                 "{}/{}/{}/{}",
-                                top_property_name.as_str(),
-                                sub_property.as_str(),
+                                top_property_name.to_cow().as_ref(),
+                                sub_property.to_cow().as_ref(),
                                 prop_id,
-                                value_property_name.as_str()
+                                value_property_name.to_cow().as_ref()
                             )
                         } else {
                             format!(
                                 "{}/{}/{}",
-                                top_property_name.as_str(),
+                                top_property_name.to_cow().as_ref(),
                                 prop_id,
-                                value_property_name.as_str()
+                                value_property_name.to_cow().as_ref()
                             )
                         }
                     })
                 {
                     entry.set_converted_to(&[
-                        JSContactProperty::Localizations.as_str(),
+                        JSContactProperty::Localizations.to_cow().as_ref(),
                         language.as_str(),
                         patch.as_str(),
                     ]);
@@ -1237,15 +1257,15 @@ impl State {
                 }
             }
 
-            let mut entries = self.get_mut_object_or_insert(top_property_name);
-            if let Some(sub_property) = sub_property {
+            let mut entries = self.get_mut_object_or_insert(top_property_name.clone());
+            if let Some(sub_property) = sub_property.clone() {
                 entries = entries
                     .insert_or_get_mut(sub_property, Value::Object(Map::from(vec![])))
                     .as_object_mut()
                     .unwrap();
             }
 
-            let mut obj = vec![(Key::Property(value_property_name), value)];
+            let mut obj = vec![(Key::Property(value_property_name.clone()), value)];
             for (key, value) in extra_properties {
                 obj.push((key, value));
             }
@@ -1255,16 +1275,16 @@ impl State {
 
             if let Some(sub_property) = sub_property {
                 entry.set_converted_to(&[
-                    top_property_name.as_str(),
-                    sub_property.as_str(),
+                    top_property_name.to_cow().as_ref(),
+                    sub_property.to_cow().as_ref(),
                     prop_id.as_str(),
-                    value_property_name.as_str(),
+                    value_property_name.to_cow().as_ref(),
                 ]);
             } else {
                 entry.set_converted_to(&[
-                    top_property_name.as_str(),
+                    top_property_name.to_cow().as_ref(),
                     prop_id.as_str(),
-                    value_property_name.as_str(),
+                    value_property_name.to_cow().as_ref(),
                 ]);
             }
 
@@ -1424,37 +1444,39 @@ impl State {
         if let Some(converted_to) = entry.converted_to.take() {
             if entry.map_name || !entry.entry.params.is_empty() || entry.entry.group.is_some() {
                 let mut value_type = None;
-                let mut obj = Map::from(Vec::with_capacity(2));
-                if let Some(mut params) = entry.jcal_parameters(&mut value_type) {
-                    if let Some(value_type) = value_type {
-                        params.insert(
-                            Key::Property(JSContactProperty::Value),
-                            Value::Str(value_type.into_string()),
-                        );
+
+                match self.vcard_converted_properties.entry(converted_to) {
+                    Entry::Occupied(mut conv_prop) => {
+                        entry.jcal_parameters(&mut conv_prop.get_mut().params, &mut value_type);
                     }
-                    obj.insert(
-                        Key::Property(JSContactProperty::Parameters),
-                        Value::Object(params),
-                    );
-                }
-
-                if entry.map_name {
-                    obj.insert(
-                        Key::Property(JSContactProperty::Name),
-                        Value::Str(entry.entry.name.into_string()),
-                    );
-                }
-
-                if !obj.is_empty() {
-                    self.converted_properties
-                        .insert_unchecked(Key::Owned(converted_to), Value::Object(obj));
+                    Entry::Vacant(conv_prop) => {
+                        let mut params = VCardParams::default();
+                        entry.jcal_parameters(&mut params, &mut value_type);
+                        if let Some(value_type) = value_type {
+                            params.0.insert(
+                                VCardParameterName::Value,
+                                vec![Value::Str(value_type.into_string())],
+                            );
+                        }
+                        if !params.0.is_empty() || entry.map_name {
+                            conv_prop.insert(VCardConvertedProperty {
+                                name: if entry.map_name {
+                                    Some(entry.entry.name)
+                                } else {
+                                    None
+                                },
+                                params,
+                            });
+                        }
+                    }
                 }
             }
         } else {
             let mut value_type = None;
-            let params = entry
-                .jcal_parameters(&mut value_type)
-                .unwrap_or(Map::from(Vec::new()));
+            let mut params = VCardParams::default();
+
+            entry.jcal_parameters(&mut params, &mut value_type);
+
             let values = if entry.entry.values.len() == 1 {
                 entry
                     .entry
@@ -1470,9 +1492,13 @@ impl State {
                 }
                 Value::Array(values)
             };
-            self.components.push(Value::Array(vec![
+            self.vcard_properties.push(Value::Array(vec![
                 Value::Str(entry.entry.name.into_string()),
-                Value::Object(params),
+                Value::Object(
+                    params
+                        .into_jscontact_value()
+                        .unwrap_or(Map::from(Vec::new())),
+                ),
                 Value::Str(
                     value_type
                         .map(|v| v.into_string())
@@ -1546,18 +1572,46 @@ impl State {
             );
         }
 
-        if !self.converted_properties.is_empty() {
-            let todo = "use final name";
-            self.entries.insert(
-                Key::Property(JSContactProperty::VCardName),
-                Value::Object(self.converted_properties),
+        let mut vcard_obj = Map::from(Vec::new());
+        if !self.vcard_converted_properties.is_empty() {
+            let mut converted_properties =
+                Map::from(Vec::with_capacity(self.vcard_converted_properties.len()));
+
+            for (converted_to, props) in self.vcard_converted_properties {
+                let mut obj = Map::from(Vec::with_capacity(2));
+                if let Some(params) = props.params.into_jscontact_value() {
+                    obj.insert(
+                        Key::Property(JSContactProperty::Parameters),
+                        Value::Object(params),
+                    );
+                }
+                if let Some(name) = props.name {
+                    obj.insert(
+                        Key::Property(JSContactProperty::Name),
+                        Value::Str(name.into_string()),
+                    );
+                }
+
+                converted_properties.insert_unchecked(Key::Owned(converted_to), Value::Object(obj));
+            }
+
+            vcard_obj.insert_unchecked(
+                Key::Property(JSContactProperty::ConvertedProperties),
+                Value::Object(converted_properties),
             );
         }
 
-        if !self.components.is_empty() {
+        if !self.vcard_properties.is_empty() {
+            vcard_obj.insert_unchecked(
+                Key::Property(JSContactProperty::Properties),
+                Value::Array(self.vcard_properties),
+            );
+        }
+
+        if !vcard_obj.is_empty() {
             self.entries.insert(
-                Key::Property(JSContactProperty::VCardProps),
-                Value::Array(self.components),
+                Key::Property(JSContactProperty::VCard),
+                Value::Object(vcard_obj),
             );
         }
 
@@ -1607,10 +1661,11 @@ impl EntryState {
 
     fn jcal_parameters(
         &mut self,
+        params: &mut VCardParams,
         value_type: &mut Option<VCardValueType>,
-    ) -> Option<Map<'static, JSContactProperty, JSContactValue>> {
+    ) {
         if self.entry.params.is_empty() && self.entry.group.is_none() {
-            return None;
+            return;
         }
         let (default_type, _) = self.entry.name.default_types();
         let default_type = match default_type {
@@ -1618,13 +1673,10 @@ impl EntryState {
             ValueType::Kind | ValueType::Sex | ValueType::GramGender => VCardValueType::Text,
         };
 
-        let mut params: AHashMap<
-            VCardParameterName,
-            Vec<Value<'_, JSContactProperty, JSContactValue>>,
-        > = AHashMap::with_capacity(self.entry.params.len());
         for param in std::mem::take(&mut self.entry.params) {
             match param {
                 VCardParameter::Language(v) => params
+                    .0
                     .entry(VCardParameterName::Language)
                     .or_default()
                     .push(v.into()),
@@ -1636,50 +1688,61 @@ impl EntryState {
                     }
                 }
                 VCardParameter::Pref(v) => params
+                    .0
                     .entry(VCardParameterName::Pref)
                     .or_default()
                     .push(v.to_string().into()),
                 VCardParameter::Altid(v) => params
+                    .0
                     .entry(VCardParameterName::Altid)
                     .or_default()
                     .push(v.into()),
                 VCardParameter::Pid(v) => {
                     params
+                        .0
                         .entry(VCardParameterName::Pid)
                         .or_default()
                         .extend(v.into_iter().map(Into::into));
                 }
                 VCardParameter::Type(v) => {
                     params
+                        .0
                         .entry(VCardParameterName::Type)
                         .or_default()
                         .extend(v.into_iter().map(|t| Value::from(t.into_string())));
                 }
                 VCardParameter::Mediatype(v) => params
+                    .0
                     .entry(VCardParameterName::Mediatype)
                     .or_default()
                     .push(v.into()),
                 VCardParameter::Calscale(v) => params
+                    .0
                     .entry(VCardParameterName::Calscale)
                     .or_default()
                     .push(v.into_string().into()),
                 VCardParameter::SortAs(v) => params
+                    .0
                     .entry(VCardParameterName::SortAs)
                     .or_default()
                     .push(v.into()),
                 VCardParameter::Geo(v) => params
+                    .0
                     .entry(VCardParameterName::Geo)
                     .or_default()
                     .push(v.into()),
                 VCardParameter::Tz(v) => params
+                    .0
                     .entry(VCardParameterName::Tz)
                     .or_default()
                     .push(v.into()),
                 VCardParameter::Index(v) => params
+                    .0
                     .entry(VCardParameterName::Index)
                     .or_default()
                     .push(v.to_string().into()),
                 VCardParameter::Level(v) => params
+                    .0
                     .entry(VCardParameterName::Level)
                     .or_default()
                     .push(v.as_str().into()),
@@ -1688,50 +1751,62 @@ impl EntryState {
                     // It exclusively is for use in jCard and MUST NOT be set in a vCard.
                 }
                 VCardParameter::Cc(v) => params
+                    .0
                     .entry(VCardParameterName::Cc)
                     .or_default()
                     .push(v.into()),
                 VCardParameter::Author(v) => params
+                    .0
                     .entry(VCardParameterName::Author)
                     .or_default()
                     .push(v.into()),
                 VCardParameter::AuthorName(v) => params
+                    .0
                     .entry(VCardParameterName::AuthorName)
                     .or_default()
                     .push(v.into()),
                 VCardParameter::Created(v) => params
+                    .0
                     .entry(VCardParameterName::Created)
                     .or_default()
                     .push(v.into()),
                 VCardParameter::Derived(v) => params
+                    .0
                     .entry(VCardParameterName::Derived)
                     .or_default()
                     .push(v.to_string().into()),
                 VCardParameter::Label(v) => params
+                    .0
                     .entry(VCardParameterName::Label)
                     .or_default()
                     .push(v.into()),
                 VCardParameter::Phonetic(v) => params
+                    .0
                     .entry(VCardParameterName::Phonetic)
                     .or_default()
                     .push(v.into_string().into()),
                 VCardParameter::PropId(v) => params
+                    .0
                     .entry(VCardParameterName::PropId)
                     .or_default()
                     .push(v.into()),
                 VCardParameter::Script(v) => params
+                    .0
                     .entry(VCardParameterName::Script)
                     .or_default()
                     .push(v.into()),
                 VCardParameter::ServiceType(v) => params
+                    .0
                     .entry(VCardParameterName::ServiceType)
                     .or_default()
                     .push(v.into()),
                 VCardParameter::Username(v) => params
+                    .0
                     .entry(VCardParameterName::Username)
                     .or_default()
                     .push(v.into()),
                 VCardParameter::Jsptr(v) => params
+                    .0
                     .entry(VCardParameterName::Jsptr)
                     .or_default()
                     .push(v.into()),
@@ -1742,6 +1817,7 @@ impl EntryState {
 
                         if !name.eq_ignore_ascii_case("group") {
                             params
+                                .0
                                 .entry(VCardParameterName::Other(name))
                                 .or_default()
                                 .extend(v.map(Into::into));
@@ -1751,30 +1827,15 @@ impl EntryState {
             }
         }
 
-        if params.is_empty() && self.entry.group.is_none() {
-            return None;
+        if let Some(group) = self.entry.group.take() {
+            params
+                .0
+                .insert(VCardParameterName::Group, vec![group.into()]);
         }
-
-        let mut obj = Map::from(Vec::with_capacity(params.len() + 1));
-
-        for (param, value) in params {
-            let value = if value.len() > 1 {
-                Value::Array(value)
-            } else {
-                value.into_iter().next().unwrap()
-            };
-            obj.insert_unchecked(Key::from(param.into_string()), value);
-        }
-
-        if let Some(group) = self.entry.group.as_deref() {
-            obj.insert_unchecked(Key::Borrowed("group"), Value::Str(group.to_string().into()));
-        }
-
-        Some(obj)
     }
 
     fn set_converted_to(&mut self, converted_to: &[&str]) {
-        self.converted_to = Some(JsonPointer::encode(converted_to));
+        self.converted_to = Some(JsonPointer::<JSContactProperty>::encode(converted_to));
     }
 
     fn set_map_name(&mut self) {
@@ -1941,6 +2002,26 @@ impl EntryState {
         self.entry
             .language()
             .filter(|&lang| Some(lang) != default_language)
+    }
+}
+
+impl VCardParams {
+    pub fn into_jscontact_value(self) -> Option<Map<'static, JSContactProperty, JSContactValue>> {
+        if !self.0.is_empty() {
+            let mut obj = Map::from(Vec::with_capacity(self.0.len()));
+
+            for (param, value) in self.0 {
+                let value = if value.len() > 1 {
+                    Value::Array(value)
+                } else {
+                    value.into_iter().next().unwrap()
+                };
+                obj.insert_unchecked(Key::from(param.into_string()), value);
+            }
+            Some(obj)
+        } else {
+            None
+        }
     }
 }
 

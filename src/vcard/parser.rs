@@ -523,7 +523,7 @@ impl Parser<'_> {
 }
 
 impl VCardParameterName {
-    pub fn parse(input: &str) -> Self {
+    pub fn try_parse(input: &str) -> Option<Self> {
         hashify::tiny_map_ignore_case!(input.as_bytes(),
             b"LANGUAGE" => VCardParameterName::Language,
             b"VALUE" => VCardParameterName::Value,
@@ -552,7 +552,10 @@ impl VCardParameterName {
             b"USERNAME" => VCardParameterName::Username,
             b"JSPTR" => VCardParameterName::Jsptr,
         )
-        .unwrap_or_else(|| VCardParameterName::Other(input.into()))
+    }
+
+    pub fn parse(input: &str) -> Self {
+        Self::try_parse(input).unwrap_or_else(|| VCardParameterName::Other(input.into()))
     }
 
     pub fn as_str(&self) -> &str {

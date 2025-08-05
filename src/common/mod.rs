@@ -128,6 +128,14 @@ impl CalendarScale {
     }
 }
 
+impl TryFrom<&[u8]> for CalendarScale {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Self::parse(value).ok_or(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Encoding {
     QuotedPrintable,

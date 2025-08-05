@@ -609,7 +609,16 @@ impl AsRef<str> for VCardValueType {
 
 impl From<Token<'_>> for VCardValueType {
     fn from(token: Token<'_>) -> Self {
-        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+        VCardValueType::try_from(token.text.as_ref())
+            .unwrap_or_else(|_| VCardValueType::Other(token.into_string()))
+    }
+}
+
+impl TryFrom<&[u8]> for VCardValueType {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        hashify::tiny_map_ignore_case!(value,
             "BOOLEAN" => VCardValueType::Boolean,
             "DATE" => VCardValueType::Date,
             "DATE-AND-OR-TIME" => VCardValueType::DateAndOrTime,
@@ -623,7 +632,7 @@ impl From<Token<'_>> for VCardValueType {
             "URI" => VCardValueType::Uri,
             "UTC-OFFSET" => VCardValueType::UtcOffset,
         )
-        .unwrap_or_else(|| VCardValueType::Other(token.into_string()))
+        .ok_or(())
     }
 }
 
@@ -701,13 +710,22 @@ pub enum VCardPhonetic {
 
 impl From<Token<'_>> for VCardPhonetic {
     fn from(token: Token<'_>) -> Self {
-        hashify::tiny_map_ignore_case!(token.text.as_ref(),
+        VCardPhonetic::try_from(token.text.as_ref())
+            .unwrap_or_else(|_| VCardPhonetic::Other(token.into_string()))
+    }
+}
+
+impl TryFrom<&[u8]> for VCardPhonetic {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        hashify::tiny_map_ignore_case!(value,
             "ipa" => VCardPhonetic::Ipa,
             "jyut" => VCardPhonetic::Jyut,
             "piny" => VCardPhonetic::Piny,
             "script" => VCardPhonetic::Script,
         )
-        .unwrap_or_else(|| VCardPhonetic::Other(token.into_string()))
+        .ok_or(())
     }
 }
 

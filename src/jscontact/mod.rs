@@ -5,8 +5,8 @@
  */
 
 use crate::common::CalendarScale;
-use jmap_tools::Value;
-use std::str::FromStr;
+use jmap_tools::{JsonPointer, Value};
+use std::{borrow::Cow, str::FromStr};
 
 pub mod export;
 pub mod import;
@@ -26,7 +26,7 @@ pub enum JSContactValue {
     CalendarScale(CalendarScale),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum JSContactProperty {
     Type,
     Address,
@@ -39,6 +39,7 @@ pub enum JSContactProperty {
     CalendarScale,
     Components,
     Contexts,
+    ConvertedProperties,
     Coordinates,
     CountryCode,
     Created,
@@ -85,6 +86,7 @@ pub enum JSContactProperty {
     PreferredLanguages,
     ProdId,
     Pronouns,
+    Properties,
     RelatedTo,
     Relation,
     SchedulingAddresses,
@@ -99,15 +101,14 @@ pub enum JSContactProperty {
     Uri,
     User,
     Utc,
+    VCard,
     Value,
-    VCardName,
-    VCardParams,
-    VCardProps,
     Version,
     Year,
     Context(Context),
     Feature(Feature),
     SortAsKind(JSContactKind),
+    Pointer(JsonPointer<JSContactProperty>),
 }
 
 impl FromStr for JSContactProperty {
@@ -125,6 +126,7 @@ impl FromStr for JSContactProperty {
             "calendarScale" => JSContactProperty::CalendarScale,
             "components" => JSContactProperty::Components,
             "contexts" => JSContactProperty::Contexts,
+                        "convertedProperties" => JSContactProperty::ConvertedProperties,
             "coordinates" => JSContactProperty::Coordinates,
             "countryCode" => JSContactProperty::CountryCode,
             "created" => JSContactProperty::Created,
@@ -171,6 +173,7 @@ impl FromStr for JSContactProperty {
             "preferredLanguages" => JSContactProperty::PreferredLanguages,
             "prodId" => JSContactProperty::ProdId,
             "pronouns" => JSContactProperty::Pronouns,
+            "properties" => JSContactProperty::Properties,
             "relatedTo" => JSContactProperty::RelatedTo,
             "relation" => JSContactProperty::Relation,
             "schedulingAddresses" => JSContactProperty::SchedulingAddresses,
@@ -186,19 +189,17 @@ impl FromStr for JSContactProperty {
             "user" => JSContactProperty::User,
             "utc" => JSContactProperty::Utc,
             "value" => JSContactProperty::Value,
-            "vCardName" => JSContactProperty::VCardName,
-            "vCardParams" => JSContactProperty::VCardParams,
-            "vCardProps" => JSContactProperty::VCardProps,
+            "vCard" => JSContactProperty::VCard,
             "version" => JSContactProperty::Version,
             "year" => JSContactProperty::Year,
         )
-        .copied()
+        .cloned()
         .ok_or(())
     }
 }
 
 impl JSContactProperty {
-    pub fn as_str(&self) -> &'static str {
+    pub fn to_string(&self) -> Cow<'static, str> {
         match self {
             JSContactProperty::Type => "@type",
             JSContactProperty::Address => "address",
@@ -211,6 +212,7 @@ impl JSContactProperty {
             JSContactProperty::CalendarScale => "calendarScale",
             JSContactProperty::Components => "components",
             JSContactProperty::Contexts => "contexts",
+            JSContactProperty::ConvertedProperties => "convertedProperties",
             JSContactProperty::Coordinates => "coordinates",
             JSContactProperty::CountryCode => "countryCode",
             JSContactProperty::Created => "created",
@@ -257,6 +259,7 @@ impl JSContactProperty {
             JSContactProperty::PreferredLanguages => "preferredLanguages",
             JSContactProperty::ProdId => "prodId",
             JSContactProperty::Pronouns => "pronouns",
+            JSContactProperty::Properties => "properties",
             JSContactProperty::RelatedTo => "relatedTo",
             JSContactProperty::Relation => "relation",
             JSContactProperty::SchedulingAddresses => "schedulingAddresses",
@@ -272,21 +275,15 @@ impl JSContactProperty {
             JSContactProperty::User => "user",
             JSContactProperty::Utc => "utc",
             JSContactProperty::Value => "value",
-            JSContactProperty::VCardName => "vCardName",
-            JSContactProperty::VCardParams => "vCardParams",
-            JSContactProperty::VCardProps => "vCardProps",
+            JSContactProperty::VCard => "vCard",
             JSContactProperty::Version => "version",
             JSContactProperty::Year => "year",
             JSContactProperty::Context(context) => context.as_str(),
             JSContactProperty::Feature(feature) => feature.as_str(),
             JSContactProperty::SortAsKind(kind) => kind.as_str(),
+            JSContactProperty::Pointer(pointer) => return Cow::Owned(pointer.to_string()),
         }
-    }
-}
-
-impl AsRef<str> for JSContactProperty {
-    fn as_ref(&self) -> &str {
-        self.as_str()
+        .into()
     }
 }
 
