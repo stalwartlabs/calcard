@@ -58,6 +58,13 @@ impl VCardEntry {
         })
     }
 
+    pub fn prop_id(&self) -> Option<&str> {
+        self.params.iter().find_map(|p| match p {
+            VCardParameter::PropId(prop_id) => Some(prop_id.as_str()),
+            _ => None,
+        })
+    }
+
     pub fn phonetic_system(&self) -> Option<&VCardPhonetic> {
         self.params.iter().find_map(|p| match p {
             VCardParameter::Phonetic(script) => Some(script),
