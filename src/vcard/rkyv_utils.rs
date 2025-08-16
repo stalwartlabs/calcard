@@ -113,6 +113,7 @@ impl ArchivedVCardParameter {
             }
             VCardParameterName::Username => matches!(self, ArchivedVCardParameter::Username(_)),
             VCardParameterName::Jsptr => matches!(self, ArchivedVCardParameter::Jsptr(_)),
+            VCardParameterName::Jscomps => matches!(self, ArchivedVCardParameter::Jscomps(_)),
             VCardParameterName::Other(ref s) => {
                 if let ArchivedVCardParameter::Other(ref v) = self {
                     v.first().is_some_and(|x| x == s)
@@ -151,7 +152,8 @@ impl ArchivedVCardParameter {
             | ArchivedVCardParameter::Type(_)
             | ArchivedVCardParameter::Index(_)
             | ArchivedVCardParameter::Created(_)
-            | ArchivedVCardParameter::Derived(_) => None,
+            | ArchivedVCardParameter::Derived(_)
+            | ArchivedVCardParameter::Jscomps(_) => None,
         }
     }
 }

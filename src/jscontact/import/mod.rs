@@ -7,7 +7,9 @@
 use crate::{
     common::CalendarScale,
     jscontact::{JSContactProperty, JSContactValue},
-    vcard::{VCardEntry, VCardLevel, VCardParameterName, VCardPhonetic, VCardProperty, VCardType},
+    vcard::{
+        Jscomp, VCardEntry, VCardLevel, VCardParameterName, VCardPhonetic, VCardProperty, VCardType,
+    },
 };
 use ahash::AHashMap;
 use jmap_tools::{Key, Map, Value};
@@ -86,6 +88,7 @@ struct ExtractedParams {
     label: Option<String>,
     service_type: Option<String>,
     username: Option<String>,
+    jscomps: Vec<Jscomp>,
 }
 
 trait GetObjectOrCreate {

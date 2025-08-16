@@ -337,6 +337,11 @@ impl State {
                         p.types.extend(typ);
                     }
                 }
+                VCardParameter::Jscomps(jscomps)
+                    if extract.contains(&VCardParameterName::Jscomps) =>
+                {
+                    p.jscomps = jscomps;
+                }
                 _ => {
                     params.push(param);
                 }

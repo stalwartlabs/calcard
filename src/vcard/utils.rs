@@ -191,6 +191,7 @@ impl VCardParameter {
             VCardParameterName::ServiceType => matches!(self, VCardParameter::ServiceType(_)),
             VCardParameterName::Username => matches!(self, VCardParameter::Username(_)),
             VCardParameterName::Jsptr => matches!(self, VCardParameter::Jsptr(_)),
+            VCardParameterName::Jscomps => matches!(self, VCardParameter::Jscomps(_)),
             VCardParameterName::Other(ref s) => {
                 if let VCardParameter::Other(ref v) = self {
                     v.first().is_some_and(|x| x == s)
@@ -229,7 +230,8 @@ impl VCardParameter {
             | VCardParameter::Type(_)
             | VCardParameter::Index(_)
             | VCardParameter::Created(_)
-            | VCardParameter::Derived(_) => None,
+            | VCardParameter::Derived(_)
+            | VCardParameter::Jscomps(_) => None,
         }
     }
 }

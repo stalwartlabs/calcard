@@ -5,6 +5,7 @@
  */
 
 use crate::{
+    common::writer::write_jscomps,
     jscontact::{
         import::{EntryState, VCardParams},
         JSContactGrammaticalGender, JSContactKind, JSContactProperty, JSContactType,
@@ -12,7 +13,7 @@ use crate::{
     },
     vcard::{
         VCardEntry, VCardGramGender, VCardKind, VCardParameter, VCardParameterName, VCardValue,
-        VCardValueType, ValueType,
+        VCardValueType,
     },
 };
 use jmap_tools::{JsonPointer, Key, Map, Value};
@@ -37,10 +38,7 @@ impl EntryState {
             return;
         }
         let (default_type, _) = self.entry.name.default_types();
-        let default_type = match default_type {
-            ValueType::Vcard(t) => t,
-            ValueType::Kind | ValueType::Sex | ValueType::GramGender => VCardValueType::Text,
-        };
+        let default_type = default_type.unwrap_vcard();
 
         for param in std::mem::take(&mut self.entry.params) {
             match param {
@@ -179,6 +177,15 @@ impl EntryState {
                     .entry(VCardParameterName::Jsptr)
                     .or_default()
                     .push(v.into()),
+                VCardParameter::Jscomps(v) => {
+                    let mut jscomps = String::new();
+                    let _ = write_jscomps(&mut jscomps, &mut 0, &v);
+                    params
+                        .0
+                        .entry(VCardParameterName::Jscomps)
+                        .or_default()
+                        .push(jscomps.into())
+                }
                 VCardParameter::Other(v) => {
                     if v.len() > 1 {
                         let mut v = v.into_iter();

@@ -14,7 +14,7 @@ use crate::{
         tokenizer::StopChar,
         Data, Encoding,
     },
-    vcard::VCardProperty,
+    vcard::{Jscomp, VCardProperty},
     Entry, Parser, Token,
 };
 use mail_parser::decoders::{
@@ -476,6 +476,49 @@ impl Parser<'_> {
                 b"JSPTR" => {
                     param_values.push(VCardParameter::Jsptr(self.buf_to_string()));
                 },
+                b"JSCOMPS" => {
+                    if let Some(text) = self.raw_token() {
+                        let mut jscomps = Vec::with_capacity(4);
+                        for item in text.split(';') {
+                            if let Some(item) = item.strip_prefix("s,") {
+                                let mut sep = String::with_capacity(item.len());
+                                let mut last_is_escape = false;
+
+                                for ch in item.chars() {
+                                    if ch == '\\' {
+                                        if last_is_escape {
+                                            last_is_escape = false;
+                                        } else {
+                                            last_is_escape = true;
+                                            continue;
+                                        }
+                                    }
+                                    sep.push(ch);
+                                }
+
+                                jscomps.push(Jscomp::Separator(sep));
+                            } else {
+                                 let mut position = None;
+                                 let mut value = None;
+
+                                 for (pos, item) in item.split(',').enumerate() {
+                                    if pos == 0 {
+                                        position = item.parse::<u32>().ok();
+                                    } else if pos == 1 {
+                                        value = item.parse::<u32>().ok();
+                                    }
+                                 }
+
+                                 if let Some(position) = position {
+                                    jscomps.push(Jscomp::Entry { position, value: value.unwrap_or_default() });
+                                 }
+                            }
+                        }
+
+                        param_values.push(VCardParameter::Jscomps(jscomps));
+                    }
+                    self.token_buf.clear();
+                },
                 b"CHARSET" => {
                     for token in self.token_buf.drain(..) {
                         params.charset = token.into_string().into();
@@ -587,6 +630,7 @@ impl VCardParameterName {
             VCardParameterName::Username => "USERNAME",
             VCardParameterName::Jsptr => "JSPTR",
             VCardParameterName::Other(name) => name,
+            VCardParameterName::Jscomps => "JSCOMPS",
         }
     }
 
@@ -619,6 +663,7 @@ impl VCardParameterName {
             VCardParameterName::Username => "USERNAME".into(),
             VCardParameterName::Jsptr => "JSPTR".into(),
             VCardParameterName::Other(name) => name.into(),
+            VCardParameterName::Jscomps => "JSCOMPS".into(),
         }
     }
 }

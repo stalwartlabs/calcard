@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use std::{borrow::Cow, collections::HashMap, hash::Hash, iter::Peekable, vec::IntoIter};
-
 use crate::{
     common::{parser::Timestamp, CalendarScale, Data, PartialDateTime},
     jscontact::{
@@ -13,11 +11,12 @@ use crate::{
         JSContactPhoneticSystem, JSContactProperty, JSContactValue,
     },
     vcard::{
-        VCard, VCardEntry, VCardGramGender, VCardKind, VCardLevel, VCardParameter,
+        Jscomp, VCard, VCardEntry, VCardGramGender, VCardKind, VCardLevel, VCardParameter,
         VCardParameterName, VCardPhonetic, VCardProperty, VCardType, VCardValue, VCardValueType,
     },
 };
 use jmap_tools::{Element, JsonPointer, JsonPointerItem, Key, Map, Property, Value};
+use std::{borrow::Cow, collections::HashMap, iter::Peekable, vec::IntoIter};
 
 #[derive(Default)]
 #[allow(clippy::type_complexity)]
@@ -51,11 +50,20 @@ impl JSContact<'_> {
                             Value::Object(Map::from(Vec::with_capacity(3)));
                         for (ptr, value) in value.into_expanded_object() {
                             if let Key::Property(JSContactProperty::Pointer(ptr)) = ptr {
-                                build_path(
+                                let ptr_path = ptr.to_string();
+                                if let Some(value) = build_path(
                                     &mut localizations,
                                     ptr.into_inner().into_iter().peekable(),
                                     value,
-                                );
+                                ) {
+                                    state.insert_jsprop(
+                                        &[
+                                            JSContactProperty::Localizations.to_string().as_ref(),
+                                            ptr_path.as_str(),
+                                        ],
+                                        value,
+                                    );
+                                }
                             } else {
                                 state.insert_jsprop(
                                     &[
@@ -415,6 +423,7 @@ impl JSContact<'_> {
                     JSContactProperty::Name => {
                         let mut params = Vec::new();
                         let mut parts: Vec<Option<String>> = vec![None; 7];
+                        let mut jscomps = vec![Jscomp::Separator(String::new())];
                         let mut num_parts = 0;
 
                         for (sub_property, value) in value.into_expanded_object() {
@@ -423,41 +432,32 @@ impl JSContact<'_> {
                                     for components in value.into_array().unwrap_or_default() {
                                         let mut comp_value = None;
                                         let mut comp_pos = None;
+                                        let mut is_separator = false;
 
                                         for (component, value) in components.into_expanded_object()
                                         {
-                                            match component {
-                                                Key::Property(JSContactProperty::Kind) => {
-                                                    comp_pos = match value {
-                                                        Value::Element(JSContactValue::Kind(
-                                                            JSContactKind::Surname,
-                                                        )) => 0,
-                                                        Value::Element(JSContactValue::Kind(
-                                                            JSContactKind::Given,
-                                                        )) => 1,
-                                                        Value::Element(JSContactValue::Kind(
-                                                            JSContactKind::Given2,
-                                                        )) => 2,
-                                                        Value::Element(JSContactValue::Kind(
-                                                            JSContactKind::Title,
-                                                        )) => 3,
-                                                        Value::Element(JSContactValue::Kind(
-                                                            JSContactKind::Credential,
-                                                        )) => 4,
-                                                        Value::Element(JSContactValue::Kind(
-                                                            JSContactKind::Surname2,
-                                                        )) => 5,
-                                                        Value::Element(JSContactValue::Kind(
-                                                            JSContactKind::Generation,
-                                                        )) => 6,
-                                                        _ => continue,
-                                                    }
-                                                    .into();
+                                            match (component, value) {
+                                                (
+                                                    Key::Property(JSContactProperty::Kind),
+                                                    Value::Element(JSContactValue::Kind(
+                                                        JSContactKind::Separator,
+                                                    )),
+                                                ) => {
+                                                    is_separator = true;
                                                 }
-                                                Key::Property(JSContactProperty::Value) => {
+                                                (
+                                                    Key::Property(JSContactProperty::Kind),
+                                                    Value::Element(JSContactValue::Kind(kind)),
+                                                ) => {
+                                                    comp_pos = kind.to_vcard_n_pos();
+                                                }
+                                                (
+                                                    Key::Property(JSContactProperty::Value),
+                                                    value,
+                                                ) => {
                                                     comp_value = value.into_string();
                                                 }
-                                                _ => {
+                                                (component, value) => {
                                                     state.insert_jsprop(
                                                         &[
                                                             JSContactProperty::Name
@@ -474,16 +474,31 @@ impl JSContact<'_> {
                                             }
                                         }
 
-                                        if let (Some(comp_value), Some(comp_pos)) =
-                                            (comp_value, comp_pos)
-                                        {
-                                            let part = &mut parts[comp_pos];
-                                            if let Some(part) = part {
-                                                *part = format!("{part},{comp_value}");
-                                            } else {
-                                                *part = Some(comp_value);
+                                        if let Some(comp_value) = comp_value {
+                                            if let Some(comp_pos) = comp_pos {
+                                                let part = &mut parts[comp_pos];
+                                                if let Some(part) = part {
+                                                    *part = format!("{part},{comp_value}");
+                                                    jscomps.push(Jscomp::Entry {
+                                                        position: comp_pos as u32,
+                                                        value: part
+                                                            .as_bytes()
+                                                            .iter()
+                                                            .filter(|&&c| c == b',')
+                                                            .count()
+                                                            as u32,
+                                                    });
+                                                } else {
+                                                    *part = Some(comp_value);
+                                                    jscomps.push(Jscomp::Entry {
+                                                        position: comp_pos as u32,
+                                                        value: 0,
+                                                    });
+                                                }
+                                                num_parts = num_parts.max(comp_pos + 1);
+                                            } else if is_separator {
+                                                jscomps.push(Jscomp::Separator(comp_value));
                                             }
-                                            num_parts = num_parts.max(comp_pos + 1);
                                         }
                                     }
                                 }
@@ -548,6 +563,11 @@ impl JSContact<'_> {
                                         params.push(VCardParameter::Script(phonetic_script));
                                     }
                                 }
+                                Key::Property(JSContactProperty::DefaultSeparator) => {
+                                    if let Some(separator) = value.into_string() {
+                                        jscomps[0] = Jscomp::Separator(separator);
+                                    }
+                                }
                                 _ => {
                                     state.insert_jsprop(
                                         &[
@@ -569,7 +589,7 @@ impl JSContact<'_> {
                                 n.push_str(&part);
                             }
                         }
-
+                        params.push(VCardParameter::Jscomps(jscomps));
                         state.insert_vcard(
                             &[JSContactProperty::Name, JSContactProperty::Components],
                             VCardEntry::new(VCardProperty::N)
@@ -756,10 +776,12 @@ impl JSContact<'_> {
                     }
                     JSContactProperty::Addresses => {
                         for (name, value) in value.into_expanded_object() {
-                            let mut params =
-                                vec![VCardParameter::PropId(name.to_string().to_string())];
+                            let mut params = vec![];
                             let mut parts: Vec<Option<String>> = vec![None; 18];
+                            let mut jscomps = vec![Jscomp::Separator(String::new())];
                             let mut num_parts = 0;
+                            let mut timezone = None;
+                            let mut geo = None;
 
                             for (sub_property, value) in value.into_expanded_object() {
                                 match sub_property {
@@ -767,101 +789,31 @@ impl JSContact<'_> {
                                         for components in value.into_array().unwrap_or_default() {
                                             let mut comp_value = None;
                                             let mut comp_pos = None;
+                                            let mut is_separator = false;
 
-                                            let todo = "map GEO and TZ";
-                                            let todo = "map to the next slot when filled (some props map to same pos)";
                                             for (key, value) in components.into_expanded_object() {
-                                                match key {
-                                                    Key::Property(JSContactProperty::Kind) => {
-                                                        comp_pos = match value {
-                                                            Value::Element(
-                                                                JSContactValue::Kind(
-                                                                    JSContactKind::PostOfficeBox,
-                                                                ),
-                                                            ) => 0,
-                                                            Value::Element(
-                                                                JSContactValue::Kind(
-                                                                    JSContactKind::Apartment,
-                                                                ),
-                                                            ) => 1,
-                                                            Value::Element(
-                                                                JSContactValue::Kind(
-                                                                    JSContactKind::Name,
-                                                                ),
-                                                            ) => 2,
-                                                            Value::Element(
-                                                                JSContactValue::Kind(
-                                                                    JSContactKind::Locality,
-                                                                ),
-                                                            ) => 3,
-                                                            Value::Element(
-                                                                JSContactValue::Kind(
-                                                                    JSContactKind::Region,
-                                                                ),
-                                                            ) => 4,
-                                                            Value::Element(
-                                                                JSContactValue::Kind(
-                                                                    JSContactKind::Postcode,
-                                                                ),
-                                                            ) => 5,
-                                                            Value::Element(
-                                                                JSContactValue::Kind(
-                                                                    JSContactKind::Country,
-                                                                ),
-                                                            ) => 6,
-                                                            Value::Element(
-                                                                JSContactValue::Kind(
-                                                                    JSContactKind::Room,
-                                                                ),
-                                                            ) => 7,
-                                                            Value::Element(
-                                                                JSContactValue::Kind(
-                                                                    JSContactKind::Floor,
-                                                                ),
-                                                            ) => 9,
-                                                            Value::Element(
-                                                                JSContactValue::Kind(
-                                                                    JSContactKind::Number,
-                                                                ),
-                                                            ) => 10,
-                                                            Value::Element(
-                                                                JSContactValue::Kind(
-                                                                    JSContactKind::Building,
-                                                                ),
-                                                            ) => 12,
-                                                            Value::Element(
-                                                                JSContactValue::Kind(
-                                                                    JSContactKind::Block,
-                                                                ),
-                                                            ) => 13,
-                                                            Value::Element(
-                                                                JSContactValue::Kind(
-                                                                    JSContactKind::Subdistrict,
-                                                                ),
-                                                            ) => 14,
-                                                            Value::Element(
-                                                                JSContactValue::Kind(
-                                                                    JSContactKind::District,
-                                                                ),
-                                                            ) => 15,
-                                                            Value::Element(
-                                                                JSContactValue::Kind(
-                                                                    JSContactKind::Landmark,
-                                                                ),
-                                                            ) => 16,
-                                                            Value::Element(
-                                                                JSContactValue::Kind(
-                                                                    JSContactKind::Direction,
-                                                                ),
-                                                            ) => 17,
-                                                            _ => continue,
-                                                        }
-                                                        .into();
+                                                match (key, value) {
+                                                    (
+                                                        Key::Property(JSContactProperty::Kind),
+                                                        Value::Element(JSContactValue::Kind(
+                                                            JSContactKind::Separator,
+                                                        )),
+                                                    ) => {
+                                                        is_separator = true;
                                                     }
-                                                    Key::Property(JSContactProperty::Value) => {
+                                                    (
+                                                        Key::Property(JSContactProperty::Kind),
+                                                        Value::Element(JSContactValue::Kind(kind)),
+                                                    ) => {
+                                                        comp_pos = kind.to_vcard_adr_pos();
+                                                    }
+                                                    (
+                                                        Key::Property(JSContactProperty::Value),
+                                                        value,
+                                                    ) => {
                                                         comp_value = value.into_string();
                                                     }
-                                                    _ => {
+                                                    (key, value) => {
                                                         state.insert_jsprop(
                                                             &[
                                                                 property.to_string().as_ref(),
@@ -875,16 +827,31 @@ impl JSContact<'_> {
                                                 }
                                             }
 
-                                            if let (Some(comp_value), Some(comp_pos)) =
-                                                (comp_value, comp_pos)
-                                            {
-                                                let part = &mut parts[comp_pos];
-                                                if let Some(part) = part {
-                                                    *part = format!("{part},{comp_value}");
-                                                } else {
-                                                    *part = Some(comp_value);
+                                            if let Some(comp_value) = comp_value {
+                                                if let Some(comp_pos) = comp_pos {
+                                                    let part = &mut parts[comp_pos];
+                                                    if let Some(part) = part {
+                                                        *part = format!("{part},{comp_value}");
+                                                        jscomps.push(Jscomp::Entry {
+                                                            position: comp_pos as u32,
+                                                            value: part
+                                                                .as_bytes()
+                                                                .iter()
+                                                                .filter(|&&c| c == b',')
+                                                                .count()
+                                                                as u32,
+                                                        });
+                                                    } else {
+                                                        *part = Some(comp_value);
+                                                        jscomps.push(Jscomp::Entry {
+                                                            position: comp_pos as u32,
+                                                            value: 0,
+                                                        });
+                                                    }
+                                                    num_parts = num_parts.max(comp_pos + 1);
+                                                } else if is_separator {
+                                                    jscomps.push(Jscomp::Separator(comp_value));
                                                 }
-                                                num_parts = num_parts.max(comp_pos + 1);
                                             }
                                         }
                                     }
@@ -894,14 +861,10 @@ impl JSContact<'_> {
                                         }
                                     }
                                     Key::Property(JSContactProperty::Coordinates) => {
-                                        if let Some(value) = value.into_string() {
-                                            params.push(VCardParameter::Geo(value));
-                                        }
+                                        geo = value.into_string();
                                     }
                                     Key::Property(JSContactProperty::TimeZone) => {
-                                        if let Some(value) = value.into_string() {
-                                            params.push(VCardParameter::Tz(value));
-                                        }
+                                        timezone = value.into_string();
                                     }
                                     Key::Property(JSContactProperty::CountryCode) => {
                                         if let Some(value) = value.into_string() {
@@ -929,6 +892,11 @@ impl JSContact<'_> {
                                             params.push(VCardParameter::Type(types));
                                         }
                                     }
+                                    Key::Property(JSContactProperty::DefaultSeparator) => {
+                                        if let Some(value) = value.into_string() {
+                                            jscomps[0] = Jscomp::Separator(value);
+                                        }
+                                    }
                                     _ => {
                                         state.insert_jsprop(
                                             &[
@@ -942,22 +910,73 @@ impl JSContact<'_> {
                                 }
                             }
 
-                            let mut n = String::with_capacity(16);
-                            for (pos, part) in parts.into_iter().take(num_parts).enumerate() {
-                                if pos > 0 {
-                                    n.push(';');
-                                }
-                                if let Some(part) = part {
-                                    n.push_str(&part);
+                            if let Some(timezone) = timezone {
+                                if state.converted_props.iter().any(|(prop, _)| {
+                                    prop.len() == 3
+                                        && prop[0] == Key::Property(JSContactProperty::Addresses)
+                                        && prop[1] == name
+                                        && prop[2] == Key::Property(JSContactProperty::TimeZone)
+                                }) {
+                                    state.insert_vcard(
+                                        &[
+                                            JSContactProperty::Addresses,
+                                            JSContactProperty::Components,
+                                            JSContactProperty::TimeZone,
+                                        ],
+                                        VCardEntry::new(VCardProperty::Adr)
+                                            .with_params(vec![VCardParameter::PropId(
+                                                name.to_string().to_string(),
+                                            )])
+                                            .with_value(timezone),
+                                    );
+                                } else {
+                                    params.push(VCardParameter::Tz(timezone));
                                 }
                             }
 
-                            state.insert_vcard(
-                                &[JSContactProperty::Addresses, JSContactProperty::Components],
-                                VCardEntry::new(VCardProperty::Adr)
-                                    .with_params(params)
-                                    .with_value(n),
-                            );
+                            if let Some(geo) = geo {
+                                if state.converted_props.iter().any(|(prop, _)| {
+                                    prop.len() == 3
+                                        && prop[0] == Key::Property(JSContactProperty::Addresses)
+                                        && prop[1] == name
+                                        && prop[2] == Key::Property(JSContactProperty::Coordinates)
+                                }) {
+                                    state.insert_vcard(
+                                        &[
+                                            JSContactProperty::Addresses,
+                                            JSContactProperty::Components,
+                                            JSContactProperty::Coordinates,
+                                        ],
+                                        VCardEntry::new(VCardProperty::Adr)
+                                            .with_params(vec![VCardParameter::PropId(
+                                                name.to_string().to_string(),
+                                            )])
+                                            .with_value(geo),
+                                    );
+                                } else {
+                                    params.push(VCardParameter::Geo(geo));
+                                }
+                            }
+
+                            if num_parts > 0 || !params.is_empty() {
+                                let mut n = String::with_capacity(16);
+                                for (pos, part) in parts.into_iter().take(num_parts).enumerate() {
+                                    if pos > 0 {
+                                        n.push(';');
+                                    }
+                                    if let Some(part) = part {
+                                        n.push_str(&part);
+                                    }
+                                }
+                                params.push(VCardParameter::PropId(name.to_string().to_string()));
+                                params.push(VCardParameter::Jscomps(jscomps));
+                                state.insert_vcard(
+                                    &[JSContactProperty::Addresses, JSContactProperty::Components],
+                                    VCardEntry::new(VCardProperty::Adr)
+                                        .with_params(params)
+                                        .with_value(n),
+                                );
+                            }
                         }
                     }
                     JSContactProperty::Organizations => {
@@ -1086,9 +1105,11 @@ impl JSContact<'_> {
                                                 entry.params.push(VCardParameter::Type(types));
                                             }
                                         }
+                                        Key::Property(JSContactProperty::OrganizationId)
+                                            if state.has_org_mapping(name.to_string().as_ref()) => {
+                                        }
                                         Key::Property(JSContactProperty::Kind) => {}
                                         _ => {
-                                            let todo = "organizationId";
                                             state.insert_jsprop(
                                                 &[
                                                     property.to_string().as_ref(),
@@ -1667,21 +1688,18 @@ impl<'x> State<'x> {
                     }
                 }
 
-                if prop_id.is_none_or(|prop_id| {
-                    keys.iter().any(|k| match k {
-                        Key::Borrowed(v) => *v == prop_id,
-                        Key::Owned(v) => v == prop_id,
-                        _ => false,
-                    })
-                }) && (!skip_tz_geo
-                    || !keys.iter().any(|k| {
-                        matches!(
-                            k,
-                            Key::Property(
-                                JSContactProperty::TimeZone | JSContactProperty::Coordinates
+                if prop_id
+                    .map(Key::Borrowed)
+                    .is_none_or(|prop_id| keys.iter().any(|k| k == &prop_id))
+                    && (!skip_tz_geo
+                        || !keys.iter().any(|k| {
+                            matches!(
+                                k,
+                                Key::Property(
+                                    JSContactProperty::TimeZone | JSContactProperty::Coordinates
+                                )
                             )
-                        )
-                    }))
+                        }))
                 {
                     entry.import_converted_properties(std::mem::take(value));
                     self.converted_props_count += 1;
@@ -1707,7 +1725,41 @@ impl<'x> State<'x> {
     }
 
     pub fn import_properties(&mut self, props: Vec<Value<'x, JSContactProperty, JSContactValue>>) {
-        let todo = "implement";
+        for prop in props.into_iter().flat_map(|prop| prop.into_array()) {
+            let mut prop = prop.into_iter();
+            let Some(name) = prop.next().and_then(|v| v.into_string()).map(|name| {
+                VCardProperty::try_from(name.as_bytes()).unwrap_or(VCardProperty::Other(name))
+            }) else {
+                continue;
+            };
+            let Some(params) = prop.next() else {
+                continue;
+            };
+            let Some(value_type) = prop.next().and_then(|v| v.into_string()).map(|v| {
+                VCardValueType::try_from(v.as_bytes()).unwrap_or(VCardValueType::Other(v))
+            }) else {
+                continue;
+            };
+            let Some(values) = prop.next().and_then(|v| match v {
+                Value::Array(arr) => Some(
+                    arr.into_iter()
+                        .filter_map(|v| convert_value(v).ok())
+                        .collect::<Vec<_>>(),
+                ),
+                v => convert_value(v).ok().map(|v| vec![v]),
+            }) else {
+                continue;
+            };
+            let (default_type, _) = name.default_types();
+
+            let mut entry = VCardEntry::new(name);
+            entry.import_jcard_params(params);
+            entry.values = values;
+            if default_type.unwrap_vcard() != value_type {
+                entry.params.push(VCardParameter::Value(vec![value_type]));
+            }
+            self.vcard.entries.push(entry);
+        }
     }
 
     pub fn into_vcard(mut self) -> VCard {
@@ -1720,13 +1772,33 @@ impl<'x> State<'x> {
         }
         self.vcard
     }
+
+    pub fn has_org_mapping(&self, prop_id: &str) -> bool {
+        self.converted_props
+            .iter()
+            .find(|(props, _)| {
+                props.len() >= 3
+                    && props[0] == Key::Property(JSContactProperty::Titles)
+                    && props[1] == prop_id
+                    && props[2] == Key::Property(JSContactProperty::OrganizationId)
+            })
+            .and_then(|(_, value)| find_text_param(value, "group"))
+            .is_some_and(|name| {
+                self.converted_props.iter().any(|(props, value)| {
+                    matches!(
+                        props.first(),
+                        Some(Key::Property(JSContactProperty::Organizations))
+                    ) && find_text_param(value, "group").is_some_and(|v| v == name)
+                })
+            })
+    }
 }
 
 fn build_path<'x>(
     obj: &mut Value<'x, JSContactProperty, JSContactValue>,
     mut ptr: Peekable<IntoIter<JsonPointerItem<JSContactProperty>>>,
     value: Value<'x, JSContactProperty, JSContactValue>,
-) -> bool {
+) -> Option<Value<'x, JSContactProperty, JSContactValue>> {
     if let Some(item) = ptr.next() {
         match item {
             JsonPointerItem::Root | JsonPointerItem::Wildcard => {}
@@ -1757,10 +1829,10 @@ fn build_path<'x>(
                 }
             }
         }
-        false
+        Some(value)
     } else {
         *obj = value;
-        true
+        None
     }
 }
 
@@ -2163,4 +2235,16 @@ impl TryFrom<Value<'_, JSContactProperty, JSContactValue>> for VCardLevel {
             _ => Err(()),
         }
     }
+}
+
+fn find_text_param<'x>(
+    value: &'x Value<'x, JSContactProperty, JSContactValue>,
+    name: &str,
+) -> Option<Cow<'x, str>> {
+    value
+        .as_object()
+        .and_then(|obj| obj.get(&Key::Property(JSContactProperty::Parameters)))
+        .and_then(|obj| obj.as_object())
+        .and_then(|obj| obj.get_ignore_case(name))
+        .and_then(|obj| obj.as_str())
 }

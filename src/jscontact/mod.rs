@@ -643,6 +643,7 @@ impl FromStr for JSContactKind {
     }
 }
 
+#[allow(clippy::wrong_self_convention)]
 impl JSContactKind {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -692,6 +693,82 @@ impl JSContactKind {
             JSContactKind::Interest => "interest",
             JSContactKind::Role => "role",
         }
+    }
+
+    pub(crate) fn from_vcard_adr_pos(pos: usize) -> Option<Self> {
+        match pos {
+            0 => JSContactKind::PostOfficeBox,
+            1 => JSContactKind::Apartment,
+            2 => JSContactKind::Name,
+            3 => JSContactKind::Locality,
+            4 => JSContactKind::Region,
+            5 => JSContactKind::Postcode,
+            6 => JSContactKind::Country,
+            7 => JSContactKind::Room,
+            8 => JSContactKind::Apartment,
+            9 => JSContactKind::Floor,
+            10 => JSContactKind::Number,
+            11 => JSContactKind::Name,
+            12 => JSContactKind::Building,
+            13 => JSContactKind::Block,
+            14 => JSContactKind::Subdistrict,
+            15 => JSContactKind::District,
+            16 => JSContactKind::Landmark,
+            17 => JSContactKind::Direction,
+            _ => return None,
+        }
+        .into()
+    }
+
+    pub(crate) fn to_vcard_adr_pos(&self) -> Option<usize> {
+        match self {
+            JSContactKind::PostOfficeBox => 0,
+            JSContactKind::Apartment => 1,
+            JSContactKind::Name => 2,
+            JSContactKind::Locality => 3,
+            JSContactKind::Region => 4,
+            JSContactKind::Postcode => 5,
+            JSContactKind::Country => 6,
+            JSContactKind::Room => 7,
+            JSContactKind::Floor => 9,
+            JSContactKind::Number => 10,
+            JSContactKind::Building => 12,
+            JSContactKind::Block => 13,
+            JSContactKind::Subdistrict => 14,
+            JSContactKind::District => 15,
+            JSContactKind::Landmark => 16,
+            JSContactKind::Direction => 17,
+            _ => return None,
+        }
+        .into()
+    }
+
+    pub(crate) fn from_vcard_n_pos(pos: usize) -> Option<Self> {
+        match pos {
+            0 => JSContactKind::Surname,
+            1 => JSContactKind::Given,
+            2 => JSContactKind::Given2,
+            3 => JSContactKind::Title,
+            4 => JSContactKind::Credential,
+            5 => JSContactKind::Surname2,
+            6 => JSContactKind::Generation,
+            _ => return None,
+        }
+        .into()
+    }
+
+    pub(crate) fn to_vcard_n_pos(&self) -> Option<usize> {
+        match self {
+            JSContactKind::Surname => 0,
+            JSContactKind::Given => 1,
+            JSContactKind::Given2 => 2,
+            JSContactKind::Title => 3,
+            JSContactKind::Credential => 4,
+            JSContactKind::Surname2 => 5,
+            JSContactKind::Generation => 6,
+            _ => return None,
+        }
+        .into()
     }
 }
 

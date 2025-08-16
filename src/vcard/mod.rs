@@ -494,6 +494,22 @@ pub enum VCardParameter {
     Username(String),           // [RFC9554, Section 4.10]
     Jsptr(String),              // [RFC9555, Section 3.3.2]
     Other(Vec<String>),
+    Jscomps(Vec<Jscomp>), // [RFC9555, Section 3.3.2]
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
+pub enum Jscomp {
+    Entry { position: u32, value: u32 },
+    Separator(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -534,6 +550,7 @@ pub enum VCardParameterName {
     Username,    // [RFC9554, Section 4.10]
     Jsptr,       // [RFC9555, Section 3.3.2]
     Other(String),
+    Jscomps, // [RFC9555, Section 3.3.2]
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

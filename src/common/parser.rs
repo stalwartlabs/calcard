@@ -13,6 +13,16 @@ use mail_parser::{
 use std::{borrow::Cow, iter::Peekable, slice::Iter, str::FromStr};
 
 impl<'x> Parser<'x> {
+    pub(crate) fn raw_token(&mut self) -> Option<&'x str> {
+        self.token_buf
+            .first()
+            .and_then(|first| {
+                self.input
+                    .get(first.start..=self.token_buf.last().unwrap().end)
+            })
+            .and_then(|v| std::str::from_utf8(v).ok())
+    }
+
     pub(crate) fn buf_to_string(&mut self) -> String {
         match self.token_buf.len() {
             0 => String::new(),

@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
+use crate::vcard::Jscomp;
+
 use super::parser::Timestamp;
 use mail_builder::encoders::base64::*;
 use mail_parser::DateTime;
@@ -201,6 +203,55 @@ pub(crate) fn write_params(
         }
         *line_len += 1;
         write_param_value(out, line_len, v.as_ref())?;
+    }
+
+    Ok(())
+}
+
+pub(crate) fn write_jscomps(
+    out: &mut impl Write,
+    line_len: &mut usize,
+    values: &[Jscomp],
+) -> std::fmt::Result {
+    for (pos, item) in values.iter().enumerate() {
+        if pos > 0 {
+            out.write_char(';')?;
+            *line_len += 1;
+        }
+        match item {
+            Jscomp::Entry { position, value } => {
+                write!(out, "{position}")?;
+                if *position > 9 {
+                    *line_len += 2;
+                } else {
+                    *line_len += 1;
+                }
+                if *value > 0 {
+                    write!(out, ",{value}")?;
+                    out.write_char(',')?;
+                    if *value > 9 {
+                        *line_len += 3;
+                    } else {
+                        *line_len += 2;
+                    }
+                }
+            }
+            Jscomp::Separator(s) => {
+                if !s.is_empty() {
+                    out.write_str("s,")?;
+                    *line_len += 2;
+
+                    for ch in s.chars() {
+                        if matches!(ch, ',' | ':' | '=' | ' ' | ';' | '"') {
+                            out.write_char('\\')?;
+                            *line_len += 1;
+                        }
+                        out.write_char(ch)?;
+                        *line_len += 1;
+                    }
+                }
+            }
+        }
     }
 
     Ok(())

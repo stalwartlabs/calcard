@@ -8,7 +8,9 @@ use super::{PartialDateTime, VCard, VCardEntry, VCardValueType, VCardVersion};
 use crate::{
     common::{
         parser::Timestamp,
-        writer::{write_bytes, write_param, write_param_value, write_params, write_value},
+        writer::{
+            write_bytes, write_jscomps, write_param, write_param_value, write_params, write_value,
+        },
     },
     vcard::{VCardParameter, VCardProperty, VCardValue, ValueSeparator},
 };
@@ -141,6 +143,15 @@ impl VCardEntry {
                 }
                 VCardParameter::Jsptr(v) => {
                     write_param(out, &mut line_len, "JSPTR", v)?;
+                }
+                VCardParameter::Jscomps(v) => {
+                    out.write_str("JSCOMPS=\"")?;
+                    line_len += "JSCOMPS=\"".len();
+
+                    write_jscomps(out, &mut line_len, v)?;
+
+                    out.write_str("\"")?;
+                    line_len += 1;
                 }
                 VCardParameter::Other(v) => {
                     for (pos, item) in v.iter().enumerate() {

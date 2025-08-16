@@ -149,6 +149,54 @@ impl ArchivedVCardEntry {
                 ArchivedVCardParameter::Jsptr(v) => {
                     write_param(out, &mut line_len, "JSPTR", v)?;
                 }
+                ArchivedVCardParameter::Jscomps(v) => {
+                    out.write_str("JSCOMPS=\"")?;
+                    line_len += "JSCOMPS=\"".len();
+
+                    for (pos, item) in v.iter().enumerate() {
+                        if pos > 0 {
+                            out.write_char(';')?;
+                            line_len += 1;
+                        }
+                        match item {
+                            ArchivedJscomp::Entry { position, value } => {
+                                write!(out, "{position}")?;
+                                if *position > 9 {
+                                    line_len += 2;
+                                } else {
+                                    line_len += 1;
+                                }
+                                if *value > 0 {
+                                    write!(out, ",{value}")?;
+                                    out.write_char(',')?;
+                                    if *value > 9 {
+                                        line_len += 3;
+                                    } else {
+                                        line_len += 2;
+                                    }
+                                }
+                            }
+                            ArchivedJscomp::Separator(s) => {
+                                if !s.is_empty() {
+                                    out.write_str("s,")?;
+                                    line_len += 2;
+
+                                    for ch in s.chars() {
+                                        if matches!(ch, ',' | ':' | '=' | ' ' | ';' | '"') {
+                                            out.write_char('\\')?;
+                                            line_len += 1;
+                                        }
+                                        out.write_char(ch)?;
+                                        line_len += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    out.write_str("\"")?;
+                    line_len += 1;
+                }
                 ArchivedVCardParameter::Other(v) => {
                     for (pos, item) in v.iter().enumerate() {
                         if pos == 0 {
