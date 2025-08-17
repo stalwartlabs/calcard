@@ -6,12 +6,15 @@
 
 use crate::common::CalendarScale;
 use jmap_tools::{JsonPointer, Value};
+use serde::Serialize;
 use std::{borrow::Cow, str::FromStr};
 
 pub mod export;
 pub mod import;
 pub mod parser;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+#[repr(transparent)]
 pub struct JSContact<'x>(pub Value<'x, JSContactProperty, JSContactValue>);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
