@@ -140,35 +140,35 @@ impl ICalendarValue {
 
     pub fn as_integer(&self) -> Option<i64> {
         match self {
-            ICalendarValue::Integer(ref i) => Some(*i),
+            ICalendarValue::Integer(i) => Some(*i),
             _ => None,
         }
     }
 
     pub fn as_float(&self) -> Option<f64> {
         match self {
-            ICalendarValue::Float(ref f) => Some(*f),
+            ICalendarValue::Float(f) => Some(*f),
             _ => None,
         }
     }
 
     pub fn as_boolean(&self) -> Option<bool> {
         match self {
-            ICalendarValue::Boolean(ref b) => Some(*b),
+            ICalendarValue::Boolean(b) => Some(*b),
             _ => None,
         }
     }
 
     pub fn as_partial_date_time(&self) -> Option<&PartialDateTime> {
         match self {
-            ICalendarValue::PartialDateTime(ref dt) => Some(dt),
+            ICalendarValue::PartialDateTime(dt) => Some(dt),
             _ => None,
         }
     }
 
     pub fn as_binary(&self) -> Option<&[u8]> {
         match self {
-            ICalendarValue::Binary(ref d) => Some(d.as_slice()),
+            ICalendarValue::Binary(d) => Some(d.as_slice()),
             _ => None,
         }
     }
@@ -232,7 +232,7 @@ impl ICalendarParameter {
             ICalendarParameterName::Gap => matches!(self, ICalendarParameter::Gap(_)),
             ICalendarParameterName::Linkrel => matches!(self, ICalendarParameter::Linkrel(_)),
             ICalendarParameterName::Other(name) => {
-                if let ICalendarParameter::Other(ref o) = self {
+                if let ICalendarParameter::Other(o) = self {
                     o.iter().any(|s| s == name)
                 } else {
                     false
@@ -294,24 +294,24 @@ impl ICalendarParameter {
             ICalendarParameter::Language(s) => s.len(),
             ICalendarParameter::Member(v) => v.iter().map(|s| s.size()).sum(),
             ICalendarParameter::Partstat(s) => s.as_str().len(),
-            ICalendarParameter::Related(ref r) => r.as_str().len(),
-            ICalendarParameter::Reltype(ref r) => r.as_str().len(),
-            ICalendarParameter::Role(ref r) => r.as_str().len(),
-            ICalendarParameter::ScheduleAgent(ref a) => a.as_str().len(),
-            ICalendarParameter::ScheduleForceSend(ref a) => a.as_str().len(),
-            ICalendarParameter::ScheduleStatus(ref a) => a.len(),
-            ICalendarParameter::SentBy(ref u) => u.size(),
-            ICalendarParameter::Tzid(ref t) => t.len(),
-            ICalendarParameter::Value(ref t) => t.as_str().len(),
-            ICalendarParameter::Display(ref d) => d.iter().map(|s| s.as_str().len()).sum(),
-            ICalendarParameter::Email(ref e) => e.len(),
-            ICalendarParameter::Feature(ref f) => f.iter().map(|s| s.as_str().len()).sum(),
-            ICalendarParameter::Label(ref l) => l.len(),
+            ICalendarParameter::Related(r) => r.as_str().len(),
+            ICalendarParameter::Reltype(r) => r.as_str().len(),
+            ICalendarParameter::Role(r) => r.as_str().len(),
+            ICalendarParameter::ScheduleAgent(a) => a.as_str().len(),
+            ICalendarParameter::ScheduleForceSend(a) => a.as_str().len(),
+            ICalendarParameter::ScheduleStatus(a) => a.len(),
+            ICalendarParameter::SentBy(u) => u.size(),
+            ICalendarParameter::Tzid(t) => t.len(),
+            ICalendarParameter::Value(t) => t.as_str().len(),
+            ICalendarParameter::Display(d) => d.iter().map(|s| s.as_str().len()).sum(),
+            ICalendarParameter::Email(e) => e.len(),
+            ICalendarParameter::Feature(f) => f.iter().map(|s| s.as_str().len()).sum(),
+            ICalendarParameter::Label(l) => l.len(),
             ICalendarParameter::Filename(s) => s.as_str().len(),
             ICalendarParameter::ManagedId(s) => s.as_str().len(),
             ICalendarParameter::Schema(s) => s.size(),
-            ICalendarParameter::Linkrel(ref l) => l.size(),
-            ICalendarParameter::Other(ref o) => o.iter().map(|s| s.len()).sum(),
+            ICalendarParameter::Linkrel(l) => l.size(),
+            ICalendarParameter::Other(o) => o.iter().map(|s| s.len()).sum(),
             _ => std::mem::size_of::<ICalendarParameter>(),
         }
     }
@@ -347,10 +347,6 @@ impl ICalendarDuration {
             + self.days as i64 * 86400
             + self.weeks as i64 * 604800;
 
-        if self.neg {
-            -secs
-        } else {
-            secs
-        }
+        if self.neg { -secs } else { secs }
     }
 }

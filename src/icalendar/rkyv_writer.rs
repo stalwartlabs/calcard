@@ -7,7 +7,7 @@
 use super::*;
 use crate::{
     common::{
-        writer::{write_bytes, write_param, write_param_value, write_params, write_value},
+        writer::{write_bytes, write_param, write_param_value, write_params, write_text},
         ArchivedPartialDateTime,
     },
     icalendar::ValueSeparator,
@@ -290,7 +290,7 @@ impl ArchivedICalendarEntry {
                         continue;
                     }
                     ArchivedICalendarValue::Text(v) => {
-                        write_value(out, &mut line_len, v)?;
+                        write_text(out, &mut line_len, v, true, true)?;
                         continue;
                     }
                     ArchivedICalendarValue::CalendarScale(v) => v.as_str(),
@@ -370,7 +370,7 @@ pub(crate) fn write_uri(
             *line_len += 8;
             write_bytes(out, line_len, &v.data)
         }
-        ArchivedUri::Location(v) => write_value(out, line_len, v),
+        ArchivedUri::Location(v) => write_text(out, line_len, v, true, true),
     }
 }
 

@@ -7,7 +7,7 @@
 use crate::{
     common::CalendarScale,
     jscontact::{
-        Context, Feature, JSContact, JSContactGrammaticalGender, JSContactKind,
+        Context, Feature, JSContact, JSContactGrammaticalGender, JSContactKind, JSContactLevel,
         JSContactPhoneticSystem, JSContactProperty, JSContactRelation, JSContactType,
         JSContactValue,
     },
@@ -51,6 +51,9 @@ impl Element for JSContactValue {
                 JSContactProperty::Relation => JSContactRelation::from_str(value)
                     .ok()
                     .map(JSContactValue::Relation),
+                JSContactProperty::Level => JSContactLevel::from_str(value)
+                    .ok()
+                    .map(JSContactValue::Level),
                 _ => None,
             }
         } else {

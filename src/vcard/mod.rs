@@ -63,7 +63,7 @@ pub struct VCardEntry {
     pub values: Vec<VCardValue>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -246,7 +246,7 @@ impl VCardProperty {
             VCardProperty::Jsprop => "JSPROP",
             VCardProperty::Begin => "BEGIN",
             VCardProperty::End => "END",
-            VCardProperty::Other(ref s) => s,
+            VCardProperty::Other(s) => s.as_str(),
         }
     }
 
@@ -317,7 +317,7 @@ impl VCardProperty {
             VCardProperty::Fn => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
             VCardProperty::N => (
                 ValueType::Vcard(VCardValueType::Text),
-                ValueSeparator::Semicolon,
+                ValueSeparator::SemicolonAndComma,
             ),
             VCardProperty::Nickname => (
                 ValueType::Vcard(VCardValueType::Text),
@@ -335,7 +335,7 @@ impl VCardProperty {
             VCardProperty::Gender => (ValueType::Sex, ValueSeparator::Semicolon),
             VCardProperty::Adr => (
                 ValueType::Vcard(VCardValueType::Text),
-                ValueSeparator::Semicolon,
+                ValueSeparator::SemicolonAndComma,
             ),
             VCardProperty::Tel => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
             VCardProperty::Email => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
@@ -355,9 +355,10 @@ impl VCardProperty {
             ),
             VCardProperty::Member => (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None),
             VCardProperty::Related => (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None),
-            VCardProperty::Categories => {
-                (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::Comma)
-            }
+            VCardProperty::Categories => (
+                ValueType::Vcard(VCardValueType::Text),
+                ValueSeparator::Comma,
+            ),
             VCardProperty::Note => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
             VCardProperty::Prodid => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
             VCardProperty::Rev => (
@@ -419,10 +420,9 @@ impl VCardProperty {
                 (ValueType::Vcard(VCardValueType::Uri), ValueSeparator::None)
             }
             VCardProperty::Jsprop => (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None),
-            VCardProperty::Other(_) => (
-                ValueType::Vcard(VCardValueType::Text),
-                ValueSeparator::Semicolon,
-            ),
+            VCardProperty::Other(_) => {
+                (ValueType::Vcard(VCardValueType::Text), ValueSeparator::None)
+            }
             VCardProperty::Begin | VCardProperty::End => {
                 (ValueType::Vcard(VCardValueType::Text), ValueSeparator::Skip)
             }
@@ -451,6 +451,7 @@ pub enum VCardValue {
     Sex(VCardSex),
     GramGender(VCardGramGender),
     Kind(VCardKind),
+    Component(Vec<String>),
 }
 
 impl Eq for VCardValue {}
@@ -595,7 +596,7 @@ impl VCardValueType {
             VCardValueType::Timestamp => "TIMESTAMP",
             VCardValueType::Uri => "URI",
             VCardValueType::UtcOffset => "UTC-OFFSET",
-            VCardValueType::Other(ref s) => s,
+            VCardValueType::Other(s) => s.as_str(),
         }
     }
 
@@ -753,7 +754,7 @@ impl VCardPhonetic {
             VCardPhonetic::Jyut => "JYUT",
             VCardPhonetic::Piny => "PINY",
             VCardPhonetic::Script => "SCRIPT",
-            VCardPhonetic::Other(ref s) => s,
+            VCardPhonetic::Other(s) => s.as_str(),
         }
     }
 
@@ -897,7 +898,7 @@ impl VCardType {
             VCardType::Pager => "PAGER",
             VCardType::Textphone => "TEXTPHONE",
             VCardType::MainNumber => "MAIN-NUMBER",
-            VCardType::Other(ref s) => s,
+            VCardType::Other(s) => s.as_str(),
         }
     }
 
@@ -1097,6 +1098,7 @@ pub(crate) enum ValueSeparator {
     None,
     Comma,
     Semicolon,
+    SemicolonAndComma,
     Skip,
 }
 

@@ -80,6 +80,23 @@ impl Tz {
         matches!(self, Self::Floating)
     }
 
+    pub fn tz_offset(&self) -> PartialDateTime {
+        let seconds = match self {
+            Tz::Floating => 0,
+            Tz::Fixed(offset) => offset.local_minus_utc(),
+            Tz::Tz(tz) => tz
+                .offset_from_utc_date(&Utc::now().date_naive())
+                .fix()
+                .local_minus_utc(),
+        };
+        PartialDateTime {
+            tz_hour: Some((seconds / 3600) as u8),
+            tz_minute: Some(((seconds % 3600) / 60) as u8),
+            tz_minus: seconds < 0,
+            ..Default::default()
+        }
+    }
+
     pub fn from_ms_cdo_zone_id(id: &str) -> Option<Self> {
         // Source https://learn.microsoft.com/en-us/previous-versions/office/developer/exchange-server-2007/aa563018(v=exchg.80)
 
@@ -206,10 +223,8 @@ impl FromStr for Tz {
         }
 
         // Try again with chrono_tz::Tz
-        if retry_chrono_tz {
-            if let Ok(tz) = chrono_tz::Tz::from_str(s) {
-                return Ok(Self::Tz(tz));
-            }
+        if retry_chrono_tz && let Ok(tz) = chrono_tz::Tz::from_str(s) {
+            return Ok(Self::Tz(tz));
         }
 
         // Map propietary timezones to chrono_tz::Tz

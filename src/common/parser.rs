@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use super::{tokenizer::Token, Data, PartialDateTime};
+use super::{Data, PartialDateTime, tokenizer::Token};
 use crate::Parser;
 use mail_parser::{
-    decoders::{base64::base64_decode, hex::decode_hex},
     DateTime,
+    decoders::{base64::base64_decode, hex::decode_hex},
 };
 use std::{borrow::Cow, iter::Peekable, slice::Iter, str::FromStr};
 
@@ -123,20 +123,20 @@ impl Token<'_> {
     }
 
     pub(crate) fn into_float(self) -> std::result::Result<f64, String> {
-        if let Ok(text) = std::str::from_utf8(self.text.as_ref()) {
-            if let Ok(float) = text.parse::<f64>() {
-                return Ok(float);
-            }
+        if let Ok(text) = std::str::from_utf8(self.text.as_ref())
+            && let Ok(float) = text.parse::<f64>()
+        {
+            return Ok(float);
         }
 
         Err(self.into_string())
     }
 
     pub(crate) fn into_integer(self) -> std::result::Result<i64, String> {
-        if let Ok(text) = std::str::from_utf8(self.text.as_ref()) {
-            if let Ok(float) = text.parse::<i64>() {
-                return Ok(float);
-            }
+        if let Ok(text) = std::str::from_utf8(self.text.as_ref())
+            && let Ok(float) = text.parse::<i64>()
+        {
+            return Ok(float);
         }
 
         Err(self.into_string())

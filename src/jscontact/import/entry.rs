@@ -7,9 +7,9 @@
 use crate::{
     common::writer::write_jscomps,
     jscontact::{
-        import::{EntryState, VCardParams},
         JSContactGrammaticalGender, JSContactKind, JSContactProperty, JSContactType,
         JSContactValue,
+        import::{EntryState, VCardParams},
     },
     vcard::{
         VCardEntry, VCardGramGender, VCardKind, VCardParameter, VCardParameterName, VCardValue,
@@ -48,10 +48,10 @@ impl EntryState {
                     .or_default()
                     .push(v.into()),
                 VCardParameter::Value(v) => {
-                    if let Some(v) = v.into_iter().next() {
-                        if v != default_type {
-                            *value_type = Some(v);
-                        }
+                    if let Some(v) = v.into_iter().next()
+                        && v != default_type
+                    {
+                        *value_type = Some(v);
                     }
                 }
                 VCardParameter::Pref(v) => params
@@ -226,6 +226,7 @@ impl EntryState {
         let mut values = std::mem::take(&mut self.entry.values).into_iter();
         match values.next()? {
             VCardValue::Text(v) => Some(Cow::Owned(v)),
+            VCardValue::Component(v) => Some(Cow::Owned(v.join(","))),
             VCardValue::Binary(data) => Some(Cow::Owned(data.to_string())),
             VCardValue::Sex(v) => Some(v.as_str().into()),
             VCardValue::GramGender(v) => Some(v.as_str().into()),
@@ -236,13 +237,6 @@ impl EntryState {
                 None
             }
         }
-    }
-
-    pub(super) fn text_parts(&mut self) -> impl Iterator<Item = String> + '_ {
-        self.entry
-            .values
-            .drain(..)
-            .filter_map(|value| value.into_text())
     }
 
     pub(super) fn text_parts_borrowed(&self) -> impl Iterator<Item = &str> + '_ {
@@ -262,6 +256,7 @@ impl EntryState {
             }))
             .into(),
             VCardValue::Text(v) => Value::Str(v.into()).into(),
+            VCardValue::Component(v) => Value::Str(v.join(",").into()).into(),
             other => {
                 self.entry.values.push(other);
                 self.entry.values.extend(values);
@@ -287,6 +282,7 @@ impl EntryState {
                 .into()
             }
             VCardValue::Text(v) => Value::Str(v.into()).into(),
+            VCardValue::Component(v) => Value::Str(v.join(",").into()).into(),
             other => {
                 self.entry.values.push(other);
                 self.entry.values.extend(values);
@@ -298,10 +294,10 @@ impl EntryState {
     pub(super) fn to_timestamp(
         &mut self,
     ) -> Option<Value<'static, JSContactProperty, JSContactValue>> {
-        if let Some(VCardValue::PartialDateTime(dt)) = self.entry.values.first() {
-            if let Some(timestamp) = dt.to_timestamp() {
-                return Value::Element(JSContactValue::Timestamp(timestamp)).into();
-            }
+        if let Some(VCardValue::PartialDateTime(dt)) = self.entry.values.first()
+            && let Some(timestamp) = dt.to_timestamp()
+        {
+            return Value::Element(JSContactValue::Timestamp(timestamp)).into();
         }
 
         None
@@ -311,7 +307,7 @@ impl EntryState {
         let mut values = std::mem::take(&mut self.entry.values).into_iter();
         match values.next()? {
             VCardValue::PartialDateTime(v) if v.has_zone() => {
-                let hour = v.hour.unwrap_or_default();
+                let hour = v.tz_hour.unwrap_or_default();
 
                 Value::Str(
                     if hour != 0 {
@@ -324,6 +320,7 @@ impl EntryState {
                 .into()
             }
             VCardValue::Text(v) => Value::Str(v.into()).into(),
+            VCardValue::Component(v) => Value::Str(v.join(",").into()).into(),
             other => {
                 self.entry.values.push(other);
                 self.entry.values.extend(values);
@@ -384,5 +381,34 @@ impl EntryState {
         self.entry
             .language()
             .filter(|&lang| Some(lang) != default_language)
+    }
+}
+
+pub fn from_timestamp(timestamp: i64) -> mail_parser::DateTime {
+    // Ported from http://howardhinnant.github.io/date_algorithms.html#civil_from_days
+    let (z, seconds) = (
+        (timestamp.div_euclid(86400)) + 719468,
+        timestamp.rem_euclid(86400),
+    );
+    let era: i64 = (if z >= 0 { z } else { z - 146096 }) / 146097;
+    let doe: u64 = (z - era * 146097) as u64; // [0, 146096]
+    let yoe: u64 = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365; // [0, 399]
+    let y: i64 = (yoe as i64) + era * 400;
+    let doy: u64 = doe - (365 * yoe + yoe / 4 - yoe / 100); // [0, 365]
+    let mp = (5 * doy + 2) / 153; // [0, 11]
+    let d: u64 = doy - (153 * mp + 2) / 5 + 1; // [1, 31]
+    let m: u64 = if mp < 10 { mp + 3 } else { mp - 9 }; // [1, 12]
+    let (h, mn, s) = (seconds / 3600, (seconds / 60) % 60, seconds % 60);
+
+    mail_parser::DateTime {
+        year: (y + i64::from(m <= 2)) as u16,
+        month: m as u8,
+        day: d as u8,
+        hour: h as u8,
+        minute: mn as u8,
+        second: s as u8,
+        tz_before_gmt: false,
+        tz_hour: 0,
+        tz_minute: 0,
     }
 }

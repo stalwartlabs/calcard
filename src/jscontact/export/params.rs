@@ -6,11 +6,8 @@
 
 use crate::{
     jscontact::{
-        export::{
-            props::{convert_value, find_text_param},
-            State,
-        },
         JSContactProperty, JSContactValue,
+        export::{State, props::convert_value},
     },
     vcard::{VCard, VCardEntry, VCardParameter, VCardProperty, VCardValueType},
 };
@@ -20,11 +17,47 @@ use std::borrow::Cow;
 impl<'x> State<'x> {
     pub(super) fn insert_vcard(&mut self, path: &[JSContactProperty], mut entry: VCardEntry) {
         if self.converted_props_count < self.converted_props.len() {
-            let prop_id = if matches!(entry.name, VCardProperty::Member | VCardProperty::Related) {
-                entry.values.first().and_then(|v| v.as_text())
-            } else {
-                entry.prop_id()
-            };
+            // Obtain propId
+            let mut prop_id =
+                if matches!(entry.name, VCardProperty::Member | VCardProperty::Related) {
+                    entry.values.first().and_then(|v| v.as_text())
+                } else {
+                    entry.prop_id()
+                };
+
+            // Try mapping X-ABLabel
+            if let Some(prop_id_) = prop_id {
+                let mut remove_pos = None;
+                for (param_pos, param) in entry.params.iter().enumerate() {
+                    if let VCardParameter::Label(label) = param {
+                        if self.converted_props.iter().any(|(prop, _)| {
+                            prop.len() == 3
+                                && prop[0].to_string() == path[0].to_string()
+                                && prop[1] == prop_id_
+                                && prop[2] == Key::Property(JSContactProperty::Label)
+                        }) {
+                            self.insert_vcard(
+                                &[path[0].clone(), JSContactProperty::Label],
+                                VCardEntry::new(VCardProperty::Other("X-ABLabel".into()))
+                                    .with_value(label.to_string()),
+                            );
+                            remove_pos = Some(param_pos);
+                        }
+                        break;
+                    }
+                }
+
+                if let Some(pos) = remove_pos {
+                    entry.params.swap_remove(pos);
+                    prop_id =
+                        if matches!(entry.name, VCardProperty::Member | VCardProperty::Related) {
+                            entry.values.first().and_then(|v| v.as_text())
+                        } else {
+                            entry.prop_id()
+                        };
+                }
+            }
+
             let skip_tz_geo = matches!(entry.name, VCardProperty::Adr);
             let mut matched_once = false;
 
@@ -45,7 +78,7 @@ impl<'x> State<'x> {
                 }
 
                 for (pos, item) in path.iter().enumerate() {
-                    if keys
+                    if !keys
                         .iter()
                         .any(|k| matches!(k, Key::Property(p) if p == item))
                     {
@@ -116,17 +149,18 @@ impl<'x> State<'x> {
             }) else {
                 continue;
             };
+
+            let (default_type, _) = name.default_types();
             let Some(values) = prop.next().and_then(|v| match v {
                 Value::Array(arr) => Some(
                     arr.into_iter()
-                        .filter_map(|v| convert_value(v).ok())
+                        .filter_map(|v| convert_value(v, &default_type).ok())
                         .collect::<Vec<_>>(),
                 ),
-                v => convert_value(v).ok().map(|v| vec![v]),
+                v => convert_value(v, &default_type).ok().map(|v| vec![v]),
             }) else {
                 continue;
             };
-            let (default_type, _) = name.default_types();
 
             let mut entry = VCardEntry::new(name);
             entry.import_jcard_params(params);
@@ -147,26 +181,6 @@ impl<'x> State<'x> {
             );
         }
         self.vcard
-    }
-
-    pub(super) fn has_org_mapping(&self, prop_id: &str) -> bool {
-        self.converted_props
-            .iter()
-            .find(|(props, _)| {
-                props.len() >= 3
-                    && props[0] == Key::Property(JSContactProperty::Titles)
-                    && props[1] == prop_id
-                    && props[2] == Key::Property(JSContactProperty::OrganizationId)
-            })
-            .and_then(|(_, value)| find_text_param(value, "group"))
-            .is_some_and(|name| {
-                self.converted_props.iter().any(|(props, value)| {
-                    matches!(
-                        props.first(),
-                        Some(Key::Property(JSContactProperty::Organizations))
-                    ) && find_text_param(value, "group").is_some_and(|v| v == name)
-                })
-            })
     }
 }
 

@@ -10,7 +10,10 @@ use crate::{
         JSContactGrammaticalGender, JSContactKind, JSContactLevel, JSContactPhoneticSystem,
         JSContactProperty, JSContactValue,
     },
-    vcard::{VCardGramGender, VCardKind, VCardLevel, VCardPhonetic, VCardType, VCardValue},
+    vcard::{
+        VCardGramGender, VCardKind, VCardLevel, VCardPhonetic, VCardSex, VCardType, VCardValue,
+        ValueType,
+    },
 };
 use jmap_tools::{JsonPointerItem, Key, Map, Value};
 use std::{borrow::Cow, iter::Peekable, vec::IntoIter};
@@ -105,9 +108,10 @@ pub(super) fn convert_anniversary(
     }
 }
 
-pub(super) fn convert_value(
-    value: Value<'_, JSContactProperty, JSContactValue>,
-) -> Result<VCardValue, Value<'_, JSContactProperty, JSContactValue>> {
+pub(super) fn convert_value<'x>(
+    value: Value<'x, JSContactProperty, JSContactValue>,
+    value_type: &'_ ValueType,
+) -> Result<VCardValue, Value<'x, JSContactProperty, JSContactValue>> {
     match value {
         Value::Element(e) => match e {
             JSContactValue::Timestamp(t) => Ok(VCardValue::PartialDateTime(
@@ -136,7 +140,28 @@ pub(super) fn convert_value(
             | JSContactValue::PhoneticSystem(_)
             | JSContactValue::CalendarScale(_) => Err(Value::Element(e)),
         },
-        Value::Str(s) => Ok(VCardValue::Text(s.into_owned())),
+        Value::Str(s) => {
+            match value_type {
+                ValueType::Kind => {
+                    if let Ok(kind) = VCardKind::try_from(s.as_ref().as_bytes()) {
+                        return Ok(VCardValue::Kind(kind));
+                    }
+                }
+                ValueType::Sex => {
+                    if let Ok(sex) = VCardSex::try_from(s.as_ref().as_bytes()) {
+                        return Ok(VCardValue::Sex(sex));
+                    }
+                }
+                ValueType::GramGender => {
+                    if let Ok(gender) = VCardGramGender::try_from(s.as_ref().as_bytes()) {
+                        return Ok(VCardValue::GramGender(gender));
+                    }
+                }
+                ValueType::Vcard(_) => (),
+            }
+
+            Ok(VCardValue::Text(s.into_owned()))
+        }
         Value::Bool(b) => Ok(VCardValue::Boolean(b)),
         Value::Number(n) => match n.try_cast_to_i64() {
             Ok(i) => Ok(VCardValue::Integer(i)),
@@ -148,6 +173,7 @@ pub(super) fn convert_value(
 
 pub(super) fn convert_types(
     value: Value<'_, JSContactProperty, JSContactValue>,
+    is_context: bool,
 ) -> Option<Vec<VCardType>> {
     let mut types = Vec::new();
     for (typ, set) in value.into_expanded_boolean_set() {
@@ -156,7 +182,11 @@ pub(super) fn convert_types(
             match VCardType::try_from(typ.as_ref().as_bytes()) {
                 Ok(typ) => types.push(typ),
                 Err(_) => {
-                    types.push(VCardType::Other(typ.into_owned()));
+                    if is_context && typ.eq_ignore_ascii_case("private") {
+                        types.push(VCardType::Home);
+                    } else {
+                        types.push(VCardType::Other(typ.into_owned()));
+                    }
                 }
             }
         }

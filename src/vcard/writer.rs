@@ -9,7 +9,7 @@ use crate::{
     common::{
         parser::Timestamp,
         writer::{
-            write_bytes, write_jscomps, write_param, write_param_value, write_params, write_value,
+            write_bytes, write_jscomps, write_param, write_param_value, write_params, write_text,
         },
     },
     vcard::{VCardParameter, VCardProperty, VCardValue, ValueSeparator},
@@ -185,13 +185,26 @@ impl VCardEntry {
 
         write!(out, ":")?;
 
-        let (default_type, separator) = self.name.default_types();
-        let separator = if !matches!(separator, ValueSeparator::Comma) {
-            ";"
-        } else {
-            ","
-        };
+        let (default_type, value_separator) = self.name.default_types();
         let default_type = default_type.unwrap_vcard();
+
+        let mut separator = ";";
+        let mut escape_semicolon =
+            matches!(types.first().unwrap_or(&default_type), VCardValueType::Text);
+        let mut escape_comma = escape_semicolon;
+
+        match value_separator {
+            ValueSeparator::Comma => {
+                escape_comma = true;
+                separator = ",";
+            }
+            ValueSeparator::Semicolon => escape_semicolon = true,
+            ValueSeparator::SemicolonAndComma => {
+                escape_semicolon = true;
+                escape_comma = true;
+            }
+            _ => {}
+        }
 
         for (pos, value) in self.values.iter().enumerate() {
             if pos > 0 {
@@ -206,7 +219,16 @@ impl VCardEntry {
 
             match value {
                 VCardValue::Text(v) => {
-                    write_value(out, &mut line_len, v)?;
+                    write_text(out, &mut line_len, v, escape_semicolon, escape_comma)?;
+                }
+                VCardValue::Component(v) => {
+                    for (pos, item) in v.iter().enumerate() {
+                        if pos > 0 {
+                            write!(out, ",")?;
+                            line_len += 1;
+                        }
+                        write_text(out, &mut line_len, item, true, true)?;
+                    }
                 }
                 VCardValue::Integer(v) => {
                     write!(out, "{v}")?;

@@ -129,7 +129,7 @@ impl FromStr for JSContactProperty {
             "calendarScale" => JSContactProperty::CalendarScale,
             "components" => JSContactProperty::Components,
             "contexts" => JSContactProperty::Contexts,
-                        "convertedProperties" => JSContactProperty::ConvertedProperties,
+            "convertedProperties" => JSContactProperty::ConvertedProperties,
             "coordinates" => JSContactProperty::Coordinates,
             "countryCode" => JSContactProperty::CountryCode,
             "created" => JSContactProperty::Created,
@@ -726,8 +726,8 @@ impl JSContactKind {
     pub(crate) fn to_vcard_adr_pos(&self) -> Option<usize> {
         match self {
             JSContactKind::PostOfficeBox => 0,
-            JSContactKind::Apartment => 1,
-            JSContactKind::Name => 2,
+            JSContactKind::Apartment => 8,
+            JSContactKind::Name => 11,
             JSContactKind::Locality => 3,
             JSContactKind::Region => 4,
             JSContactKind::Postcode => 5,

@@ -11,10 +11,12 @@ use mail_builder::encoders::base64::*;
 use mail_parser::DateTime;
 use std::fmt::{Display, Write};
 
-pub(crate) fn write_value(
+pub(crate) fn write_text(
     out: &mut impl Write,
     line_len: &mut usize,
     value: &str,
+    escape_semicolon: bool,
+    escape_comma: bool,
 ) -> std::fmt::Result {
     for ch in value.chars() {
         let ch_len = ch.len_utf8();
@@ -34,7 +36,15 @@ pub(crate) fn write_value(
                 *line_len += 2;
                 continue;
             }
-            '\\' | ',' | ';' => {
+            '\\' => {
+                write!(out, "\\")?;
+                *line_len += 2;
+            }
+            ';' if escape_semicolon => {
+                write!(out, "\\")?;
+                *line_len += 2;
+            }
+            ',' if escape_comma => {
                 write!(out, "\\")?;
                 *line_len += 2;
             }
@@ -228,7 +238,6 @@ pub(crate) fn write_jscomps(
                 }
                 if *value > 0 {
                     write!(out, ",{value}")?;
-                    out.write_char(',')?;
                     if *value > 9 {
                         *line_len += 3;
                     } else {

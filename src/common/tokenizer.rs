@@ -33,6 +33,7 @@ impl<'x> Parser<'x> {
         self.stop_equal = true;
         self.unfold_qp = false;
         self.unquote = true;
+        self.stop_dot = false;
     }
 
     pub(crate) fn expect_single_value(&mut self) {
@@ -42,6 +43,7 @@ impl<'x> Parser<'x> {
         self.stop_semicolon = false;
         self.unquote = false;
         self.unfold_qp = false;
+        self.stop_dot = false;
     }
 
     pub(crate) fn expect_multi_value_comma(&mut self) {
@@ -51,6 +53,7 @@ impl<'x> Parser<'x> {
         self.stop_semicolon = false;
         self.unquote = false;
         self.unfold_qp = false;
+        self.stop_dot = false;
     }
 
     pub(crate) fn expect_multi_value_semicolon(&mut self) {
@@ -60,6 +63,17 @@ impl<'x> Parser<'x> {
         self.stop_semicolon = true;
         self.unquote = false;
         self.unfold_qp = false;
+        self.stop_dot = false;
+    }
+
+    pub(crate) fn expect_multi_value_semicolon_and_comma(&mut self) {
+        self.stop_colon = false;
+        self.stop_comma = true;
+        self.stop_equal = false;
+        self.stop_semicolon = true;
+        self.unquote = false;
+        self.unfold_qp = false;
+        self.stop_dot = false;
     }
 
     pub(crate) fn expect_param_value(&mut self) {
@@ -69,6 +83,7 @@ impl<'x> Parser<'x> {
         self.stop_equal = false;
         self.unfold_qp = false;
         self.unquote = true;
+        self.stop_dot = false;
     }
 
     pub(crate) fn expect_rrule_value(&mut self) {
@@ -78,14 +93,15 @@ impl<'x> Parser<'x> {
         self.stop_semicolon = true;
         self.unquote = false;
         self.unfold_qp = false;
+        self.stop_dot = false;
     }
 
     fn try_unfold(&mut self) -> bool {
-        if let Some((_, next)) = self.iter.peek() {
-            if **next == b' ' || **next == b'\t' {
-                self.iter.next();
-                return true;
-            }
+        if let Some((_, next)) = self.iter.peek()
+            && (**next == b' ' || **next == b'\t')
+        {
+            self.iter.next();
+            return true;
         }
         false
     }
@@ -113,7 +129,7 @@ impl<'x> Parser<'x> {
                 b' ' | b'\t' => {
                     // Ignore leading and trailing whitespace (unless in a quoted string, or in a value (!self.unquote))
                     if in_quote
-                        || (!self.unquote && !self.stop_comma)
+                        || (!self.unquote && (!self.stop_comma || self.stop_semicolon))
                         || buf.last().is_some_and(|lch| lch != ch)
                     {
                         if offset_start == usize::MAX {

@@ -61,7 +61,7 @@ impl ArchivedVCardProperty {
             ArchivedVCardProperty::Jsprop => "JSPROP",
             ArchivedVCardProperty::Begin => "BEGIN",
             ArchivedVCardProperty::End => "END",
-            ArchivedVCardProperty::Other(ref s) => s,
+            ArchivedVCardProperty::Other(s) => s.as_str(),
         }
     }
 
@@ -83,7 +83,7 @@ impl ArchivedVCardProperty {
             ),
             ArchivedVCardProperty::N => (
                 ArchivedValueType::Vcard(ArchivedVCardValueType::Text),
-                ValueSeparator::Semicolon,
+                ValueSeparator::SemicolonAndComma,
             ),
             ArchivedVCardProperty::Nickname => (
                 ArchivedValueType::Vcard(ArchivedVCardValueType::Text),
@@ -104,7 +104,7 @@ impl ArchivedVCardProperty {
             ArchivedVCardProperty::Gender => (ArchivedValueType::Sex, ValueSeparator::Semicolon),
             ArchivedVCardProperty::Adr => (
                 ArchivedValueType::Vcard(ArchivedVCardValueType::Text),
-                ValueSeparator::Semicolon,
+                ValueSeparator::SemicolonAndComma,
             ),
             ArchivedVCardProperty::Tel => (
                 ArchivedValueType::Vcard(ArchivedVCardValueType::Text),
@@ -155,7 +155,7 @@ impl ArchivedVCardProperty {
                 ValueSeparator::None,
             ),
             ArchivedVCardProperty::Categories => (
-                ArchivedValueType::Vcard(ArchivedVCardValueType::Uri),
+                ArchivedValueType::Vcard(ArchivedVCardValueType::Text),
                 ValueSeparator::Comma,
             ),
             ArchivedVCardProperty::Note => (
@@ -263,7 +263,7 @@ impl ArchivedVCardProperty {
             ),
             ArchivedVCardProperty::Other(_) => (
                 ArchivedValueType::Vcard(ArchivedVCardValueType::Text),
-                ValueSeparator::Semicolon,
+                ValueSeparator::None,
             ),
             ArchivedVCardProperty::Begin | ArchivedVCardProperty::End => (
                 ArchivedValueType::Vcard(ArchivedVCardValueType::Text),
@@ -288,7 +288,7 @@ impl ArchivedVCardValueType {
             ArchivedVCardValueType::Timestamp => "TIMESTAMP",
             ArchivedVCardValueType::Uri => "URI",
             ArchivedVCardValueType::UtcOffset => "UTC-OFFSET",
-            ArchivedVCardValueType::Other(ref s) => s,
+            ArchivedVCardValueType::Other(s) => s.as_str(),
         }
     }
 }
@@ -325,7 +325,7 @@ impl ArchivedVCardPhonetic {
             ArchivedVCardPhonetic::Jyut => "JYUT",
             ArchivedVCardPhonetic::Piny => "PINY",
             ArchivedVCardPhonetic::Script => "SCRIPT",
-            ArchivedVCardPhonetic::Other(ref s) => s,
+            ArchivedVCardPhonetic::Other(s) => s.as_str(),
         }
     }
 }
@@ -371,7 +371,7 @@ impl ArchivedVCardType {
             ArchivedVCardType::Pager => "PAGER",
             ArchivedVCardType::Textphone => "TEXTPHONE",
             ArchivedVCardType::MainNumber => "MAIN-NUMBER",
-            ArchivedVCardType::Other(ref s) => s,
+            ArchivedVCardType::Other(s) => s.as_str(),
         }
     }
 }

@@ -564,6 +564,7 @@ impl VCardValue {
     ) -> Value<'static, JSContactProperty, JSContactValue> {
         match self {
             VCardValue::Text(v) => Value::Str(v.into()),
+            VCardValue::Component(v) => Value::Str(v.join(",").into()),
             VCardValue::Integer(v) => Value::Number(v.into()),
             VCardValue::Float(v) => Value::Number(v.into()),
             VCardValue::Boolean(v) => Value::Bool(v),

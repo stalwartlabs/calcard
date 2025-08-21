@@ -5,7 +5,7 @@
  */
 
 use super::*;
-use crate::common::{timezone::Tz, ArchivedPartialDateTime};
+use crate::common::{ArchivedPartialDateTime, timezone::Tz};
 use chrono::DateTime;
 
 impl ArchivedICalendar {
@@ -129,35 +129,35 @@ impl ArchivedICalendarValue {
 
     pub fn as_integer(&self) -> Option<i64> {
         match self {
-            ArchivedICalendarValue::Integer(ref i) => Some(i.to_native()),
+            ArchivedICalendarValue::Integer(i) => Some(i.to_native()),
             _ => None,
         }
     }
 
     pub fn as_float(&self) -> Option<f64> {
         match self {
-            ArchivedICalendarValue::Float(ref f) => Some(f.to_native()),
+            ArchivedICalendarValue::Float(f) => Some(f.to_native()),
             _ => None,
         }
     }
 
     pub fn as_boolean(&self) -> Option<bool> {
         match self {
-            ArchivedICalendarValue::Boolean(ref b) => Some(*b),
+            ArchivedICalendarValue::Boolean(b) => Some(*b),
             _ => None,
         }
     }
 
     pub fn as_partial_date_time(&self) -> Option<&ArchivedPartialDateTime> {
         match self {
-            ArchivedICalendarValue::PartialDateTime(ref dt) => Some(dt),
+            ArchivedICalendarValue::PartialDateTime(dt) => Some(dt),
             _ => None,
         }
     }
 
     pub fn as_binary(&self) -> Option<&[u8]> {
         match self {
-            ArchivedICalendarValue::Binary(ref d) => Some(d.as_slice()),
+            ArchivedICalendarValue::Binary(d) => Some(d.as_slice()),
             _ => None,
         }
     }
@@ -241,7 +241,7 @@ impl ArchivedICalendarParameter {
                 matches!(self, ArchivedICalendarParameter::Linkrel(_))
             }
             ICalendarParameterName::Other(name) => {
-                if let ArchivedICalendarParameter::Other(ref o) = self {
+                if let ArchivedICalendarParameter::Other(o) = self {
                     o.iter().any(|s| s == name)
                 } else {
                     false
@@ -305,24 +305,24 @@ impl ArchivedICalendarParameter {
             ArchivedICalendarParameter::Language(s) => s.len(),
             ArchivedICalendarParameter::Member(v) => v.iter().map(|s| s.size()).sum(),
             ArchivedICalendarParameter::Partstat(s) => s.as_str().len(),
-            ArchivedICalendarParameter::Related(ref r) => r.as_str().len(),
-            ArchivedICalendarParameter::Reltype(ref r) => r.as_str().len(),
-            ArchivedICalendarParameter::Role(ref r) => r.as_str().len(),
-            ArchivedICalendarParameter::ScheduleAgent(ref a) => a.as_str().len(),
-            ArchivedICalendarParameter::ScheduleForceSend(ref a) => a.as_str().len(),
-            ArchivedICalendarParameter::ScheduleStatus(ref a) => a.len(),
-            ArchivedICalendarParameter::SentBy(ref u) => u.size(),
-            ArchivedICalendarParameter::Tzid(ref t) => t.len(),
-            ArchivedICalendarParameter::Value(ref t) => t.as_str().len(),
-            ArchivedICalendarParameter::Display(ref d) => d.iter().map(|s| s.as_str().len()).sum(),
-            ArchivedICalendarParameter::Email(ref e) => e.len(),
-            ArchivedICalendarParameter::Feature(ref f) => f.iter().map(|s| s.as_str().len()).sum(),
-            ArchivedICalendarParameter::Label(ref l) => l.len(),
+            ArchivedICalendarParameter::Related(r) => r.as_str().len(),
+            ArchivedICalendarParameter::Reltype(r) => r.as_str().len(),
+            ArchivedICalendarParameter::Role(r) => r.as_str().len(),
+            ArchivedICalendarParameter::ScheduleAgent(a) => a.as_str().len(),
+            ArchivedICalendarParameter::ScheduleForceSend(a) => a.as_str().len(),
+            ArchivedICalendarParameter::ScheduleStatus(a) => a.len(),
+            ArchivedICalendarParameter::SentBy(u) => u.size(),
+            ArchivedICalendarParameter::Tzid(t) => t.len(),
+            ArchivedICalendarParameter::Value(t) => t.as_str().len(),
+            ArchivedICalendarParameter::Display(d) => d.iter().map(|s| s.as_str().len()).sum(),
+            ArchivedICalendarParameter::Email(e) => e.len(),
+            ArchivedICalendarParameter::Feature(f) => f.iter().map(|s| s.as_str().len()).sum(),
+            ArchivedICalendarParameter::Label(l) => l.len(),
             ArchivedICalendarParameter::Filename(s) => s.as_str().len(),
             ArchivedICalendarParameter::ManagedId(s) => s.as_str().len(),
             ArchivedICalendarParameter::Schema(s) => s.size(),
-            ArchivedICalendarParameter::Linkrel(ref l) => l.size(),
-            ArchivedICalendarParameter::Other(ref o) => o.iter().map(|s| s.len()).sum(),
+            ArchivedICalendarParameter::Linkrel(l) => l.size(),
+            ArchivedICalendarParameter::Other(o) => o.iter().map(|s| s.len()).sum(),
             _ => std::mem::size_of::<ICalendarParameter>(),
         }
     }
@@ -394,10 +394,6 @@ impl ArchivedICalendarDuration {
             + self.days.to_native() as i64 * 86400
             + self.weeks.to_native() as i64 * 604800;
 
-        if self.neg {
-            -secs
-        } else {
-            secs
-        }
+        if self.neg { -secs } else { secs }
     }
 }

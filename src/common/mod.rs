@@ -66,7 +66,7 @@ impl CalendarScale {
             CalendarScale::IslamicCivil => "ISLAMIC-CIVIL",
             CalendarScale::Hebrew => "HEBREW",
             CalendarScale::Ethiopic => "ETHIOPIC",
-            CalendarScale::Other(ref s) => s,
+            CalendarScale::Other(s) => s.as_str(),
         }
     }
 
@@ -97,7 +97,7 @@ impl ArchivedCalendarScale {
             ArchivedCalendarScale::IslamicCivil => "ISLAMIC-CIVIL",
             ArchivedCalendarScale::Hebrew => "HEBREW",
             ArchivedCalendarScale::Ethiopic => "ETHIOPIC",
-            ArchivedCalendarScale::Other(ref s) => s,
+            ArchivedCalendarScale::Other(s) => s.as_str(),
         }
     }
 }

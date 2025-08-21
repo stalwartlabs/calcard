@@ -113,10 +113,11 @@ impl MonthInfo {
                         let a = (7 - nth_first_day_weekday + weekday) as u32;
                         nth_first_day + pymod(a, 7)
                     };
-                    if first <= nth_weekday && nth_weekday <= last {
-                        if let Ok(nth_weekday) = usize::try_from(nth_weekday) {
-                            neg_weekday_mask[nth_weekday] = 1;
-                        }
+                    if first <= nth_weekday
+                        && nth_weekday <= last
+                        && let Ok(nth_weekday) = usize::try_from(nth_weekday)
+                    {
+                        neg_weekday_mask[nth_weekday] = 1;
                     }
                 }
             }

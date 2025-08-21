@@ -74,7 +74,14 @@ impl ExtractedParams {
                 } else {
                     contexts.get_or_insert_default()
                 }
-                .push((Key::from(typ.into_string()), Value::Bool(true)));
+                .push((
+                    if !matches!(typ, VCardType::Home) {
+                        Key::Owned(typ.into_string().to_ascii_lowercase())
+                    } else {
+                        Key::Borrowed("private")
+                    },
+                    Value::Bool(true),
+                ));
             }
         }
 
@@ -167,7 +174,7 @@ impl ExtractedParams {
                                 }
                             })
                         {
-                            return Value::Object(Map::from_iter(vec![
+                            Value::Object(Map::from_iter(vec![
                                 (
                                     Key::Property(JSContactProperty::SortAsKind(
                                         JSContactKind::Surname,
@@ -180,14 +187,18 @@ impl ExtractedParams {
                                     )),
                                     Value::Str(given.into()),
                                 ),
-                            ]));
+                            ]))
+                        } else {
+                            Value::Object(Map::from_iter(vec![(
+                                Key::Property(JSContactProperty::SortAsKind(
+                                    JSContactKind::Surname,
+                                )),
+                                Value::Str(sort_as.into()),
+                            )]))
                         }
+                    } else {
+                        Value::Str(sort_as.into())
                     }
-
-                    Value::Object(Map::from_iter(vec![(
-                        Key::Property(JSContactProperty::SortAsKind(JSContactKind::Surname)),
-                        Value::Str(sort_as.into()),
-                    )]))
                 }),
             ),
             (

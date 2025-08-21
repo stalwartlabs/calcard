@@ -8,7 +8,7 @@ use super::{
     VCard, VCardEntry, VCardParameter, VCardParameterName, VCardProperty, VCardValue, VCardVersion,
 };
 use crate::{
-    common::{writer::write_bytes, Data, PartialDateTime},
+    common::{Data, PartialDateTime, writer::write_bytes},
     vcard::VCardPhonetic,
 };
 
@@ -87,6 +87,7 @@ impl VCardValue {
             VCardValue::Sex(v) => v.as_str().into(),
             VCardValue::GramGender(v) => v.as_str().into(),
             VCardValue::Kind(v) => v.as_str().into(),
+            VCardValue::Component(v) => v.first().map(|s| s.as_str()),
             _ => None,
         }
     }
@@ -97,6 +98,7 @@ impl VCardValue {
             VCardValue::Sex(v) => v.as_str().to_string().into(),
             VCardValue::GramGender(v) => v.as_str().to_string().into(),
             VCardValue::Kind(v) => v.as_str().to_string().into(),
+            VCardValue::Component(v) => Some(v.join(",")),
             _ => None,
         }
     }
@@ -111,35 +113,35 @@ impl VCardValue {
 
     pub fn as_integer(&self) -> Option<i64> {
         match self {
-            VCardValue::Integer(ref i) => Some(*i),
+            VCardValue::Integer(i) => Some(*i),
             _ => None,
         }
     }
 
     pub fn as_float(&self) -> Option<f64> {
         match self {
-            VCardValue::Float(ref f) => Some(*f),
+            VCardValue::Float(f) => Some(*f),
             _ => None,
         }
     }
 
     pub fn as_boolean(&self) -> Option<bool> {
         match self {
-            VCardValue::Boolean(ref b) => Some(*b),
+            VCardValue::Boolean(b) => Some(*b),
             _ => None,
         }
     }
 
     pub fn as_partial_date_time(&self) -> Option<&PartialDateTime> {
         match self {
-            VCardValue::PartialDateTime(ref dt) => Some(dt),
+            VCardValue::PartialDateTime(dt) => Some(dt),
             _ => None,
         }
     }
 
     pub fn as_binary(&self) -> Option<&Data> {
         match self {
-            VCardValue::Binary(ref d) => Some(d),
+            VCardValue::Binary(d) => Some(d),
             _ => None,
         }
     }
@@ -192,8 +194,8 @@ impl VCardParameter {
             VCardParameterName::Username => matches!(self, VCardParameter::Username(_)),
             VCardParameterName::Jsptr => matches!(self, VCardParameter::Jsptr(_)),
             VCardParameterName::Jscomps => matches!(self, VCardParameter::Jscomps(_)),
-            VCardParameterName::Other(ref s) => {
-                if let VCardParameter::Other(ref v) = self {
+            VCardParameterName::Other(s) => {
+                if let VCardParameter::Other(v) = self {
                     v.first().is_some_and(|x| x == s)
                 } else {
                     false
@@ -204,26 +206,26 @@ impl VCardParameter {
 
     pub fn as_text(&self) -> Option<&str> {
         match self {
-            VCardParameter::Language(ref s) => Some(s),
-            VCardParameter::Altid(ref s) => Some(s),
-            VCardParameter::Pid(ref s) => s.first().map(|x| x.as_str()),
-            VCardParameter::Mediatype(ref s) => Some(s),
-            VCardParameter::Calscale(ref s) => Some(s.as_str()),
-            VCardParameter::SortAs(ref s) => Some(s),
-            VCardParameter::Geo(ref s) => Some(s),
-            VCardParameter::Tz(ref s) => Some(s),
-            VCardParameter::Level(ref s) => Some(s.as_str()),
-            VCardParameter::Group(ref s) => Some(s),
-            VCardParameter::Cc(ref s) => Some(s),
-            VCardParameter::Author(ref s) => Some(s),
-            VCardParameter::AuthorName(ref s) => Some(s),
-            VCardParameter::Label(ref s) => Some(s),
-            VCardParameter::Phonetic(ref s) => Some(s.as_str()),
-            VCardParameter::PropId(ref s) => Some(s),
-            VCardParameter::Script(ref s) => Some(s),
-            VCardParameter::ServiceType(ref s) => Some(s),
-            VCardParameter::Username(ref s) => Some(s),
-            VCardParameter::Jsptr(ref s) => Some(s),
+            VCardParameter::Language(s) => Some(s),
+            VCardParameter::Altid(s) => Some(s),
+            VCardParameter::Pid(s) => s.first().map(|x| x.as_str()),
+            VCardParameter::Mediatype(s) => Some(s),
+            VCardParameter::Calscale(s) => Some(s.as_str()),
+            VCardParameter::SortAs(s) => Some(s),
+            VCardParameter::Geo(s) => Some(s),
+            VCardParameter::Tz(s) => Some(s),
+            VCardParameter::Level(s) => Some(s.as_str()),
+            VCardParameter::Group(s) => Some(s),
+            VCardParameter::Cc(s) => Some(s),
+            VCardParameter::Author(s) => Some(s),
+            VCardParameter::AuthorName(s) => Some(s),
+            VCardParameter::Label(s) => Some(s),
+            VCardParameter::Phonetic(s) => Some(s.as_str()),
+            VCardParameter::PropId(s) => Some(s),
+            VCardParameter::Script(s) => Some(s),
+            VCardParameter::ServiceType(s) => Some(s),
+            VCardParameter::Username(s) => Some(s),
+            VCardParameter::Jsptr(s) => Some(s),
             VCardParameter::Other(items) => items.get(1).map(|x| x.as_str()),
             VCardParameter::Value(_)
             | VCardParameter::Pref(_)

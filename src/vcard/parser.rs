@@ -41,10 +41,12 @@ impl Parser<'_> {
         'outer: loop {
             // Fetch property name
             self.expect_iana_token();
+            self.stop_dot = true;
             let mut token = match self.token() {
                 Some(token) => token,
                 None => break,
             };
+            self.stop_dot = false;
 
             let mut params = Params {
                 params: Vec::new(),
@@ -62,6 +64,7 @@ impl Parser<'_> {
                     Some(token) => token,
                     None => break,
                 };
+                params.stop_char = token.stop_char;
             }
 
             // Parse parameters
@@ -112,15 +115,22 @@ impl Parser<'_> {
             // Parse value
             if params.stop_char != StopChar::Lf {
                 let (default_type, multi_value) = entry.name.default_types();
-                match multi_value {
+                let is_structured = match multi_value {
                     ValueSeparator::None => {
                         self.expect_single_value();
+                        false
                     }
                     ValueSeparator::Comma => {
                         self.expect_multi_value_comma();
+                        false
                     }
                     ValueSeparator::Semicolon => {
                         self.expect_multi_value_semicolon();
+                        false
+                    }
+                    ValueSeparator::SemicolonAndComma => {
+                        self.expect_multi_value_semicolon_and_comma();
+                        true
                     }
                     ValueSeparator::Skip => {
                         is_valid = entry.name == VCardProperty::End;
@@ -128,7 +138,7 @@ impl Parser<'_> {
                         self.token();
                         break 'outer;
                     }
-                }
+                };
                 match params.encoding {
                     Some(Encoding::Base64) if multi_value != ValueSeparator::None => {
                         self.expect_single_value();
@@ -141,8 +151,14 @@ impl Parser<'_> {
 
                 let mut data_types = params.data_types.iter();
                 let mut token_idx = 0;
+                let mut last_is_comma = false;
+
                 while let Some(mut token) = self.token() {
-                    let eol = token.stop_char == StopChar::Lf;
+                    let (is_eol, is_comma) = match token.stop_char {
+                        StopChar::Lf => (true, false),
+                        StopChar::Comma => (false, true),
+                        _ => (false, false),
+                    };
 
                     // Decode old vCard
                     if let Some(encoding) = params.encoding {
@@ -170,7 +186,7 @@ impl Parser<'_> {
                                     data: bytes,
                                     content_type: None,
                                 }));
-                                if eol {
+                                if is_eol {
                                     break;
                                 } else {
                                     continue;
@@ -184,7 +200,7 @@ impl Parser<'_> {
                         ValueType::Kind if token_idx == 0 => {
                             if let Ok(gram_gender) = token.text.as_ref().try_into() {
                                 entry.values.push(VCardValue::Kind(gram_gender));
-                                if eol {
+                                if is_eol {
                                     break;
                                 } else {
                                     continue;
@@ -195,7 +211,7 @@ impl Parser<'_> {
                         ValueType::Sex if token_idx == 0 => {
                             if let Ok(gram_gender) = token.text.as_ref().try_into() {
                                 entry.values.push(VCardValue::Sex(gram_gender));
-                                if eol {
+                                if is_eol {
                                     break;
                                 } else {
                                     continue;
@@ -206,7 +222,7 @@ impl Parser<'_> {
                         ValueType::GramGender if token_idx == 0 => {
                             if let Ok(gram_gender) = token.text.as_ref().try_into() {
                                 entry.values.push(VCardValue::GramGender(gram_gender));
-                                if eol {
+                                if is_eol {
                                     break;
                                 } else {
                                     continue;
@@ -287,9 +303,30 @@ impl Parser<'_> {
                             .unwrap_or_else(VCardValue::Text),
                     };
 
-                    entry.values.push(value);
+                    if is_structured {
+                        match (last_is_comma, entry.values.last_mut(), value) {
+                            (
+                                true,
+                                Some(VCardValue::Component(structured)),
+                                VCardValue::Text(value),
+                            ) => {
+                                structured.push(value);
+                            }
+                            (true, Some(VCardValue::Text(prev_value)), VCardValue::Text(value)) => {
+                                *entry.values.last_mut().unwrap() =
+                                    VCardValue::Component(vec![std::mem::take(prev_value), value]);
+                            }
+                            (_, _, value) => {
+                                entry.values.push(value);
+                            }
+                        }
 
-                    if eol {
+                        last_is_comma = is_comma;
+                    } else {
+                        entry.values.push(value);
+                    }
+
+                    if is_eol {
                         break;
                     }
 
@@ -479,7 +516,7 @@ impl Parser<'_> {
                 b"JSCOMPS" => {
                     if let Some(text) = self.raw_token() {
                         let mut jscomps = Vec::with_capacity(4);
-                        for item in text.split(';') {
+                        for (item_pos, item) in text.split(';').enumerate() {
                             if let Some(item) = item.strip_prefix("s,") {
                                 let mut sep = String::with_capacity(item.len());
                                 let mut last_is_escape = false;
@@ -497,7 +534,7 @@ impl Parser<'_> {
                                 }
 
                                 jscomps.push(Jscomp::Separator(sep));
-                            } else {
+                            } else if item_pos != 0 {
                                  let mut position = None;
                                  let mut value = None;
 
@@ -512,6 +549,8 @@ impl Parser<'_> {
                                  if let Some(position) = position {
                                     jscomps.push(Jscomp::Entry { position, value: value.unwrap_or_default() });
                                  }
+                            } else {
+                                jscomps.push(Jscomp::Separator(item.to_string()));
                             }
                         }
 

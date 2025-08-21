@@ -5,12 +5,12 @@
  */
 
 use super::{
-    timezone::TzResolver, ICalendar, ICalendarComponent, ICalendarComponentType, ICalendarPeriod,
-    ICalendarProperty, ICalendarValue,
+    ICalendar, ICalendarComponent, ICalendarComponentType, ICalendarPeriod, ICalendarProperty,
+    ICalendarValue, timezone::TzResolver,
 };
 use crate::{
-    common::{timezone::Tz, DateTimeResult},
-    datecalc::{error::RRuleError, rrule::RRule, RRuleIter},
+    common::{DateTimeResult, timezone::Tz},
+    datecalc::{RRuleIter, error::RRuleError, rrule::RRule},
     icalendar::ICalendarParameter,
 };
 use ahash::{AHashMap, AHashSet};
@@ -297,10 +297,10 @@ impl ICalendarComponent {
                 (ICalendarProperty::Exdate, _) => {
                     let tz_id = entry.tz_id();
                     for value in &entry.values {
-                        if let ICalendarValue::PartialDateTime(dt) = value {
-                            if let Some(dt) = dt.to_date_time() {
-                                exdates.push((tz_id, dt));
-                            }
+                        if let ICalendarValue::PartialDateTime(dt) = value
+                            && let Some(dt) = dt.to_date_time()
+                        {
+                            exdates.push((tz_id, dt));
                         }
                     }
                 }
