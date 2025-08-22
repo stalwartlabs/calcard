@@ -81,7 +81,7 @@ impl Tz {
     }
 
     pub fn tz_offset(&self) -> PartialDateTime {
-        let seconds = match self {
+        let mut seconds = match self {
             Tz::Floating => 0,
             Tz::Fixed(offset) => offset.local_minus_utc(),
             Tz::Tz(tz) => tz
@@ -89,10 +89,18 @@ impl Tz {
                 .fix()
                 .local_minus_utc(),
         };
+
+        let tz_minus = if seconds < 0 {
+            seconds = -seconds;
+            true
+        } else {
+            false
+        };
+
         PartialDateTime {
             tz_hour: Some((seconds / 3600) as u8),
             tz_minute: Some(((seconds % 3600) / 60) as u8),
-            tz_minus: seconds < 0,
+            tz_minus,
             ..Default::default()
         }
     }

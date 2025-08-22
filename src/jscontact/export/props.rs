@@ -26,20 +26,37 @@ pub(super) fn build_path<'x>(
     if let Some(item) = ptr.next() {
         match item {
             JsonPointerItem::Root | JsonPointerItem::Wildcard => {}
-            JsonPointerItem::Key(key) => {
-                if let Some(obj_) = obj.as_object_mut().map(|obj_| {
-                    obj_.insert_or_get_mut(
-                        key,
-                        if matches!(ptr.peek(), Some(JsonPointerItem::Key(_))) {
-                            Value::Object(Map::from(Vec::new()))
-                        } else {
-                            Value::Array(Vec::new())
-                        },
-                    )
-                }) {
-                    return build_path(obj_, ptr, value);
+            JsonPointerItem::Key(key) => match obj {
+                Value::Object(obj) => {
+                    return build_path(
+                        obj.insert_or_get_mut(
+                            key,
+                            if matches!(ptr.peek(), Some(JsonPointerItem::Key(_))) {
+                                Value::Object(Map::from(Vec::new()))
+                            } else {
+                                Value::Array(Vec::new())
+                            },
+                        ),
+                        ptr,
+                        value,
+                    );
                 }
-            }
+                Value::Null => {
+                    *obj = Value::Object(Map::from(vec![(key, Value::Null)]));
+                    return build_path(
+                        &mut obj
+                            .as_object_mut()
+                            .unwrap()
+                            .as_mut_vec()
+                            .last_mut()
+                            .unwrap()
+                            .1,
+                        ptr,
+                        value,
+                    );
+                }
+                _ => {}
+            },
             JsonPointerItem::Number(idx) => {
                 if let Some(arr) = obj.as_array_mut() {
                     if (idx as usize) < arr.len() {
@@ -191,11 +208,7 @@ pub(super) fn convert_types(
             }
         }
     }
-    if !types.is_empty() {
-        Some(types)
-    } else {
-        None
-    }
+    if !types.is_empty() { Some(types) } else { None }
 }
 
 pub(super) fn map_kind<T>(
@@ -231,7 +244,10 @@ impl TryFrom<Value<'_, JSContactProperty, JSContactValue>> for VCardPhonetic {
                 JSContactPhoneticSystem::Piny => VCardPhonetic::Piny,
                 JSContactPhoneticSystem::Script => VCardPhonetic::Script,
             }),
-            Value::Str(text) => Ok(VCardPhonetic::Other(text.into_owned())),
+            Value::Str(text) => match VCardPhonetic::try_from(text.as_ref().as_bytes()) {
+                Ok(phonetic) => Ok(phonetic),
+                Err(_) => Ok(VCardPhonetic::Other(text.into_owned())),
+            },
             _ => Err(()),
         }
     }

@@ -6,8 +6,8 @@
 
 use crate::{
     jscontact::{
-        import::{ExtractedParams, VCardParams},
         JSContactKind, JSContactLevel, JSContactPhoneticSystem, JSContactProperty, JSContactValue,
+        import::{ExtractedParams, VCardParams},
     },
     vcard::{VCardLevel, VCardPhonetic, VCardProperty, VCardType},
 };

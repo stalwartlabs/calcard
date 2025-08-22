@@ -251,7 +251,7 @@ pub(crate) fn write_jscomps(
                     *line_len += 2;
 
                     for ch in s.chars() {
-                        if matches!(ch, ',' | ':' | '=' | ' ' | ';' | '"') {
+                        if matches!(ch, ',' | ':' | '=' | ';' | '"') {
                             out.write_char('\\')?;
                             *line_len += 1;
                         }

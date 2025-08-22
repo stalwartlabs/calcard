@@ -6,10 +6,10 @@
 
 use crate::{
     jscontact::{
+        JSContact, JSContactProperty, JSContactType, JSContactValue,
         import::{
             EntryState, ExtractedParams, PropIdKey, State, VCardConvertedProperty, VCardParams,
         },
-        JSContact, JSContactProperty, JSContactType, JSContactValue,
     },
     vcard::{
         VCard, VCardEntry, VCardParameter, VCardParameterName, VCardProperty, VCardValue,
@@ -18,7 +18,10 @@ use crate::{
 };
 use ahash::AHashMap;
 use jmap_tools::{Key, Map, Property, Value};
-use std::{borrow::Cow, collections::hash_map::Entry};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, hash_map::Entry},
+};
 
 impl State {
     pub(super) fn new(vcard: &mut VCard) -> Self {
@@ -37,12 +40,23 @@ impl State {
 
         // Find the default language and the most "popular" alt ids
         let mut default_language = None;
+        let mut language_map: HashMap<String, usize> = HashMap::new();
+        let mut language_count = 0;
+        let mut language_first_found = None;
         let mut alt_ids: AHashMap<(&VCardProperty, &str), usize> = AHashMap::new();
         for entry in &vcard.entries {
+            if let Some(lang) = entry.language() {
+                *language_map.entry(lang.to_ascii_lowercase()).or_default() += 1;
+                if language_first_found.is_none() {
+                    language_first_found = Some(lang);
+                }
+                language_count += 1;
+            }
+
             match &entry.name {
                 VCardProperty::Language => {
                     if let Some(VCardValue::Text(lang)) = entry.values.first() {
-                        default_language = Some(lang.clone());
+                        default_language = Some(lang.to_ascii_lowercase());
                     }
                 }
                 VCardProperty::N | VCardProperty::Adr => {
@@ -65,6 +79,24 @@ impl State {
                 }
                 _ => (),
             }
+        }
+
+        // Find the dominant language
+        if default_language.is_none()
+            && language_count > 1
+            && let Some((_, &min_count)) = language_map.iter().min_by_key(|&(_, count)| count)
+            && let Some((mut lang, max_count)) =
+                language_map.into_iter().max_by_key(|&(_, count)| count)
+        {
+            if max_count == min_count {
+                lang = language_first_found.unwrap().to_ascii_lowercase();
+            }
+
+            let lang = lang.to_ascii_lowercase();
+            default_language = Some(lang.clone());
+            vcard
+                .entries
+                .push(VCardEntry::new(VCardProperty::Language).with_value(lang));
         }
 
         // Move entries without a language to the top
@@ -224,12 +256,16 @@ impl State {
 
         for param in std::mem::take(params) {
             match param {
-                VCardParameter::Language(v)
+                VCardParameter::Language(v) => {
+                    let v = v.to_ascii_lowercase();
                     if p.language.is_none()
                         && self.default_language.as_ref().is_none_or(|lang| lang != &v)
-                        && extract.contains(&VCardParameterName::Language) =>
-                {
-                    p.language = Some(v);
+                        && extract.contains(&VCardParameterName::Language)
+                    {
+                        p.language = Some(v);
+                    } else {
+                        params.push(VCardParameter::Language(v));
+                    }
                 }
                 VCardParameter::Pref(v)
                     if p.pref.is_none() && extract.contains(&VCardParameterName::Pref) =>

@@ -338,8 +338,8 @@ impl VCard {
                                                     _ => None,
                                                 };
 
+                                            max_pos = std::cmp::max(max_pos, position);
                                             if let Some(value) = value {
-                                                max_pos = std::cmp::max(max_pos, position);
                                                 components.push(Value::Object(Map::from(vec![
                                                     (
                                                         Key::Property(JSContactProperty::Kind),
@@ -382,7 +382,7 @@ impl VCard {
 
                             if is_valid
                                 && !components.is_empty()
-                                && max_pos == (entry.entry.values.len() - 1) as u32
+                                && max_pos <= (entry.entry.values.len() - 1) as u32
                             {
                                 is_ordered = true;
                                 entry.entry.values.clear();
@@ -525,19 +525,26 @@ impl VCard {
                     );
                 }
                 VCardProperty::Nickname => {
-                    state.map_named_entry(
-                        &mut entry,
-                        &[
-                            VCardParameterName::Type,
-                            VCardParameterName::Pref,
-                            VCardParameterName::PropId,
-                            VCardParameterName::Altid,
-                            VCardParameterName::Language,
-                        ],
-                        JSContactProperty::Nicknames,
-                        JSContactProperty::Name,
-                        [],
-                    );
+                    for value in std::mem::take(&mut entry.entry.values) {
+                        let mut value_entry = entry.clone();
+                        value_entry.entry.values = vec![value];
+
+                        state.map_named_entry(
+                            &mut value_entry,
+                            &[
+                                VCardParameterName::Type,
+                                VCardParameterName::Pref,
+                                VCardParameterName::PropId,
+                                VCardParameterName::Altid,
+                                VCardParameterName::Language,
+                            ],
+                            JSContactProperty::Nicknames,
+                            JSContactProperty::Name,
+                            [],
+                        );
+                        state.add_conversion_props(value_entry);
+                    }
+                    continue;
                 }
                 VCardProperty::Photo | VCardProperty::Logo | VCardProperty::Sound => {
                     let kind = match &entry.entry.name {
@@ -658,8 +665,8 @@ impl VCard {
                                             _ => None,
                                         };
 
+                                        max_pos = std::cmp::max(max_pos, position);
                                         if let Some(value) = value {
-                                            max_pos = std::cmp::max(max_pos, position);
                                             components.push(Value::Object(Map::from(vec![
                                                 (
                                                     Key::Property(JSContactProperty::Kind),
@@ -702,7 +709,7 @@ impl VCard {
 
                         if is_valid
                             && !components.is_empty()
-                            && max_pos == (entry.entry.values.len() - 1) as u32
+                            && max_pos <= (entry.entry.values.len() - 1) as u32
                         {
                             is_ordered = true;
                             entry.entry.values.clear();

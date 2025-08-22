@@ -40,6 +40,7 @@ struct State {
     has_gram_gender: bool,
 }
 
+#[derive(Debug, Clone)]
 struct EntryState {
     entry: VCardEntry,
     converted_to: Option<String>,

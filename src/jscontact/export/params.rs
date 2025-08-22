@@ -126,8 +126,17 @@ impl<'x> State<'x> {
         path: &[&str],
         value: Value<'x, JSContactProperty, JSContactValue>,
     ) {
-        self.js_props
-            .push((JsonPointer::<JSContactProperty>::encode(path), value));
+        let path = if let Some(lang) = &self.language {
+            JsonPointer::<JSContactProperty>::encode([
+                JSContactProperty::Localizations.to_string().as_ref(),
+                lang.as_str(),
+                JsonPointer::<JSContactProperty>::encode(path).as_str(),
+            ])
+        } else {
+            JsonPointer::<JSContactProperty>::encode(path)
+        };
+
+        self.js_props.push((path, value));
     }
 
     pub(super) fn import_properties(
