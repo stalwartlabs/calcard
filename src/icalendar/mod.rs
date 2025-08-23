@@ -5,8 +5,8 @@
  */
 
 use crate::{
-    common::{CalendarScale, Data, PartialDateTime},
     Entry, Parser, Token,
+    common::{CalendarScale, Data, PartialDateTime},
 };
 use std::{
     borrow::Cow,
@@ -1233,6 +1233,8 @@ pub enum ICalendarProperty {
     Begin,
     End,
     Other(String),
+    Coordinates,     // draft-ietf-calext-icalendar-jscalendar-extensions
+    ShowWithoutTime, // draft-ietf-calext-icalendar-jscalendar-extensions
 }
 
 impl TryFrom<&[u8]> for ICalendarProperty {
@@ -1307,6 +1309,8 @@ impl TryFrom<&[u8]> for ICalendarProperty {
             "CONCEPT" => ICalendarProperty::Concept,
             "LINK" => ICalendarProperty::Link,
             "REFID" => ICalendarProperty::Refid,
+            "COORDINATES" => ICalendarProperty::Coordinates,
+            "SHOW-WITHOUT-TIME" => ICalendarProperty::ShowWithoutTime,
             "BEGIN" => ICalendarProperty::Begin,
             "END" => ICalendarProperty::End,
         )
@@ -1387,6 +1391,8 @@ impl ICalendarProperty {
             ICalendarProperty::Refid => "REFID",
             ICalendarProperty::Begin => "BEGIN",
             ICalendarProperty::End => "END",
+            ICalendarProperty::Coordinates => "COORDINATES",
+            ICalendarProperty::ShowWithoutTime => "SHOW-WITHOUT-TIME",
             ICalendarProperty::Other(value) => value,
         }
     }
@@ -2163,6 +2169,14 @@ impl ICalendarProperty {
             ICalendarProperty::Other(_) => (
                 ValueType::Ical(ICalendarValueType::Text),
                 ValueSeparator::Semicolon,
+            ),
+            ICalendarProperty::Coordinates => (
+                ValueType::Ical(ICalendarValueType::Uri),
+                ValueSeparator::None,
+            ),
+            ICalendarProperty::ShowWithoutTime => (
+                ValueType::Ical(ICalendarValueType::Boolean),
+                ValueSeparator::None,
             ),
         }
     }

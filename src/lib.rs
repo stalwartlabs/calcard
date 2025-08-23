@@ -48,6 +48,7 @@ pub struct Parser<'x> {
     pub(crate) stop_dot: bool,
     pub(crate) unfold_qp: bool,
     pub(crate) unquote: bool,
+    pub(crate) skip_ws: bool,
     pub(crate) token_buf: Vec<Token<'x>>,
 }
 
@@ -65,6 +66,7 @@ impl<'x> Parser<'x> {
             stop_dot: false,
             unfold_qp: false,
             unquote: true,
+            skip_ws: false,
             token_buf: Vec::with_capacity(10),
         }
     }

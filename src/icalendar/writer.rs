@@ -10,8 +10,8 @@ use super::{
 };
 use crate::{
     common::{
-        writer::{write_bytes, write_param, write_param_value, write_params, write_text},
         PartialDateTime,
+        writer::{write_bytes, write_param, write_param_value, write_params, write_text},
     },
     icalendar::{ICalendarValue, Uri, ValueSeparator},
 };
@@ -280,7 +280,6 @@ impl ICalendarEntry {
                     continue;
                 }
                 ICalendarValue::Text(v) => {
-                    let todo = "review ABNF";
                     write_text(out, &mut line_len, v, true, true)?;
                     continue;
                 }

@@ -278,6 +278,14 @@ impl ArchivedICalendarProperty {
                 ArchivedValueType::Ical(ArchivedICalendarValueType::Text),
                 ValueSeparator::Semicolon,
             ),
+            ArchivedICalendarProperty::Coordinates => (
+                ArchivedValueType::Ical(ArchivedICalendarValueType::Uri),
+                ValueSeparator::None,
+            ),
+            ArchivedICalendarProperty::ShowWithoutTime => (
+                ArchivedValueType::Ical(ArchivedICalendarValueType::Boolean),
+                ValueSeparator::None,
+            ),
         }
     }
 }
@@ -568,6 +576,8 @@ impl ArchivedICalendarProperty {
             ArchivedICalendarProperty::Begin => "BEGIN",
             ArchivedICalendarProperty::End => "END",
             ArchivedICalendarProperty::Other(value) => value,
+            ArchivedICalendarProperty::Coordinates => "COORDINATES",
+            ArchivedICalendarProperty::ShowWithoutTime => "SHOW-WITHOUT-TIME",
         }
     }
 }

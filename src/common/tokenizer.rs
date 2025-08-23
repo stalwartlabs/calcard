@@ -34,6 +34,7 @@ impl<'x> Parser<'x> {
         self.unfold_qp = false;
         self.unquote = true;
         self.stop_dot = false;
+        self.skip_ws = true;
     }
 
     pub(crate) fn expect_single_value(&mut self) {
@@ -44,6 +45,7 @@ impl<'x> Parser<'x> {
         self.unquote = false;
         self.unfold_qp = false;
         self.stop_dot = false;
+        self.skip_ws = false;
     }
 
     pub(crate) fn expect_multi_value_comma(&mut self) {
@@ -54,6 +56,7 @@ impl<'x> Parser<'x> {
         self.unquote = false;
         self.unfold_qp = false;
         self.stop_dot = false;
+        self.skip_ws = true;
     }
 
     pub(crate) fn expect_multi_value_semicolon(&mut self) {
@@ -64,6 +67,7 @@ impl<'x> Parser<'x> {
         self.unquote = false;
         self.unfold_qp = false;
         self.stop_dot = false;
+        self.skip_ws = false;
     }
 
     pub(crate) fn expect_multi_value_semicolon_and_comma(&mut self) {
@@ -74,6 +78,7 @@ impl<'x> Parser<'x> {
         self.unquote = false;
         self.unfold_qp = false;
         self.stop_dot = false;
+        self.skip_ws = false;
     }
 
     pub(crate) fn expect_param_value(&mut self) {
@@ -84,6 +89,7 @@ impl<'x> Parser<'x> {
         self.unfold_qp = false;
         self.unquote = true;
         self.stop_dot = false;
+        self.skip_ws = true;
     }
 
     pub(crate) fn expect_rrule_value(&mut self) {
@@ -94,6 +100,7 @@ impl<'x> Parser<'x> {
         self.unquote = false;
         self.unfold_qp = false;
         self.stop_dot = false;
+        self.skip_ws = true;
     }
 
     fn try_unfold(&mut self) -> bool {
@@ -127,11 +134,8 @@ impl<'x> Parser<'x> {
 
             match ch {
                 b' ' | b'\t' => {
-                    // Ignore leading and trailing whitespace (unless in a quoted string, or in a value (!self.unquote))
-                    if in_quote
-                        || (!self.unquote && (!self.stop_comma || self.stop_semicolon))
-                        || buf.last().is_some_and(|lch| lch != ch)
-                    {
+                    // Ignore leading and trailing whitespace (unless in a quoted string)
+                    if in_quote || !self.skip_ws || buf.last().is_some_and(|lch| lch != ch) {
                         if offset_start == usize::MAX {
                             offset_start = idx;
                         }

@@ -21,7 +21,6 @@ use crate::{
         VCardType, VCardValue, VCardValueType, ValueType,
     },
 };
-use ahash::AHashMap;
 use jmap_tools::{JsonPointer, JsonPointerItem, Key, Map, Value};
 use std::{collections::HashMap, str::FromStr};
 
@@ -176,10 +175,13 @@ impl JSContact<'_> {
             }
         }
 
+        // Localization maps
         let has_localizations = !localized_properties.is_empty();
         let mut name_pos_map: [Option<usize>; 20] = [None; 20];
-        let mut places_map: AHashMap<String, (VCardProperty, Option<VCardProperty>)> =
-            AHashMap::new();
+        let mut adr_pos_map: HashMap<String, [Option<usize>; 20]> = HashMap::new();
+        let mut places_map: HashMap<String, (VCardProperty, Option<VCardProperty>)> =
+            HashMap::new();
+
         for (properties, language) in [(properties, None)].into_iter().chain(
             localized_properties
                 .into_iter()
@@ -515,7 +517,7 @@ impl JSContact<'_> {
 
                                         if let Some(comp_value) = comp_value.or(comp_phonetic) {
                                             if let Some(comp_pos) = comp_pos.or_else(|| {
-                                                if is_localized {
+                                                if is_localized && !is_separator {
                                                     name_pos_map
                                                         .get(index)
                                                         .copied()
@@ -871,6 +873,7 @@ impl JSContact<'_> {
                                             .enumerate()
                                         {
                                             let mut comp_value = None;
+                                            let mut comp_phonetic = None;
                                             let mut comp_pos = None;
                                             let mut is_separator = false;
 
@@ -896,6 +899,12 @@ impl JSContact<'_> {
                                                     ) => {
                                                         comp_value = value.into_string();
                                                     }
+                                                    (
+                                                        Key::Property(JSContactProperty::Phonetic),
+                                                        value,
+                                                    ) if is_localized => {
+                                                        comp_phonetic = value.into_string();
+                                                    }
                                                     (key, value) => {
                                                         state.insert_jsprop(
                                                             &[
@@ -911,8 +920,27 @@ impl JSContact<'_> {
                                                 }
                                             }
 
-                                            if let Some(comp_value) = comp_value {
-                                                if let Some(comp_pos) = comp_pos {
+                                            if has_localizations
+                                                && !is_localized
+                                                && let Some(value) = adr_pos_map
+                                                    .entry(name.to_string().into_owned())
+                                                    .or_default()
+                                                    .get_mut(index)
+                                            {
+                                                *value = comp_pos;
+                                            }
+
+                                            if let Some(comp_value) = comp_value.or(comp_phonetic) {
+                                                if let Some(comp_pos) = comp_pos.or_else(|| {
+                                                    if is_localized && !is_separator {
+                                                        adr_pos_map
+                                                            .get(name.to_string().as_ref())
+                                                            .and_then(|map| map.get(index).copied())
+                                                            .unwrap_or_default()
+                                                    } else {
+                                                        None
+                                                    }
+                                                }) {
                                                     let part = &mut parts[comp_pos];
                                                     if let Some(part) = part {
                                                         let value = part.len() as u32;
