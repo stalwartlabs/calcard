@@ -13,7 +13,7 @@ use crate::{
         PartialDateTime,
         writer::{write_bytes, write_param, write_param_value, write_params, write_text},
     },
-    icalendar::{ICalendarValue, Uri, ValueSeparator},
+    icalendar::{ICalendarMonth, ICalendarValue, Uri, ValueSeparator},
 };
 use std::{
     fmt::{Display, Write},
@@ -192,6 +192,12 @@ impl ICalendarEntry {
                 }
                 ICalendarParameter::Linkrel(v) => {
                     write_uri_param(out, &mut line_len, "LINKREL", v)?;
+                }
+                ICalendarParameter::Jsid(v) => {
+                    write_param(out, &mut line_len, "JSID", v)?;
+                }
+                ICalendarParameter::Jsptr(v) => {
+                    write_param(out, &mut line_len, "JSPTR", v)?;
                 }
                 ICalendarParameter::Other(v) => {
                     for (pos, item) in v.iter().enumerate() {
@@ -461,6 +467,12 @@ impl Display for ICalendarRecurrenceRule {
         if let Some(wkst) = self.wkst {
             write!(f, ";WKST={}", wkst.as_str())?;
         }
+        if let Some(rscale) = &self.rscale {
+            write!(f, ";RSCALE={}", rscale.as_str())?;
+        }
+        if let Some(skip) = &self.skip {
+            write!(f, ";SKIP={}", skip.as_str())?;
+        }
 
         Ok(())
     }
@@ -472,6 +484,16 @@ impl Display for ICalendarDay {
             write!(f, "{}", ordwk)?;
         }
         write!(f, "{}", self.weekday.as_str())
+    }
+}
+
+impl Display for ICalendarMonth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if !self.is_leap() {
+            write!(f, "{}", self.month())
+        } else {
+            write!(f, "{}L", self.month())
+        }
     }
 }
 

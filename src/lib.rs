@@ -19,6 +19,8 @@ pub mod common;
 pub mod datecalc;
 pub mod icalendar;
 #[cfg(feature = "jmap")]
+pub mod jscalendar;
+#[cfg(feature = "jmap")]
 pub mod jscontact;
 pub mod vcard;
 

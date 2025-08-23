@@ -1,7 +1,7 @@
 [package]
 name = "calcard"
 description = "iCalendar/vCard parser and generator"
-version = "0.1.3"
+version = "0.2.0"
 authors = [ "Stalwart Labs <hello@stalw.art>"]
 license = "Apache-2.0 OR MIT"
 edition = "2024"

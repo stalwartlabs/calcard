@@ -140,9 +140,28 @@ pub struct ICalendarRecurrenceRule {
     pub bymonthday: Vec<i8>,
     pub byyearday: Vec<i16>,
     pub byweekno: Vec<i8>,
-    pub bymonth: Vec<u8>,
+    pub bymonth: Vec<ICalendarMonth>,
     pub bysetpos: Vec<i32>,
     pub wkst: Option<ICalendarWeekday>,
+    pub rscale: Option<CalendarScale>,
+    pub skip: Option<ICalendarSkip>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
+#[repr(u8)]
+pub enum ICalendarSkip {
+    Omit,
+    Backward,
+    Forward,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -159,6 +178,19 @@ pub struct ICalendarDay {
     pub ordwk: Option<i16>,
     pub weekday: ICalendarWeekday,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
+#[repr(transparent)]
+pub struct ICalendarMonth(i8);
 
 impl TryFrom<&[u8]> for ICalendarDay {
     type Error = ();
@@ -205,6 +237,7 @@ impl TryFrom<&[u8]> for ICalendarDay {
     derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
 )]
 #[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
+#[repr(u8)]
 pub enum ICalendarFrequency {
     Yearly = 0,
     Monthly = 1,
@@ -243,6 +276,29 @@ impl ICalendarFrequency {
             ICalendarFrequency::Weekly => "WEEKLY",
             ICalendarFrequency::Monthly => "MONTHLY",
             ICalendarFrequency::Yearly => "YEARLY",
+        }
+    }
+}
+
+impl TryFrom<&[u8]> for ICalendarSkip {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        hashify::tiny_map_ignore_case!(value,
+            b"OMIT" => ICalendarSkip::Omit,
+            b"BACKWARD" => ICalendarSkip::Backward,
+            b"FORWARD" => ICalendarSkip::Forward,
+        )
+        .ok_or(())
+    }
+}
+
+impl ICalendarSkip {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarSkip::Omit => "OMIT",
+            ICalendarSkip::Backward => "BACKWARD",
+            ICalendarSkip::Forward => "FORWARD",
         }
     }
 }
@@ -817,6 +873,8 @@ pub enum ICalendarParameter {
     Derived(bool),                                      // [RFC9073, Section 5.3]
     Gap(ICalendarDuration),                             // [RFC9253, Section 6.2]
     Linkrel(Uri),                                       // [RFC9253, Section 6.1]
+    Jsptr(String),                                      // draft-ietf-calext-jscalendar-icalendar
+    Jsid(String),                                       // draft-ietf-calext-jscalendar-icalendar
     Other(Vec<String>),
 }
 
@@ -865,6 +923,8 @@ pub enum ICalendarParameterName {
     Derived,           // [RFC9073, Section 5.3]
     Gap,               // [RFC9253, Section 6.2]
     Linkrel,           // [RFC9253, Section 6.1]
+    Jsptr,             // draft-ietf-calext-jscalendar-icalendar
+    Jsid,              // draft-ietf-calext-jscalendar-icalendar
     Other(String),
 }
 
@@ -1230,11 +1290,13 @@ pub enum ICalendarProperty {
     Concept,           // [RFC9253, Section 8.1]
     Link,              // [RFC9253, Section 8.2]
     Refid,             // [RFC9253, Section 8.3]
+    Coordinates,       // draft-ietf-calext-icalendar-jscalendar-extensions
+    ShowWithoutTime,   // draft-ietf-calext-icalendar-jscalendar-extensions
+    Jsid,              // draft-ietf-calext-jscalendar-icalendar
+    Jsprop,            // draft-ietf-calext-jscalendar-icalendar
     Begin,
     End,
     Other(String),
-    Coordinates,     // draft-ietf-calext-icalendar-jscalendar-extensions
-    ShowWithoutTime, // draft-ietf-calext-icalendar-jscalendar-extensions
 }
 
 impl TryFrom<&[u8]> for ICalendarProperty {
@@ -1311,6 +1373,8 @@ impl TryFrom<&[u8]> for ICalendarProperty {
             "REFID" => ICalendarProperty::Refid,
             "COORDINATES" => ICalendarProperty::Coordinates,
             "SHOW-WITHOUT-TIME" => ICalendarProperty::ShowWithoutTime,
+            "JSID" => ICalendarProperty::Jsid,
+            "JSPROP" => ICalendarProperty::Jsprop,
             "BEGIN" => ICalendarProperty::Begin,
             "END" => ICalendarProperty::End,
         )
@@ -1393,6 +1457,8 @@ impl ICalendarProperty {
             ICalendarProperty::End => "END",
             ICalendarProperty::Coordinates => "COORDINATES",
             ICalendarProperty::ShowWithoutTime => "SHOW-WITHOUT-TIME",
+            ICalendarProperty::Jsid => "JSID",
+            ICalendarProperty::Jsprop => "JSPROP",
             ICalendarProperty::Other(value) => value,
         }
     }
@@ -2176,6 +2242,10 @@ impl ICalendarProperty {
             ),
             ICalendarProperty::ShowWithoutTime => (
                 ValueType::Ical(ICalendarValueType::Boolean),
+                ValueSeparator::None,
+            ),
+            ICalendarProperty::Jsid | ICalendarProperty::Jsprop => (
+                ValueType::Ical(ICalendarValueType::Text),
                 ValueSeparator::None,
             ),
         }

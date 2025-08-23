@@ -231,6 +231,8 @@ impl ICalendarParameter {
             ICalendarParameterName::Derived => matches!(self, ICalendarParameter::Derived(_)),
             ICalendarParameterName::Gap => matches!(self, ICalendarParameter::Gap(_)),
             ICalendarParameterName::Linkrel => matches!(self, ICalendarParameter::Linkrel(_)),
+            ICalendarParameterName::Jsptr => matches!(self, ICalendarParameter::Jsptr(_)),
+            ICalendarParameterName::Jsid => matches!(self, ICalendarParameter::Jsid(_)),
             ICalendarParameterName::Other(name) => {
                 if let ICalendarParameter::Other(o) = self {
                     o.iter().any(|s| s == name)
@@ -277,6 +279,8 @@ impl ICalendarParameter {
             ICalendarParameter::Derived(v) => (if *v { "true" } else { "false" }).into(),
             ICalendarParameter::Gap(_) => None,
             ICalendarParameter::Linkrel(v) => v.as_str(),
+            ICalendarParameter::Jsptr(v) => v.as_str().into(),
+            ICalendarParameter::Jsid(v) => v.as_str().into(),
             ICalendarParameter::Other(items) => items.first().map(|s| s.as_str()),
         }
     }
@@ -311,6 +315,8 @@ impl ICalendarParameter {
             ICalendarParameter::ManagedId(s) => s.as_str().len(),
             ICalendarParameter::Schema(s) => s.size(),
             ICalendarParameter::Linkrel(l) => l.size(),
+            ICalendarParameter::Jsid(s) => s.len(),
+            ICalendarParameter::Jsptr(s) => s.len(),
             ICalendarParameter::Other(o) => o.iter().map(|s| s.len()).sum(),
             _ => std::mem::size_of::<ICalendarParameter>(),
         }

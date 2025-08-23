@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     common::timezone::Tz,
-    icalendar::{ICalendarFrequency, ICalendarRecurrenceRule},
+    icalendar::{ICalendarFrequency, ICalendarMonth, ICalendarRecurrenceRule},
 };
 use chrono::{DateTime, Datelike, Weekday};
 use std::cmp::Ordering;
@@ -24,7 +24,7 @@ pub struct RRule {
     pub(crate) until: Option<DateTime<Tz>>,
     pub(crate) week_start: Weekday,
     pub(crate) by_set_pos: Vec<i32>,
-    pub(crate) by_month: Vec<u8>,
+    pub(crate) by_month: Vec<ICalendarMonth>,
     pub(crate) by_month_day: Vec<i8>,
     pub(crate) by_n_month_day: Vec<i8>,
     pub(crate) by_year_day: Vec<i16>,
@@ -100,7 +100,7 @@ impl RRule {
                 ICalendarFrequency::Yearly => {
                     if self.by_month.is_empty() {
                         let month = get_month(dt_start);
-                        self.by_month = vec![month];
+                        self.by_month = vec![ICalendarMonth::new(month, false)];
                     }
                     let day = get_day(dt_start);
                     self.by_month_day = vec![day];

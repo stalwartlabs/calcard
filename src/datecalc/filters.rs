@@ -8,6 +8,7 @@ use super::{
     iterinfo::IterInfo,
     rrule::{NWeekday, RRule},
 };
+use crate::icalendar::ICalendarMonth;
 
 type RRuleFilter = &'static dyn Fn(&IterInfo, usize, &RRule) -> bool;
 
@@ -33,7 +34,7 @@ fn is_filtered_by_month(ii: &IterInfo, current_day: usize, rrule: &RRule) -> boo
         return false;
     }
 
-    let current_month = ii.month_mask()[current_day];
+    let current_month = ICalendarMonth::new(ii.month_mask()[current_day], false);
     !rrule.by_month.contains(&current_month)
 }
 

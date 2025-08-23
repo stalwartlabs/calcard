@@ -43,7 +43,7 @@ impl MonthInfo {
                 ranges.push((0, u32::from(*year_len) - 1));
             } else {
                 for month in &rrule.by_month {
-                    let month = usize::from(*month);
+                    let month = usize::from(month.month());
                     let first = u32::from(month_range[month - 1]);
                     let last = u32::from(month_range[month]);
                     ranges.push((first, last - 1));

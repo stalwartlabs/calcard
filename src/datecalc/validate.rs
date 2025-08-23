@@ -134,7 +134,17 @@ fn validate_by_month(
     rrule: &RRule,
     _dt_start: &chrono::DateTime<Tz>,
 ) -> Result<(), ValidationError> {
-    validate_range_for_vec(&MONTH_RANGE, &rrule.by_month, "BYMONTH")
+    for item in &rrule.by_month {
+        if !MONTH_RANGE.contains(&item.month()) {
+            return Err(ValidationError::InvalidFieldValueRange {
+                field: "BYMONTH".to_string(),
+                value: item.to_string(),
+                start_idx: 1.to_string(),
+                end_idx: 12.to_string(),
+            });
+        }
+    }
+    Ok(())
 }
 
 // By_month_day:

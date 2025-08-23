@@ -286,6 +286,10 @@ impl ArchivedICalendarProperty {
                 ArchivedValueType::Ical(ArchivedICalendarValueType::Boolean),
                 ValueSeparator::None,
             ),
+            ArchivedICalendarProperty::Jsid | ArchivedICalendarProperty::Jsprop => (
+                ArchivedValueType::Ical(ArchivedICalendarValueType::Text),
+                ValueSeparator::None,
+            ),
         }
     }
 }
@@ -300,6 +304,16 @@ impl ArchivedICalendarFrequency {
             ArchivedICalendarFrequency::Weekly => "WEEKLY",
             ArchivedICalendarFrequency::Monthly => "MONTHLY",
             ArchivedICalendarFrequency::Yearly => "YEARLY",
+        }
+    }
+}
+
+impl ArchivedICalendarSkip {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ArchivedICalendarSkip::Omit => "OMIT",
+            ArchivedICalendarSkip::Backward => "BACKWARD",
+            ArchivedICalendarSkip::Forward => "FORWARD",
         }
     }
 }
@@ -578,6 +592,8 @@ impl ArchivedICalendarProperty {
             ArchivedICalendarProperty::Other(value) => value,
             ArchivedICalendarProperty::Coordinates => "COORDINATES",
             ArchivedICalendarProperty::ShowWithoutTime => "SHOW-WITHOUT-TIME",
+            ArchivedICalendarProperty::Jsid => "JSID",
+            ArchivedICalendarProperty::Jsprop => "JSPROP",
         }
     }
 }

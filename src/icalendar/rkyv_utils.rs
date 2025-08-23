@@ -240,6 +240,8 @@ impl ArchivedICalendarParameter {
             ICalendarParameterName::Linkrel => {
                 matches!(self, ArchivedICalendarParameter::Linkrel(_))
             }
+            ICalendarParameterName::Jsptr => matches!(self, ArchivedICalendarParameter::Jsptr(_)),
+            ICalendarParameterName::Jsid => matches!(self, ArchivedICalendarParameter::Jsid(_)),
             ICalendarParameterName::Other(name) => {
                 if let ArchivedICalendarParameter::Other(o) = self {
                     o.iter().any(|s| s == name)
@@ -288,6 +290,8 @@ impl ArchivedICalendarParameter {
             ArchivedICalendarParameter::Derived(v) => (if *v { "true" } else { "false" }).into(),
             ArchivedICalendarParameter::Gap(_) => None,
             ArchivedICalendarParameter::Linkrel(v) => v.as_str(),
+            ArchivedICalendarParameter::Jsptr(v) => v.as_str().into(),
+            ArchivedICalendarParameter::Jsid(v) => v.as_str().into(),
             ArchivedICalendarParameter::Other(items) => items.first().map(|s| s.as_str()),
         }
     }
@@ -322,6 +326,8 @@ impl ArchivedICalendarParameter {
             ArchivedICalendarParameter::ManagedId(s) => s.as_str().len(),
             ArchivedICalendarParameter::Schema(s) => s.size(),
             ArchivedICalendarParameter::Linkrel(l) => l.size(),
+            ArchivedICalendarParameter::Jsptr(s) => s.len(),
+            ArchivedICalendarParameter::Jsid(s) => s.len(),
             ArchivedICalendarParameter::Other(o) => o.iter().map(|s| s.len()).sum(),
             _ => std::mem::size_of::<ICalendarParameter>(),
         }
@@ -395,5 +401,15 @@ impl ArchivedICalendarDuration {
             + self.weeks.to_native() as i64 * 604800;
 
         if self.neg { -secs } else { secs }
+    }
+}
+
+impl ArchivedICalendarMonth {
+    pub fn is_leap(&self) -> bool {
+        self.0 < 0
+    }
+
+    pub fn month(&self) -> u8 {
+        self.0.unsigned_abs()
     }
 }
