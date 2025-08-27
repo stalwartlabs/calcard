@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
+use crate::common::ArchivedLinkRelation;
+
 use super::*;
 
 impl ArchivedICalendarProperty {
@@ -294,8 +296,8 @@ impl ArchivedICalendarProperty {
     }
 }
 
-impl ArchivedICalendarFrequency {
-    pub fn as_str(&self) -> &str {
+impl IanaString for ArchivedICalendarFrequency {
+    fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarFrequency::Secondly => "SECONDLY",
             ArchivedICalendarFrequency::Minutely => "MINUTELY",
@@ -309,7 +311,7 @@ impl ArchivedICalendarFrequency {
 }
 
 impl ArchivedICalendarSkip {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarSkip::Omit => "OMIT",
             ArchivedICalendarSkip::Backward => "BACKWARD",
@@ -319,7 +321,7 @@ impl ArchivedICalendarSkip {
 }
 
 impl ArchivedICalendarWeekday {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarWeekday::Sunday => "SU",
             ArchivedICalendarWeekday::Monday => "MO",
@@ -333,37 +335,34 @@ impl ArchivedICalendarWeekday {
 }
 
 impl ArchivedICalendarAction {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarAction::Audio => "AUDIO",
             ArchivedICalendarAction::Display => "DISPLAY",
             ArchivedICalendarAction::Email => "EMAIL",
             ArchivedICalendarAction::Procedure => "PROCEDURE",
-            ArchivedICalendarAction::Other(value) => value,
         }
     }
 }
 
 impl ArchivedICalendarUserTypes {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarUserTypes::Individual => "INDIVIDUAL",
             ArchivedICalendarUserTypes::Group => "GROUP",
             ArchivedICalendarUserTypes::Resource => "RESOURCE",
             ArchivedICalendarUserTypes::Room => "ROOM",
             ArchivedICalendarUserTypes::Unknown => "UNKNOWN",
-            ArchivedICalendarUserTypes::Other(value) => value,
         }
     }
 }
 
 impl ArchivedICalendarClassification {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarClassification::Public => "PUBLIC",
             ArchivedICalendarClassification::Private => "PRIVATE",
             ArchivedICalendarClassification::Confidential => "CONFIDENTIAL",
-            ArchivedICalendarClassification::Other(value) => value,
         }
     }
 }
@@ -401,19 +400,18 @@ impl ArchivedICalendarComponentType {
 }
 
 impl ArchivedICalendarDisplayType {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarDisplayType::Badge => "BADGE",
             ArchivedICalendarDisplayType::Graphic => "GRAPHIC",
             ArchivedICalendarDisplayType::Fullsize => "FULLSIZE",
             ArchivedICalendarDisplayType::Thumbnail => "THUMBNAIL",
-            ArchivedICalendarDisplayType::Other(value) => value,
         }
     }
 }
 
 impl ArchivedICalendarFeatureType {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarFeatureType::Audio => "AUDIO",
             ArchivedICalendarFeatureType::Chat => "CHAT",
@@ -422,25 +420,23 @@ impl ArchivedICalendarFeatureType {
             ArchivedICalendarFeatureType::Phone => "PHONE",
             ArchivedICalendarFeatureType::Screen => "SCREEN",
             ArchivedICalendarFeatureType::Video => "VIDEO",
-            ArchivedICalendarFeatureType::Other(value) => value,
         }
     }
 }
 
 impl ArchivedICalendarFreeBusyType {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarFreeBusyType::Free => "FREE",
             ArchivedICalendarFreeBusyType::Busy => "BUSY",
             ArchivedICalendarFreeBusyType::BusyUnavailable => "BUSY-UNAVAILABLE",
             ArchivedICalendarFreeBusyType::BusyTentative => "BUSY-TENTATIVE",
-            ArchivedICalendarFreeBusyType::Other(value) => value,
         }
     }
 }
 
 impl ArchivedICalendarMethod {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarMethod::Publish => "PUBLISH",
             ArchivedICalendarMethod::Request => "REQUEST",
@@ -450,13 +446,12 @@ impl ArchivedICalendarMethod {
             ArchivedICalendarMethod::Refresh => "REFRESH",
             ArchivedICalendarMethod::Counter => "COUNTER",
             ArchivedICalendarMethod::Declinecounter => "DECLINECOUNTER",
-            ArchivedICalendarMethod::Other(value) => value,
         }
     }
 }
 
 impl ArchivedICalendarParticipantType {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarParticipantType::Active => "ACTIVE",
             ArchivedICalendarParticipantType::Inactive => "INACTIVE",
@@ -468,25 +463,23 @@ impl ArchivedICalendarParticipantType {
             ArchivedICalendarParticipantType::PlannerContact => "PLANNER-CONTACT",
             ArchivedICalendarParticipantType::Performer => "PERFORMER",
             ArchivedICalendarParticipantType::Speaker => "SPEAKER",
-            ArchivedICalendarParticipantType::Other(value) => value,
         }
     }
 }
 
 impl ArchivedICalendarParticipationRole {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarParticipationRole::Chair => "CHAIR",
             ArchivedICalendarParticipationRole::ReqParticipant => "REQ-PARTICIPANT",
             ArchivedICalendarParticipationRole::OptParticipant => "OPT-PARTICIPANT",
             ArchivedICalendarParticipationRole::NonParticipant => "NON-PARTICIPANT",
-            ArchivedICalendarParticipationRole::Other(value) => value,
         }
     }
 }
 
 impl ArchivedICalendarParticipationStatus {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarParticipationStatus::NeedsAction => "NEEDS-ACTION",
             ArchivedICalendarParticipationStatus::Accepted => "ACCEPTED",
@@ -495,13 +488,12 @@ impl ArchivedICalendarParticipationStatus {
             ArchivedICalendarParticipationStatus::Delegated => "DELEGATED",
             ArchivedICalendarParticipationStatus::Completed => "COMPLETED",
             ArchivedICalendarParticipationStatus::InProcess => "IN-PROCESS",
-            ArchivedICalendarParticipationStatus::Other(value) => value,
         }
     }
 }
 
 impl ArchivedICalendarStatus {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarStatus::Tentative => "TENTATIVE",
             ArchivedICalendarStatus::Confirmed => "CONFIRMED",
@@ -511,7 +503,6 @@ impl ArchivedICalendarStatus {
             ArchivedICalendarStatus::InProcess => "IN-PROCESS",
             ArchivedICalendarStatus::Draft => "DRAFT",
             ArchivedICalendarStatus::Final => "FINAL",
-            ArchivedICalendarStatus::Other(value) => value,
         }
     }
 }
@@ -589,29 +580,28 @@ impl ArchivedICalendarProperty {
             ArchivedICalendarProperty::Refid => "REFID",
             ArchivedICalendarProperty::Begin => "BEGIN",
             ArchivedICalendarProperty::End => "END",
-            ArchivedICalendarProperty::Other(value) => value,
             ArchivedICalendarProperty::Coordinates => "COORDINATES",
             ArchivedICalendarProperty::ShowWithoutTime => "SHOW-WITHOUT-TIME",
             ArchivedICalendarProperty::Jsid => "JSID",
             ArchivedICalendarProperty::Jsprop => "JSPROP",
+            ArchivedICalendarProperty::Other(value) => value.as_str(),
         }
     }
 }
 
 impl ArchivedICalendarProximityValue {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarProximityValue::Arrive => "ARRIVE",
             ArchivedICalendarProximityValue::Depart => "DEPART",
             ArchivedICalendarProximityValue::Connect => "CONNECT",
             ArchivedICalendarProximityValue::Disconnect => "DISCONNECT",
-            ArchivedICalendarProximityValue::Other(value) => value,
         }
     }
 }
 
 impl ArchivedICalendarRelationshipType {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarRelationshipType::Child => "CHILD",
             ArchivedICalendarRelationshipType::Parent => "PARENT",
@@ -626,46 +616,42 @@ impl ArchivedICalendarRelationshipType {
             ArchivedICalendarRelationshipType::Refid => "REFID",
             ArchivedICalendarRelationshipType::Starttofinish => "STARTTOFINISH",
             ArchivedICalendarRelationshipType::Starttostart => "STARTTOSTART",
-            ArchivedICalendarRelationshipType::Other(value) => value,
         }
     }
 }
 
 impl ArchivedICalendarResourceType {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarResourceType::Projector => "PROJECTOR",
             ArchivedICalendarResourceType::Room => "ROOM",
             ArchivedICalendarResourceType::RemoteConferenceAudio => "REMOTE-CONFERENCE-AUDIO",
             ArchivedICalendarResourceType::RemoteConferenceVideo => "REMOTE-CONFERENCE-VIDEO",
-            ArchivedICalendarResourceType::Other(value) => value,
         }
     }
 }
 
 impl ArchivedICalendarScheduleAgentValue {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarScheduleAgentValue::Server => "SERVER",
             ArchivedICalendarScheduleAgentValue::Client => "CLIENT",
             ArchivedICalendarScheduleAgentValue::None => "NONE",
-            ArchivedICalendarScheduleAgentValue::Other(value) => value,
         }
     }
 }
 
 impl ArchivedICalendarScheduleForceSendValue {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarScheduleForceSendValue::Request => "REQUEST",
             ArchivedICalendarScheduleForceSendValue::Reply => "REPLY",
-            ArchivedICalendarScheduleForceSendValue::Other(value) => value,
         }
     }
 }
 
 impl ArchivedICalendarValueType {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarValueType::Binary => "BINARY",
             ArchivedICalendarValueType::Boolean => "BOOLEAN",
@@ -684,159 +670,165 @@ impl ArchivedICalendarValueType {
             ArchivedICalendarValueType::UtcOffset => "UTC-OFFSET",
             ArchivedICalendarValueType::XmlReference => "XML-REFERENCE",
             ArchivedICalendarValueType::Uid => "UID",
-            ArchivedICalendarValueType::Other(value) => value,
         }
     }
 }
 
 impl ArchivedICalendarTransparency {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedICalendarTransparency::Opaque => "OPAQUE",
             ArchivedICalendarTransparency::Transparent => "TRANSPARENT",
-            ArchivedICalendarTransparency::Other(value) => value,
+        }
+    }
+}
+
+impl ArchivedLinkRelation {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ArchivedLinkRelation::About => "about",
+            ArchivedLinkRelation::Acl => "acl",
+            ArchivedLinkRelation::Alternate => "alternate",
+            ArchivedLinkRelation::Amphtml => "amphtml",
+            ArchivedLinkRelation::ApiCatalog => "api-catalog",
+            ArchivedLinkRelation::Appendix => "appendix",
+            ArchivedLinkRelation::AppleTouchIcon => "apple-touch-icon",
+            ArchivedLinkRelation::AppleTouchStartupImage => "apple-touch-startup-image",
+            ArchivedLinkRelation::Archives => "archives",
+            ArchivedLinkRelation::Author => "author",
+            ArchivedLinkRelation::BlockedBy => "blocked-by",
+            ArchivedLinkRelation::Bookmark => "bookmark",
+            ArchivedLinkRelation::C2paManifest => "c2pa-manifest",
+            ArchivedLinkRelation::Canonical => "canonical",
+            ArchivedLinkRelation::Chapter => "chapter",
+            ArchivedLinkRelation::CiteAs => "cite-as",
+            ArchivedLinkRelation::Collection => "collection",
+            ArchivedLinkRelation::CompressionDictionary => "compression-dictionary",
+            ArchivedLinkRelation::Contents => "contents",
+            ArchivedLinkRelation::Convertedfrom => "convertedfrom",
+            ArchivedLinkRelation::Copyright => "copyright",
+            ArchivedLinkRelation::CreateForm => "create-form",
+            ArchivedLinkRelation::Current => "current",
+            ArchivedLinkRelation::Deprecation => "deprecation",
+            ArchivedLinkRelation::Describedby => "describedby",
+            ArchivedLinkRelation::Describes => "describes",
+            ArchivedLinkRelation::Disclosure => "disclosure",
+            ArchivedLinkRelation::DnsPrefetch => "dns-prefetch",
+            ArchivedLinkRelation::Duplicate => "duplicate",
+            ArchivedLinkRelation::Edit => "edit",
+            ArchivedLinkRelation::EditForm => "edit-form",
+            ArchivedLinkRelation::EditMedia => "edit-media",
+            ArchivedLinkRelation::Enclosure => "enclosure",
+            ArchivedLinkRelation::External => "external",
+            ArchivedLinkRelation::First => "first",
+            ArchivedLinkRelation::Geofeed => "geofeed",
+            ArchivedLinkRelation::Glossary => "glossary",
+            ArchivedLinkRelation::Help => "help",
+            ArchivedLinkRelation::Hosts => "hosts",
+            ArchivedLinkRelation::Hub => "hub",
+            ArchivedLinkRelation::IceServer => "ice-server",
+            ArchivedLinkRelation::Icon => "icon",
+            ArchivedLinkRelation::Index => "index",
+            ArchivedLinkRelation::Intervalafter => "intervalafter",
+            ArchivedLinkRelation::Intervalbefore => "intervalbefore",
+            ArchivedLinkRelation::Intervalcontains => "intervalcontains",
+            ArchivedLinkRelation::Intervaldisjoint => "intervaldisjoint",
+            ArchivedLinkRelation::Intervalduring => "intervalduring",
+            ArchivedLinkRelation::Intervalequals => "intervalequals",
+            ArchivedLinkRelation::Intervalfinishedby => "intervalfinishedby",
+            ArchivedLinkRelation::Intervalfinishes => "intervalfinishes",
+            ArchivedLinkRelation::Intervalin => "intervalin",
+            ArchivedLinkRelation::Intervalmeets => "intervalmeets",
+            ArchivedLinkRelation::Intervalmetby => "intervalmetby",
+            ArchivedLinkRelation::Intervaloverlappedby => "intervaloverlappedby",
+            ArchivedLinkRelation::Intervaloverlaps => "intervaloverlaps",
+            ArchivedLinkRelation::Intervalstartedby => "intervalstartedby",
+            ArchivedLinkRelation::Intervalstarts => "intervalstarts",
+            ArchivedLinkRelation::Item => "item",
+            ArchivedLinkRelation::Last => "last",
+            ArchivedLinkRelation::LatestVersion => "latest-version",
+            ArchivedLinkRelation::License => "license",
+            ArchivedLinkRelation::Linkset => "linkset",
+            ArchivedLinkRelation::Lrdd => "lrdd",
+            ArchivedLinkRelation::Manifest => "manifest",
+            ArchivedLinkRelation::MaskIcon => "mask-icon",
+            ArchivedLinkRelation::Me => "me",
+            ArchivedLinkRelation::MediaFeed => "media-feed",
+            ArchivedLinkRelation::Memento => "memento",
+            ArchivedLinkRelation::Micropub => "micropub",
+            ArchivedLinkRelation::Modulepreload => "modulepreload",
+            ArchivedLinkRelation::Monitor => "monitor",
+            ArchivedLinkRelation::MonitorGroup => "monitor-group",
+            ArchivedLinkRelation::Next => "next",
+            ArchivedLinkRelation::NextArchive => "next-archive",
+            ArchivedLinkRelation::Nofollow => "nofollow",
+            ArchivedLinkRelation::Noopener => "noopener",
+            ArchivedLinkRelation::Noreferrer => "noreferrer",
+            ArchivedLinkRelation::Opener => "opener",
+            ArchivedLinkRelation::Openid2LocalId => "openid2.local_id",
+            ArchivedLinkRelation::Openid2Provider => "openid2.provider",
+            ArchivedLinkRelation::Original => "original",
+            ArchivedLinkRelation::P3pv1 => "p3pv1",
+            ArchivedLinkRelation::Payment => "payment",
+            ArchivedLinkRelation::Pingback => "pingback",
+            ArchivedLinkRelation::Preconnect => "preconnect",
+            ArchivedLinkRelation::PredecessorVersion => "predecessor-version",
+            ArchivedLinkRelation::Prefetch => "prefetch",
+            ArchivedLinkRelation::Preload => "preload",
+            ArchivedLinkRelation::Prerender => "prerender",
+            ArchivedLinkRelation::Prev => "prev",
+            ArchivedLinkRelation::Preview => "preview",
+            ArchivedLinkRelation::Previous => "previous",
+            ArchivedLinkRelation::PrevArchive => "prev-archive",
+            ArchivedLinkRelation::PrivacyPolicy => "privacy-policy",
+            ArchivedLinkRelation::Profile => "profile",
+            ArchivedLinkRelation::Publication => "publication",
+            ArchivedLinkRelation::RdapActive => "rdap-active",
+            ArchivedLinkRelation::RdapBottom => "rdap-bottom",
+            ArchivedLinkRelation::RdapDown => "rdap-down",
+            ArchivedLinkRelation::RdapTop => "rdap-top",
+            ArchivedLinkRelation::RdapUp => "rdap-up",
+            ArchivedLinkRelation::Related => "related",
+            ArchivedLinkRelation::Restconf => "restconf",
+            ArchivedLinkRelation::Replies => "replies",
+            ArchivedLinkRelation::Ruleinput => "ruleinput",
+            ArchivedLinkRelation::Search => "search",
+            ArchivedLinkRelation::Section => "section",
+            ArchivedLinkRelation::Self_ => "self",
+            ArchivedLinkRelation::Service => "service",
+            ArchivedLinkRelation::ServiceDesc => "service-desc",
+            ArchivedLinkRelation::ServiceDoc => "service-doc",
+            ArchivedLinkRelation::ServiceMeta => "service-meta",
+            ArchivedLinkRelation::SipTrunkingCapability => "sip-trunking-capability",
+            ArchivedLinkRelation::Sponsored => "sponsored",
+            ArchivedLinkRelation::Start => "start",
+            ArchivedLinkRelation::Status => "status",
+            ArchivedLinkRelation::Stylesheet => "stylesheet",
+            ArchivedLinkRelation::Subsection => "subsection",
+            ArchivedLinkRelation::SuccessorVersion => "successor-version",
+            ArchivedLinkRelation::Sunset => "sunset",
+            ArchivedLinkRelation::Tag => "tag",
+            ArchivedLinkRelation::TermsOfService => "terms-of-service",
+            ArchivedLinkRelation::Timegate => "timegate",
+            ArchivedLinkRelation::Timemap => "timemap",
+            ArchivedLinkRelation::Type => "type",
+            ArchivedLinkRelation::Ugc => "ugc",
+            ArchivedLinkRelation::Up => "up",
+            ArchivedLinkRelation::VersionHistory => "version-history",
+            ArchivedLinkRelation::Via => "via",
+            ArchivedLinkRelation::Webmention => "webmention",
+            ArchivedLinkRelation::WorkingCopy => "working-copy",
+            ArchivedLinkRelation::WorkingCopyOf => "working-copy-of",
         }
     }
 }
 
 impl ArchivedRelated {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ArchivedRelated::Start => "START",
             ArchivedRelated::End => "END",
         }
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarFrequency {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarWeekday {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarAction {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarUserTypes {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarClassification {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarComponentType {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarDisplayType {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarFeatureType {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarFreeBusyType {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarMethod {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedRelated {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarParticipantType {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarParticipationRole {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarParticipationStatus {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarProperty {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarProximityValue {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarRelationshipType {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarResourceType {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarScheduleAgentValue {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarScheduleForceSendValue {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarValueType {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<str> for ArchivedICalendarTransparency {
-    fn as_ref(&self) -> &str {
-        self.as_str()
     }
 }
 

@@ -5,11 +5,15 @@
  */
 
 use crate::{
+    common::{IanaParse, IanaType},
     jscontact::{
         JSContactProperty, JSContactValue,
         export::{State, props::convert_value},
     },
-    vcard::{VCard, VCardEntry, VCardParameter, VCardProperty, VCardValueType},
+    vcard::{
+        VCard, VCardEntry, VCardParameter, VCardParameterName, VCardParameterValue, VCardProperty,
+        VCardValueType,
+    },
 };
 use jmap_tools::{Element, JsonPointer, Key, Property, Value};
 use std::borrow::Cow;
@@ -29,7 +33,9 @@ impl<'x> State<'x> {
             if let Some(prop_id_) = prop_id {
                 let mut remove_pos = None;
                 for (param_pos, param) in entry.params.iter().enumerate() {
-                    if let VCardParameter::Label(label) = param {
+                    if let (VCardParameterName::Label, VCardParameterValue::Text(label)) =
+                        (&param.name, &param.value)
+                    {
                         if self.converted_props.iter().any(|(prop, _)| {
                             prop.len() == 3
                                 && prop[0].to_string() == path[0].to_string()
@@ -115,7 +121,7 @@ impl<'x> State<'x> {
         }
 
         if let Some(lang) = &self.language {
-            entry.params.push(VCardParameter::Language(lang.clone()));
+            entry.params.push(VCardParameter::language(lang.clone()));
         }
 
         self.vcard.entries.push(entry);
@@ -146,7 +152,7 @@ impl<'x> State<'x> {
         for prop in props.into_iter().flat_map(|prop| prop.into_array()) {
             let mut prop = prop.into_iter();
             let Some(name) = prop.next().and_then(|v| v.into_string()).map(|name| {
-                VCardProperty::try_from(name.as_bytes()).unwrap_or(VCardProperty::Other(name))
+                VCardProperty::parse(name.as_bytes()).unwrap_or(VCardProperty::Other(name))
             }) else {
                 continue;
             };
@@ -154,7 +160,10 @@ impl<'x> State<'x> {
                 continue;
             };
             let Some(value_type) = prop.next().and_then(|v| v.into_string()).map(|v| {
-                VCardValueType::try_from(v.as_bytes()).unwrap_or(VCardValueType::Other(v))
+                match VCardValueType::parse(v.as_bytes()) {
+                    Some(v) => IanaType::Iana(v),
+                    None => IanaType::Other(v),
+                }
             }) else {
                 continue;
             };
@@ -174,8 +183,8 @@ impl<'x> State<'x> {
             let mut entry = VCardEntry::new(name);
             entry.import_jcard_params(params);
             entry.values = values;
-            if default_type.unwrap_vcard() != value_type {
-                entry.params.push(VCardParameter::Value(vec![value_type]));
+            if !value_type.is_iana_and(|v| v == &default_type.unwrap_vcard()) {
+                entry.params.push(VCardParameter::value(value_type));
             }
             self.vcard.entries.push(entry);
         }
@@ -185,7 +194,7 @@ impl<'x> State<'x> {
         for (ptr, value) in self.js_props {
             self.vcard.entries.push(
                 VCardEntry::new(VCardProperty::Jsprop)
-                    .with_param(VCardParameter::Jsptr(ptr))
+                    .with_param(VCardParameter::jsptr(ptr))
                     .with_value(serde_json::to_string(&value).unwrap_or_default()),
             );
         }
@@ -214,7 +223,7 @@ impl<'x> ParamValue<'x> {
         match self {
             Self::Text(s) => s,
             Self::Number(n) => n.to_string().into(),
-            Self::Bool(b) => b.to_string().into(),
+            Self::Bool(b) => if b { "true" } else { "false" }.to_string().into(),
         }
     }
 
@@ -222,13 +231,6 @@ impl<'x> ParamValue<'x> {
         match self {
             Self::Number(n) => Ok(n),
             Self::Text(s) => s.parse().map_err(|_| Self::Text(s)),
-            _ => Err(self),
-        }
-    }
-
-    pub(super) fn into_bool(self) -> Result<bool, Self> {
-        match self {
-            Self::Bool(b) => Ok(b),
             _ => Err(self),
         }
     }

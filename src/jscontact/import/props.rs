@@ -5,6 +5,7 @@
  */
 
 use crate::{
+    common::{IanaString, IanaType},
     jscontact::{
         JSContact, JSContactProperty, JSContactType, JSContactValue,
         import::{
@@ -17,7 +18,7 @@ use crate::{
     },
 };
 use ahash::AHashMap;
-use jmap_tools::{Key, Map, Property, Value};
+use jmap_tools::{JsonPointerHandler, Key, Map, Property, Value};
 use std::{
     borrow::Cow,
     collections::{HashMap, hash_map::Entry},
@@ -120,6 +121,7 @@ impl State {
             prop_ids: Default::default(),
             vcard_converted_properties: Default::default(),
             vcard_properties: Default::default(),
+            patch_objects: Default::default(),
             name_alt_id,
             has_fn: false,
             has_n: false,
@@ -208,7 +210,7 @@ impl State {
                     localizations.push((patch, value));
                     return;
                 } else {
-                    entry.entry.params.push(VCardParameter::Language(language));
+                    entry.entry.params.push(VCardParameter::language(language));
                 }
             }
 
@@ -255,128 +257,130 @@ impl State {
         let mut p = ExtractedParams::default();
 
         for param in std::mem::take(params) {
-            match param {
-                VCardParameter::Language(v) => {
-                    let v = v.to_ascii_lowercase();
+            match &param.name {
+                VCardParameterName::Language => {
+                    let v = param.value.into_text().to_ascii_lowercase();
                     if p.language.is_none()
                         && self.default_language.as_ref().is_none_or(|lang| lang != &v)
                         && extract.contains(&VCardParameterName::Language)
                     {
                         p.language = Some(v);
                     } else {
-                        params.push(VCardParameter::Language(v));
+                        params.push(VCardParameter::language(v));
                     }
                 }
-                VCardParameter::Pref(v)
+                VCardParameterName::Pref
                     if p.pref.is_none() && extract.contains(&VCardParameterName::Pref) =>
                 {
-                    p.pref = Some(v);
+                    p.pref = param.value.as_integer().and_then(|v| v.into_iana());
                 }
-                VCardParameter::Author(v)
+                VCardParameterName::Author
                     if p.author.is_none() && extract.contains(&VCardParameterName::Author) =>
                 {
-                    p.author = Some(v);
+                    p.author = Some(param.value.into_text().into_owned());
                 }
-                VCardParameter::AuthorName(v)
+                VCardParameterName::AuthorName
                     if p.author_name.is_none()
                         && extract.contains(&VCardParameterName::AuthorName) =>
                 {
-                    p.author_name = Some(v);
+                    p.author_name = Some(param.value.into_text().into_owned());
                 }
-                VCardParameter::Mediatype(v)
+                VCardParameterName::Mediatype
                     if p.media_type.is_none()
                         && extract.contains(&VCardParameterName::Mediatype) =>
                 {
-                    p.media_type = Some(v);
+                    p.media_type = Some(param.value.into_text().into_owned());
                 }
-                VCardParameter::Calscale(v)
+                VCardParameterName::Calscale
                     if p.calscale.is_none() && extract.contains(&VCardParameterName::Calscale) =>
                 {
-                    p.calscale = Some(v);
+                    p.calscale = param.value.into_calscale();
                 }
-                VCardParameter::SortAs(v)
+                VCardParameterName::SortAs
                     if p.sort_as.is_none() && extract.contains(&VCardParameterName::SortAs) =>
                 {
-                    p.sort_as = Some(v);
+                    p.sort_as = Some(param.value.into_text().into_owned());
                 }
-                VCardParameter::Geo(v)
+                VCardParameterName::Geo
                     if p.geo.is_none() && extract.contains(&VCardParameterName::Geo) =>
                 {
-                    p.geo = Some(v);
+                    p.geo = Some(param.value.into_text().into_owned());
                 }
-                VCardParameter::Tz(v)
+                VCardParameterName::Tz
                     if p.tz.is_none() && extract.contains(&VCardParameterName::Tz) =>
                 {
-                    p.tz = Some(v);
+                    p.tz = Some(param.value.into_text().into_owned());
                 }
-                VCardParameter::Index(v)
+                VCardParameterName::Index
                     if p.index.is_none() && extract.contains(&VCardParameterName::Index) =>
                 {
-                    p.index = Some(v);
+                    p.index = param.value.as_integer().and_then(|v| v.into_iana());
                 }
-                VCardParameter::Level(v)
+                VCardParameterName::Level
                     if p.level.is_none() && extract.contains(&VCardParameterName::Level) =>
                 {
-                    p.level = Some(v);
+                    p.level = param.value.into_level();
                 }
-                VCardParameter::Cc(v)
+                VCardParameterName::Cc
                     if p.country_code.is_none() && extract.contains(&VCardParameterName::Cc) =>
                 {
-                    p.country_code = Some(v);
+                    p.country_code = Some(param.value.into_text().into_owned());
                 }
-                VCardParameter::Created(v)
+                VCardParameterName::Created
                     if p.created.is_none() && extract.contains(&VCardParameterName::Created) =>
                 {
-                    p.created = Some(v);
+                    p.created = param.value.into_timestamp().and_then(|v| v.into_iana());
                 }
-                VCardParameter::Label(v)
+                VCardParameterName::Label
                     if p.label.is_none() && extract.contains(&VCardParameterName::Label) =>
                 {
-                    p.label = Some(v);
+                    p.label = Some(param.value.into_text().into_owned());
                 }
-                VCardParameter::Phonetic(v)
+                VCardParameterName::Phonetic
                     if p.phonetic_system.is_none()
                         && extract.contains(&VCardParameterName::Phonetic) =>
                 {
-                    p.phonetic_system = Some(v);
+                    p.phonetic_system = param.value.into_phonetic();
                 }
-                VCardParameter::Script(v)
+                VCardParameterName::Script
                     if p.phonetic_script.is_none()
                         && extract.contains(&VCardParameterName::Script) =>
                 {
-                    p.phonetic_script = Some(v);
+                    p.phonetic_script = Some(param.value.into_text().into_owned());
                 }
-                VCardParameter::ServiceType(v)
+                VCardParameterName::ServiceType
                     if p.service_type.is_none()
                         && extract.contains(&VCardParameterName::ServiceType) =>
                 {
-                    p.service_type = Some(v);
+                    p.service_type = Some(param.value.into_text().into_owned());
                 }
-                VCardParameter::Username(v)
+                VCardParameterName::Username
                     if p.username.is_none() && extract.contains(&VCardParameterName::Username) =>
                 {
-                    p.username = Some(v);
+                    p.username = Some(param.value.into_text().into_owned());
                 }
-                VCardParameter::PropId(v)
+                VCardParameterName::PropId
                     if p.prop_id.is_none() && extract.contains(&VCardParameterName::PropId) =>
                 {
-                    p.prop_id = Some(v);
+                    p.prop_id = Some(param.value.into_text().into_owned());
                 }
-                VCardParameter::Altid(v) if p.alt_id.is_none() => {
-                    p.alt_id = Some(v.clone());
-                    params.push(VCardParameter::Altid(v));
+                VCardParameterName::Altid if p.alt_id.is_none() => {
+                    p.alt_id = param.value.as_text().map(|v| v.to_string());
+                    params.push(param);
                 }
-                VCardParameter::Type(typ) if extract.contains(&VCardParameterName::Type) => {
-                    if p.types.is_empty() {
-                        p.types = typ;
-                    } else {
-                        p.types.extend(typ);
+                VCardParameterName::Type if extract.contains(&VCardParameterName::Type) => {
+                    if let Some(typ) = param.value.into_type() {
+                        if p.types.is_empty() {
+                            p.types = vec![typ];
+                        } else {
+                            p.types.push(typ);
+                        }
                     }
                 }
-                VCardParameter::Jscomps(jscomps)
-                    if extract.contains(&VCardParameterName::Jscomps) =>
-                {
-                    p.jscomps = jscomps;
+                VCardParameterName::Jscomps if extract.contains(&VCardParameterName::Jscomps) => {
+                    if let Some(jscomps) = param.value.into_jscomps() {
+                        p.jscomps = jscomps;
+                    }
                 }
                 _ => {
                     params.push(param);
@@ -457,7 +461,7 @@ impl State {
                 Value::Array(values)
             };
             self.vcard_properties.push(Value::Array(vec![
-                Value::Str(entry.entry.name.into_string()),
+                Value::Str(entry.entry.name.as_str().to_string().into()),
                 Value::Object(
                     params
                         .into_jscontact_value()
@@ -553,7 +557,7 @@ impl State {
                 if let Some(name) = props.name {
                     obj.insert(
                         Key::Property(JSContactProperty::Name),
-                        Value::Str(name.into_string()),
+                        Value::Str(name.as_str().to_string().into()),
                     );
                 }
 
@@ -580,7 +584,14 @@ impl State {
             );
         }
 
-        JSContact(Value::Object(self.entries.into_iter().collect()))
+        let mut obj = Value::Object(self.entries.into_iter().collect());
+        if !self.patch_objects.is_empty() {
+            for (ptr, patch) in self.patch_objects {
+                obj.patch_jptr(ptr.iter(), patch);
+            }
+        }
+
+        JSContact(obj)
     }
 }
 
@@ -596,7 +607,7 @@ impl JSContactProperty {
 impl VCardValue {
     pub(super) fn into_jscontact_value(
         self,
-        value_type: Option<&VCardValueType>,
+        value_type: Option<&IanaType<VCardValueType, String>>,
     ) -> Value<'static, JSContactProperty, JSContactValue> {
         match self {
             VCardValue::Text(v) => Value::Str(v.into()),
@@ -608,11 +619,13 @@ impl VCardValue {
                 let mut out = String::new();
                 let _ = v.format_as_vcard(
                     &mut out,
-                    value_type.unwrap_or(if v.has_date() && v.has_time() {
-                        &VCardValueType::Timestamp
-                    } else {
-                        &VCardValueType::DateAndOrTime
-                    }),
+                    value_type
+                        .and_then(|v| v.iana())
+                        .unwrap_or(if v.has_date() && v.has_time() {
+                            &VCardValueType::Timestamp
+                        } else {
+                            &VCardValueType::DateAndOrTime
+                        }),
                 );
                 Value::Str(out.into())
             }

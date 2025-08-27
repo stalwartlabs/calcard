@@ -9,7 +9,7 @@ use crate::{
     Entry, Parser, StopChar, Token,
     common::{
         CalendarScale, Encoding, PartialDateTime,
-        parser::{Integer, parse_digits, parse_small_digits},
+        parser::{Boolean, Integer, parse_digits, parse_small_digits},
     },
     icalendar::{ICalendarDay, ICalendarWeekday},
 };
@@ -22,7 +22,7 @@ use std::{borrow::Cow, iter::Peekable, slice::Iter};
 struct Params {
     params: Vec<ICalendarParameter>,
     stop_char: StopChar,
-    data_type: Option<ICalendarValueType>,
+    data_type: Option<IanaType<ICalendarValueType, String>>,
     charset: Option<String>,
     encoding: Option<Encoding>,
 }
@@ -78,16 +78,15 @@ impl Parser<'_> {
             }
 
             // Parse property
-            let name = match ICalendarProperty::try_from(name.as_ref()) {
-                Ok(ICalendarProperty::Begin) => {
+            let name = match ICalendarProperty::parse(name.as_ref()) {
+                Some(ICalendarProperty::Begin) => {
                     if params.stop_char == StopChar::Colon {
                         self.expect_single_value();
                         if let Some(token) = self.token() {
-                            let component_type =
-                                ICalendarComponentType::try_from(token.text.as_ref())
-                                    .unwrap_or_else(|_| {
-                                        ICalendarComponentType::Other(token.into_string())
-                                    });
+                            let component_type = ICalendarComponentType::parse(token.text.as_ref())
+                                .unwrap_or_else(|| {
+                                    ICalendarComponentType::Other(token.into_string())
+                                });
                             ical_stack.push(ical_idx);
                             ical.component_ids.push(next_component_id);
                             ical_components.push(ICalendarComponent {
@@ -110,15 +109,14 @@ impl Parser<'_> {
                         return Entry::InvalidLine("BEGIN".to_string());
                     }
                 }
-                Ok(ICalendarProperty::End) => {
+                Some(ICalendarProperty::End) => {
                     if params.stop_char == StopChar::Colon {
                         self.expect_single_value();
                         if let Some(token) = self.token() {
-                            let component_type =
-                                ICalendarComponentType::try_from(token.text.as_ref())
-                                    .unwrap_or_else(|_| {
-                                        ICalendarComponentType::Other(token.into_string())
-                                    });
+                            let component_type = ICalendarComponentType::parse(token.text.as_ref())
+                                .unwrap_or_else(|| {
+                                    ICalendarComponentType::Other(token.into_string())
+                                });
                             if ical.component_type == component_type || !self.strict {
                                 if let Some(parent_ical_idx) = ical_stack.pop() {
                                     ical_idx = parent_ical_idx;
@@ -141,8 +139,8 @@ impl Parser<'_> {
                         return Entry::InvalidLine("END".to_string());
                     }
                 }
-                Ok(name) => name,
-                Err(_) => {
+                Some(name) => name,
+                None => {
                     if !name.is_empty() {
                         ICalendarProperty::Other(Token::new(name).into_string())
                     } else {
@@ -189,7 +187,7 @@ impl Parser<'_> {
 
                 if matches!(
                     (&params.data_type, &default_type),
-                    (Some(ICalendarValueType::Recur), _)
+                    (Some(IanaType::Iana(ICalendarValueType::Recur)), _)
                         | (None, ValueType::Ical(ICalendarValueType::Recur))
                 ) {
                     match self.rrule() {
@@ -251,7 +249,11 @@ impl Parser<'_> {
 
                         match &default_type {
                             ValueType::Ical(default_type) => {
-                                let value = match params.data_type.as_ref().unwrap_or(default_type)
+                                let value = match params
+                                    .data_type
+                                    .as_ref()
+                                    .map(|v| v.iana().unwrap_or(&ICalendarValueType::Text))
+                                    .unwrap_or(default_type)
                                 {
                                     ICalendarValueType::Date => token
                                         .into_ical_date()
@@ -261,8 +263,9 @@ impl Parser<'_> {
                                         match token.into_timestamp(false) {
                                             Ok(timestamp) => {
                                                 if !timestamp.has_time() {
-                                                    params.data_type =
-                                                        Some(ICalendarValueType::Date);
+                                                    params.data_type = Some(IanaType::Iana(
+                                                        ICalendarValueType::Date,
+                                                    ));
                                                 }
                                                 ICalendarValue::PartialDateTime(Box::new(timestamp))
                                             }
@@ -303,12 +306,9 @@ impl Parser<'_> {
                                                 ICalendarValue::Uri(Uri::Location(uri))
                                             })
                                     }
-                                    ICalendarValueType::Other(_) => {
-                                        ICalendarValue::Text(token.into_string())
-                                    }
                                     ICalendarValueType::Duration => {
-                                        if let Ok(duration) =
-                                            ICalendarDuration::try_from(token.text.as_ref())
+                                        if let Some(duration) =
+                                            ICalendarDuration::parse(token.text.as_ref())
                                         {
                                             ICalendarValue::Duration(duration)
                                         } else {
@@ -316,8 +316,8 @@ impl Parser<'_> {
                                         }
                                     }
                                     ICalendarValueType::Period => {
-                                        if let Ok(period) =
-                                            ICalendarPeriod::try_from(token.text.as_ref())
+                                        if let Some(period) =
+                                            ICalendarPeriod::parse(token.text.as_ref())
                                         {
                                             ICalendarValue::Period(period)
                                         } else {
@@ -330,54 +330,64 @@ impl Parser<'_> {
                                 entry.values.push(value);
                             }
                             ValueType::CalendarScale => {
-                                entry.values.push(ICalendarValue::CalendarScale(
-                                    CalendarScale::from(token),
-                                ));
+                                entry.values.push(match IanaType::from(token) {
+                                    IanaType::Iana(value) => ICalendarValue::CalendarScale(value),
+                                    IanaType::Other(value) => ICalendarValue::Text(value),
+                                });
                             }
                             ValueType::Method => {
-                                entry
-                                    .values
-                                    .push(ICalendarValue::Method(ICalendarMethod::from(token)));
+                                entry.values.push(match IanaType::from(token) {
+                                    IanaType::Iana(value) => ICalendarValue::Method(value),
+                                    IanaType::Other(value) => ICalendarValue::Text(value),
+                                });
                             }
                             ValueType::Classification => {
-                                entry.values.push(ICalendarValue::Classification(
-                                    ICalendarClassification::from(token),
-                                ));
+                                entry.values.push(match IanaType::from(token) {
+                                    IanaType::Iana(value) => ICalendarValue::Classification(value),
+                                    IanaType::Other(value) => ICalendarValue::Text(value),
+                                });
                             }
                             ValueType::Status => {
-                                entry
-                                    .values
-                                    .push(ICalendarValue::Status(ICalendarStatus::from(token)));
+                                entry.values.push(match IanaType::from(token) {
+                                    IanaType::Iana(value) => ICalendarValue::Status(value),
+                                    IanaType::Other(value) => ICalendarValue::Text(value),
+                                });
                             }
                             ValueType::Transparency => {
-                                entry.values.push(ICalendarValue::Transparency(
-                                    ICalendarTransparency::from(token),
-                                ));
+                                entry.values.push(match IanaType::from(token) {
+                                    IanaType::Iana(value) => ICalendarValue::Transparency(value),
+                                    IanaType::Other(value) => ICalendarValue::Text(value),
+                                });
                             }
                             ValueType::Action => {
-                                entry
-                                    .values
-                                    .push(ICalendarValue::Action(ICalendarAction::from(token)));
+                                entry.values.push(match IanaType::from(token) {
+                                    IanaType::Iana(value) => ICalendarValue::Action(value),
+                                    IanaType::Other(value) => ICalendarValue::Text(value),
+                                });
                             }
                             ValueType::BusyType => {
-                                entry.values.push(ICalendarValue::BusyType(
-                                    ICalendarFreeBusyType::from(token),
-                                ));
+                                entry.values.push(match IanaType::from(token) {
+                                    IanaType::Iana(value) => ICalendarValue::BusyType(value),
+                                    IanaType::Other(value) => ICalendarValue::Text(value),
+                                });
                             }
                             ValueType::ParticipantType => {
-                                entry.values.push(ICalendarValue::ParticipantType(
-                                    ICalendarParticipantType::from(token),
-                                ));
+                                entry.values.push(match IanaType::from(token) {
+                                    IanaType::Iana(value) => ICalendarValue::ParticipantType(value),
+                                    IanaType::Other(value) => ICalendarValue::Text(value),
+                                });
                             }
                             ValueType::ResourceType => {
-                                entry.values.push(ICalendarValue::ResourceType(
-                                    ICalendarResourceType::from(token),
-                                ));
+                                entry.values.push(match IanaType::from(token) {
+                                    IanaType::Iana(value) => ICalendarValue::ResourceType(value),
+                                    IanaType::Other(value) => ICalendarValue::Text(value),
+                                });
                             }
                             ValueType::Proximity => {
-                                entry.values.push(ICalendarValue::Proximity(
-                                    ICalendarProximityValue::from(token),
-                                ));
+                                entry.values.push(match IanaType::from(token) {
+                                    IanaType::Iana(value) => ICalendarValue::Proximity(value),
+                                    IanaType::Other(value) => ICalendarValue::Text(value),
+                                });
                             }
                         }
 
@@ -395,7 +405,13 @@ impl Parser<'_> {
             ) {
                 // Add types
                 if let Some(data_type) = params.data_type {
-                    entry.params.push(ICalendarParameter::Value(data_type));
+                    entry.params.push(ICalendarParameter {
+                        name: ICalendarParameterName::Value,
+                        value: match data_type {
+                            IanaType::Iana(value) => ICalendarParameterValue::Value(value),
+                            IanaType::Other(value) => ICalendarParameterValue::Text(value),
+                        },
+                    });
                 }
 
                 ical.entries.push(entry);
@@ -407,7 +423,7 @@ impl Parser<'_> {
                 components: ical_components,
             })
         } else {
-            Entry::UnterminatedComponent(ical.component_type.clone().into_str())
+            Entry::UnterminatedComponent(ical.component_type.as_str().to_string().into())
         }
     }
 
@@ -453,176 +469,229 @@ impl Parser<'_> {
             }
 
             let param_values = &mut params.params;
-
-            hashify::fnc_map_ignore_case!(param_name.as_ref(),
-                b"ALTREP" => {
-                    if let Some(value) = self.buf_parse_one() {
-                        param_values.push(ICalendarParameter::Altrep(value));
-                    }
-                },
-                b"CN" => {
-                    param_values.push(ICalendarParameter::Cn(self.buf_to_string()));
-                },
-                b"CUTYPE" => {
-                    if let Some(value) = self.buf_parse_one() {
-                        param_values.push(ICalendarParameter::Cutype(value));
-                    }
-                },
-                b"DELEGATED-FROM" => {
-                    param_values.push(ICalendarParameter::DelegatedFrom(self.buf_parse_many()));
-                },
-                b"DELEGATED-TO" => {
-                    param_values.push(ICalendarParameter::DelegatedTo(self.buf_parse_many()));
-                },
-                b"DIR" => {
-                    if let Some(value) = self.buf_parse_one() {
-                        param_values.push(ICalendarParameter::Dir(value));
-                    }
-                },
-                b"FMTTYPE" => {
-                    param_values.push(ICalendarParameter::Fmttype(self.buf_to_string()));
-                },
-                b"FBTYPE" => {
-                    if let Some(value) = self.buf_parse_one() {
-                        param_values.push(ICalendarParameter::Fbtype(value));
-                    }
-                },
-                b"LANGUAGE" => {
-                    param_values.push(ICalendarParameter::Language(self.buf_to_string()));
-                },
-                b"MEMBER" => {
-                    param_values.push(ICalendarParameter::Member(self.buf_parse_many()));
-                },
-                b"PARTSTAT" => {
-                    if let Some(value) = self.buf_parse_one() {
-                        param_values.push(ICalendarParameter::Partstat(value));
-                    }
-                },
-                b"RANGE" => {
-                    if self.token_buf.first().is_some_and(|token| {
-                        token.text.as_ref().eq_ignore_ascii_case(b"THISANDFUTURE")
-                    }) {
-                        param_values.push(ICalendarParameter::Range);
-                    }
-                    self.token_buf.clear();
-                },
-                b"RELATED" => {
-                    if let Some(gap) = self.buf_try_parse_one() {
-                        param_values.push(ICalendarParameter::Related(gap));
-                    }
-                },
-                b"RELTYPE" => {
-                    if let Some(value) = self.buf_parse_one() {
-                        param_values.push(ICalendarParameter::Reltype(value));
-                    }
-                },
-                b"ROLE" => {
-                    if let Some(value) = self.buf_parse_one() {
-                        param_values.push(ICalendarParameter::Role(value));
-                    }
-                },
-                b"RSVP" => {
-                    param_values.push(ICalendarParameter::Rsvp(self.buf_to_bool()));
-                },
-                b"SCHEDULE-AGENT" => {
-                    if let Some(value) = self.buf_parse_one() {
-                        param_values.push(ICalendarParameter::ScheduleAgent(value));
-                    }
-                },
-                b"SCHEDULE-FORCE-SEND" => {
-                    if let Some(value) = self.buf_parse_one() {
-                        param_values.push(ICalendarParameter::ScheduleForceSend(value));
-                    }
-                },
-                b"SCHEDULE-STATUS" => {
-                    param_values.push(ICalendarParameter::ScheduleStatus(self.buf_to_string()));
-                },
-                b"SENT-BY" => {
-                    if let Some(value) = self.buf_parse_one() {
-                        param_values.push(ICalendarParameter::SentBy(value));
-                    }
-                },
-                b"TZID" => {
-                    param_values.push(ICalendarParameter::Tzid(self.buf_to_string()));
-                },
-                b"VALUE" => {
-                    if let Some(value) = self.buf_parse_one::<ICalendarValueType>() {
-                        params.data_type = value.into();
-                    }
-                },
-                b"DISPLAY" => {
-                    param_values.push(ICalendarParameter::Display(self.buf_parse_many()));
-                },
-                b"EMAIL" => {
-                    param_values.push(ICalendarParameter::Email(self.buf_to_string()));
-                },
-                b"FEATURE" => {
-                    param_values.push(ICalendarParameter::Feature(self.buf_parse_many()));
-                },
-                b"LABEL" => {
-                    param_values.push(ICalendarParameter::Label(self.buf_to_string()));
-                },
-                b"SIZE" => {
-                    param_values.push(ICalendarParameter::Size(self.buf_to_other().unwrap_or_default()));
-                },
-                b"FILENAME" => {
-                    param_values.push(ICalendarParameter::Filename(self.buf_to_string()));
-                },
-                b"MANAGED-ID" => {
-                    param_values.push(ICalendarParameter::ManagedId(self.buf_to_string()));
-                },
-                b"ORDER" => {
-                    param_values.push(ICalendarParameter::Order(self.buf_to_other().unwrap_or_default()));
-                },
-                b"SCHEMA" => {
-                    if let Some(value) = self.buf_parse_one() {
-                        param_values.push(ICalendarParameter::Schema(value));
-                    }
-                },
-                b"DERIVED" => {
-                    param_values.push(ICalendarParameter::Derived(self.buf_to_bool()));
-                },
-                b"GAP" => {
-                    if let Some(gap) = self.buf_try_parse_one() {
-                        param_values.push(ICalendarParameter::Gap(gap));
-                    }
-                },
-                b"LINKREL" => {
-                    if let Some(value) = self.buf_parse_one() {
-                        param_values.push(ICalendarParameter::Linkrel(value));
-                    }
-                },
-                b"JSPTR" => {
-                     param_values.push(ICalendarParameter::Jsptr(self.buf_to_string()));
-                },
-                b"JSID" => {
-                     param_values.push(ICalendarParameter::Jsid(self.buf_to_string()));
-                },
-                b"CHARSET" => {
-                    for token in self.token_buf.drain(..) {
-                        params.charset = token.into_string().into();
-                    }
-                },
-                b"ENCODING" => {
-                    for token in self.token_buf.drain(..) {
-                        params.encoding = Encoding::parse(token.text.as_ref());
-                    }
-                },
-                _ => {
-                    if !param_name.is_empty() {
-                        if params.encoding.is_none() && param_name.eq_ignore_ascii_case(b"base64") {
-                            params.encoding = Some(Encoding::Base64);
-                        } else {
-                            param_values.push(ICalendarParameter::Other(
-                                [Token::new(param_name).into_string()]
-                                    .into_iter()
-                                    .chain(self.token_buf.drain(..).map(|token| token.into_string()))
-                                    .collect(),
+            if let Some(param_name) = ICalendarParameterName::try_parse(param_name.as_ref()) {
+                if self.token_buf.is_empty() {
+                    param_values.push(ICalendarParameter::new(
+                        param_name.clone(),
+                        ICalendarParameterValue::Null,
+                    ));
+                }
+                for token in self.token_buf.drain(..) {
+                    match &param_name {
+                        ICalendarParameterName::Altrep
+                        | ICalendarParameterName::DelegatedFrom
+                        | ICalendarParameterName::DelegatedTo
+                        | ICalendarParameterName::Dir
+                        | ICalendarParameterName::Member
+                        | ICalendarParameterName::SentBy
+                        | ICalendarParameterName::Schema => {
+                            param_values.push(ICalendarParameter::new(
+                                param_name.clone(),
+                                ICalendarParameterValue::Uri(Uri::from(token)),
+                            ));
+                        }
+                        ICalendarParameterName::Rsvp | ICalendarParameterName::Derived => {
+                            param_values.push(ICalendarParameter::new(
+                                param_name.clone(),
+                                match IanaType::<Boolean, String>::from(token) {
+                                    IanaType::Iana(value) => ICalendarParameterValue::Bool(value.0),
+                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
+                                },
+                            ));
+                        }
+                        ICalendarParameterName::Range => {
+                            if token.text.as_ref().eq_ignore_ascii_case(b"THISANDFUTURE") {
+                                param_values.push(ICalendarParameter::new(
+                                    param_name.clone(),
+                                    ICalendarParameterValue::Bool(true),
+                                ));
+                            }
+                        }
+                        ICalendarParameterName::Size | ICalendarParameterName::Order => {
+                            param_values.push(ICalendarParameter::new(
+                                param_name.clone(),
+                                match IanaType::<Integer, String>::from(token) {
+                                    IanaType::Iana(value) => {
+                                        ICalendarParameterValue::Integer(value.0.unsigned_abs())
+                                    }
+                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
+                                },
+                            ));
+                        }
+                        ICalendarParameterName::Gap => {
+                            param_values.push(ICalendarParameter::new(
+                                param_name.clone(),
+                                match IanaType::from(token) {
+                                    IanaType::Iana(value) => {
+                                        ICalendarParameterValue::Duration(value)
+                                    }
+                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
+                                },
+                            ));
+                        }
+                        ICalendarParameterName::Cutype => {
+                            param_values.push(ICalendarParameter::new(
+                                param_name.clone(),
+                                match IanaType::from(token) {
+                                    IanaType::Iana(value) => ICalendarParameterValue::Cutype(value),
+                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
+                                },
+                            ));
+                        }
+                        ICalendarParameterName::Fbtype => {
+                            param_values.push(ICalendarParameter::new(
+                                param_name.clone(),
+                                match IanaType::from(token) {
+                                    IanaType::Iana(value) => ICalendarParameterValue::Fbtype(value),
+                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
+                                },
+                            ));
+                        }
+                        ICalendarParameterName::Partstat => {
+                            param_values.push(ICalendarParameter::new(
+                                param_name.clone(),
+                                match IanaType::from(token) {
+                                    IanaType::Iana(value) => {
+                                        ICalendarParameterValue::Partstat(value)
+                                    }
+                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
+                                },
+                            ));
+                        }
+                        ICalendarParameterName::Related => {
+                            param_values.push(ICalendarParameter::new(
+                                param_name.clone(),
+                                match IanaType::from(token) {
+                                    IanaType::Iana(value) => {
+                                        ICalendarParameterValue::Related(value)
+                                    }
+                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
+                                },
+                            ));
+                        }
+                        ICalendarParameterName::Reltype => {
+                            param_values.push(ICalendarParameter::new(
+                                param_name.clone(),
+                                match IanaType::from(token) {
+                                    IanaType::Iana(value) => {
+                                        ICalendarParameterValue::Reltype(value)
+                                    }
+                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
+                                },
+                            ));
+                        }
+                        ICalendarParameterName::Role => {
+                            param_values.push(ICalendarParameter::new(
+                                param_name.clone(),
+                                match IanaType::from(token) {
+                                    IanaType::Iana(value) => ICalendarParameterValue::Role(value),
+                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
+                                },
+                            ));
+                        }
+                        ICalendarParameterName::ScheduleAgent => {
+                            param_values.push(ICalendarParameter::new(
+                                param_name.clone(),
+                                match IanaType::from(token) {
+                                    IanaType::Iana(value) => {
+                                        ICalendarParameterValue::ScheduleAgent(value)
+                                    }
+                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
+                                },
+                            ));
+                        }
+                        ICalendarParameterName::ScheduleForceSend => {
+                            param_values.push(ICalendarParameter::new(
+                                param_name.clone(),
+                                match IanaType::from(token) {
+                                    IanaType::Iana(value) => {
+                                        ICalendarParameterValue::ScheduleForceSend(value)
+                                    }
+                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
+                                },
+                            ));
+                        }
+                        ICalendarParameterName::Value => {
+                            params.data_type = Some(token.into());
+                        }
+                        ICalendarParameterName::Display => {
+                            param_values.push(ICalendarParameter::new(
+                                param_name.clone(),
+                                match IanaType::from(token) {
+                                    IanaType::Iana(value) => {
+                                        ICalendarParameterValue::Display(value)
+                                    }
+                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
+                                },
+                            ));
+                        }
+                        ICalendarParameterName::Feature => {
+                            param_values.push(ICalendarParameter::new(
+                                param_name.clone(),
+                                match IanaType::from(token) {
+                                    IanaType::Iana(value) => {
+                                        ICalendarParameterValue::Feature(value)
+                                    }
+                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
+                                },
+                            ));
+                        }
+                        ICalendarParameterName::Linkrel => {
+                            param_values.push(ICalendarParameter::new(
+                                param_name.clone(),
+                                match IanaType::<LinkRelation, Uri>::from(token) {
+                                    IanaType::Iana(value) => {
+                                        ICalendarParameterValue::Linkrel(value)
+                                    }
+                                    IanaType::Other(value) => ICalendarParameterValue::Uri(value),
+                                },
+                            ));
+                        }
+                        _ => {
+                            param_values.push(ICalendarParameter::new(
+                                param_name.clone(),
+                                ICalendarParameterValue::Text(token.into_string()),
                             ));
                         }
                     }
                 }
-            );
+            } else if !param_name.is_empty() {
+                match param_name.first() {
+                    Some(b'c' | b'C') if param_name.as_ref().eq_ignore_ascii_case(b"charset") => {
+                        for token in self.token_buf.drain(..) {
+                            params.charset = token.into_string().into();
+                        }
+                    }
+                    Some(b'e' | b'E') if param_name.as_ref().eq_ignore_ascii_case(b"encoding") => {
+                        for token in self.token_buf.drain(..) {
+                            params.encoding = Encoding::parse(token.text.as_ref());
+                        }
+                    }
+                    _ => {
+                        if params.encoding.is_none() && param_name.eq_ignore_ascii_case(b"base64") {
+                            params.encoding = Some(Encoding::Base64);
+                        } else {
+                            let name =
+                                ICalendarParameterName::Other(Token::new(param_name).into_string())
+                                    .clone();
+
+                            if !self.token_buf.is_empty() {
+                                param_values.extend(self.token_buf.drain(..).map(|token| {
+                                    ICalendarParameter::new(
+                                        name.clone(),
+                                        ICalendarParameterValue::Text(token.into_string()),
+                                    )
+                                }));
+                            } else {
+                                param_values.push(ICalendarParameter::new(
+                                    name,
+                                    ICalendarParameterValue::Null,
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -669,7 +738,7 @@ impl Parser<'_> {
                 b"FREQ" => {
                     while let Some(value) = self.parse_value_until_lf(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
-                        if let Ok(value) = value {
+                        if let Some(value)= value {
                             rrule.freq = value;
                             has_freq = true;
                         } else if !self.strict {
@@ -680,7 +749,7 @@ impl Parser<'_> {
                 b"UNTIL" => {
                     while let Some(value) = self.parse_value_until_lf::<ICalendarDateTime>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
-                        if let Ok(value) = value {
+                        if let Some(value)= value {
                             rrule.until = Some(value.0);
                         } else if !self.strict {
                             is_valid = false;
@@ -690,7 +759,7 @@ impl Parser<'_> {
                 b"COUNT" => {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
-                        if let Ok(value) = value {
+                        if let Some(value)= value {
                             let count = value.0.unsigned_abs() as u32;
                             if count > 0 {
                                 rrule.count = Some(count);
@@ -703,7 +772,7 @@ impl Parser<'_> {
                 b"INTERVAL" => {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
-                        if let Ok(value) = value {
+                        if let Some(value)= value {
                             let interval = value.0.unsigned_abs() as u16;
                             if interval > 0 {
                                 rrule.interval = Some(interval);
@@ -716,7 +785,7 @@ impl Parser<'_> {
                 b"BYSECOND" => {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
-                        if let Ok(value) = value {
+                        if let Some(value)= value {
                             rrule.bysecond.push(value.0.unsigned_abs() as u8);
                         } else if !self.strict {
                             is_valid = false;
@@ -726,7 +795,7 @@ impl Parser<'_> {
                 b"BYMINUTE" => {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
-                        if let Ok(value) = value {
+                        if let Some(value)= value {
                             rrule.byminute.push(value.0.unsigned_abs() as u8);
                         } else if !self.strict {
                             is_valid = false;
@@ -736,7 +805,7 @@ impl Parser<'_> {
                 b"BYHOUR" => {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
-                        if let Ok(value) = value {
+                        if let Some(value)= value {
                             rrule.byhour.push(value.0.unsigned_abs() as u8);
                         } else if !self.strict {
                             is_valid = false;
@@ -746,7 +815,7 @@ impl Parser<'_> {
                 b"BYDAY" => {
                     while let Some(value) = self.parse_value_until_lf::<ICalendarDay>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
-                        if let Ok(value) = value {
+                        if let Some(value)= value {
                             rrule.byday.push(value);
                         } else if !self.strict {
                             is_valid = false;
@@ -756,7 +825,7 @@ impl Parser<'_> {
                 b"BYMONTHDAY" => {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
-                        if let Ok(value) = value {
+                        if let Some(value)= value {
                             rrule.bymonthday.push(value.0 as i8);
                         } else if !self.strict {
                             is_valid = false;
@@ -766,7 +835,7 @@ impl Parser<'_> {
                 b"BYYEARDAY" => {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
-                        if let Ok(value) = value {
+                        if let Some(value)= value {
                             rrule.byyearday.push(value.0 as i16);
                         } else if !self.strict {
                             is_valid = false;
@@ -776,7 +845,7 @@ impl Parser<'_> {
                 b"BYWEEKNO" => {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
-                        if let Ok(value) = value {
+                        if let Some(value)= value {
                             rrule.byweekno.push(value.0 as i8);
                         } else if !self.strict {
                             is_valid = false;
@@ -786,7 +855,7 @@ impl Parser<'_> {
                 b"BYMONTH" => {
                     while let Some(value) = self.parse_value_until_lf::<ICalendarMonth>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
-                        if let Ok(value) = value {
+                        if let Some(value)= value {
                             rrule.bymonth.push(value);
                         } else if !self.strict {
                             is_valid = false;
@@ -796,7 +865,7 @@ impl Parser<'_> {
                 b"BYSETPOS" => {
                     while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
-                        if let Ok(value) = value {
+                        if let Some(value)= value {
                             rrule.bysetpos.push(value.0 as i32);
                         } else if !self.strict {
                             is_valid = false;
@@ -806,7 +875,7 @@ impl Parser<'_> {
                 b"WKST" => {
                     while let Some(value) = self.parse_value_until_lf::<ICalendarWeekday>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
-                        if let Ok(value) = value {
+                        if let Some(value)= value {
                             rrule.wkst = Some(value);
                         } else if !self.strict {
                             is_valid = false;
@@ -816,7 +885,7 @@ impl Parser<'_> {
                 b"RSCALE" => {
                     while let Some(value) = self.parse_value_until_lf::<CalendarScale>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
-                        if let Ok(value) = value {
+                        if let Some(value)= value {
                             rrule.rscale = Some(value);
                         } else if !self.strict {
                             is_valid = false;
@@ -826,7 +895,7 @@ impl Parser<'_> {
                 b"SKIP" => {
                     while let Some(value) = self.parse_value_until_lf::<ICalendarSkip>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
-                        if let Ok(value) = value {
+                        if let Some(value)= value {
                             rrule.skip = Some(value);
                         } else if !self.strict {
                             is_valid = false;
@@ -905,46 +974,40 @@ impl PartialDateTime {
 
 struct ICalendarDateTime(PartialDateTime);
 
-impl TryFrom<&[u8]> for ICalendarDateTime {
-    type Error = ();
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+impl IanaParse for ICalendarDateTime {
+    fn parse(value: &[u8]) -> Option<Self> {
         let mut dt = PartialDateTime::default();
         if dt.parse_timestamp(&mut value.iter().peekable(), true) {
-            Ok(ICalendarDateTime(dt))
+            Some(ICalendarDateTime(dt))
         } else {
-            Err(())
+            None
         }
     }
 }
 
-impl TryFrom<&[u8]> for ICalendarPeriod {
-    type Error = ();
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+impl IanaParse for ICalendarPeriod {
+    fn parse(value: &[u8]) -> Option<Self> {
         let mut iter = value.iter().peekable();
         let mut start = PartialDateTime::default();
         if start.parse_timestamp(&mut iter, true) {
             if let Some(duration) = ICalendarDuration::try_parse(&mut iter) {
-                Ok(ICalendarPeriod::Duration { start, duration })
+                Some(ICalendarPeriod::Duration { start, duration })
             } else {
                 let mut end = PartialDateTime::default();
                 if end.parse_timestamp(&mut iter, true) {
-                    Ok(ICalendarPeriod::Range { start, end })
+                    Some(ICalendarPeriod::Range { start, end })
                 } else {
-                    Err(())
+                    None
                 }
             }
         } else {
-            Err(())
+            None
         }
     }
 }
 
-impl TryFrom<&[u8]> for ICalendarMonth {
-    type Error = ();
-
-    fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
+impl IanaParse for ICalendarMonth {
+    fn parse(value: &[u8]) -> Option<Self> {
         let mut num: i8 = 0;
         let mut is_leap = false;
 
@@ -958,13 +1021,13 @@ impl TryFrom<&[u8]> for ICalendarMonth {
                 }
                 _ => {
                     if !ch.is_ascii_whitespace() {
-                        return Err(());
+                        return None;
                     }
                 }
             }
         }
 
-        Ok(ICalendarMonth(if is_leap { -num } else { num }))
+        Some(ICalendarMonth(if is_leap { -num } else { num }))
     }
 }
 
@@ -1052,15 +1115,9 @@ impl ICalendarDuration {
     }
 }
 
-impl TryFrom<&[u8]> for ICalendarDuration {
-    type Error = ();
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if let Some(duration) = ICalendarDuration::try_parse(&mut value.iter().peekable()) {
-            Ok(duration)
-        } else {
-            Err(())
-        }
+impl IanaParse for ICalendarDuration {
+    fn parse(value: &[u8]) -> Option<Self> {
+        ICalendarDuration::try_parse(&mut value.iter().peekable())
     }
 }
 
@@ -1084,8 +1141,8 @@ impl From<Token<'_>> for Uri {
 }
 
 impl ICalendarParameterName {
-    pub fn parse(input: &str) -> Self {
-        hashify::tiny_map_ignore_case!(input.as_bytes(),
+    pub fn try_parse(input: &[u8]) -> Option<Self> {
+        hashify::tiny_map_ignore_case!(input,
                 b"ALTREP" => ICalendarParameterName::Altrep,
                 b"CN" => ICalendarParameterName::Cn,
                 b"CUTYPE" => ICalendarParameterName::Cutype,
@@ -1123,6 +1180,61 @@ impl ICalendarParameterName {
                 b"JSPTR" => ICalendarParameterName::Jsptr,
                 b"JSID" => ICalendarParameterName::Jsid,
         )
-        .unwrap_or_else(|| ICalendarParameterName::Other(input.to_string()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            ICalendarParameterName::Altrep => "ALTREP",
+            ICalendarParameterName::Cn => "CN",
+            ICalendarParameterName::Cutype => "CUTYPE",
+            ICalendarParameterName::DelegatedFrom => "DELEGATED-FROM",
+            ICalendarParameterName::DelegatedTo => "DELEGATED-TO",
+            ICalendarParameterName::Dir => "DIR",
+            ICalendarParameterName::Fmttype => "FMTTYPE",
+            ICalendarParameterName::Fbtype => "FBTYPE",
+            ICalendarParameterName::Language => "LANGUAGE",
+            ICalendarParameterName::Member => "MEMBER",
+            ICalendarParameterName::Partstat => "PARTSTAT",
+            ICalendarParameterName::Range => "RANGE",
+            ICalendarParameterName::Related => "RELATED",
+            ICalendarParameterName::Reltype => "RELTYPE",
+            ICalendarParameterName::Role => "ROLE",
+            ICalendarParameterName::Rsvp => "RSVP",
+            ICalendarParameterName::ScheduleAgent => "SCHEDULE-AGENT",
+            ICalendarParameterName::ScheduleForceSend => "SCHEDULE-FORCE-SEND",
+            ICalendarParameterName::ScheduleStatus => "SCHEDULE-STATUS",
+            ICalendarParameterName::SentBy => "SENT-BY",
+            ICalendarParameterName::Tzid => "TZID",
+            ICalendarParameterName::Value => "VALUE",
+            ICalendarParameterName::Display => "DISPLAY",
+            ICalendarParameterName::Email => "EMAIL",
+            ICalendarParameterName::Feature => "FEATURE",
+            ICalendarParameterName::Label => "LABEL",
+            ICalendarParameterName::Size => "SIZE",
+            ICalendarParameterName::Filename => "FILENAME",
+            ICalendarParameterName::ManagedId => "MANAGED-ID",
+            ICalendarParameterName::Order => "ORDER",
+            ICalendarParameterName::Schema => "SCHEMA",
+            ICalendarParameterName::Derived => "DERIVED",
+            ICalendarParameterName::Gap => "GAP",
+            ICalendarParameterName::Linkrel => "LINKREL",
+            ICalendarParameterName::Jsptr => "JSPTR",
+            ICalendarParameterName::Jsid => "JSID",
+            ICalendarParameterName::Other(name) => name.as_str(),
+        }
+    }
+
+    pub fn parse(input: &str) -> Self {
+        Self::try_parse(input.as_bytes())
+            .unwrap_or_else(|| ICalendarParameterName::Other(input.to_string()))
+    }
+}
+
+impl Uri {
+    pub fn parse(value: impl Into<String>) -> Self {
+        let uri = value.into();
+        Data::try_parse(uri.as_bytes())
+            .map(Uri::Data)
+            .unwrap_or_else(|| Uri::Location(uri))
     }
 }

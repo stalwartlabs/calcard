@@ -10,16 +10,15 @@ use crate::{
         import::{EntryState, GetObjectOrCreate, State},
     },
     vcard::{
-        Jscomp, VCard, VCardParameter, VCardParameterName, VCardProperty, VCardValue,
-        VCardValueType,
+        Jscomp, VCard, VCardParameter, VCardParameterName, VCardParameterValue, VCardProperty,
+        VCardValue, VCardValueType,
     },
 };
-use jmap_tools::{JsonPointer, JsonPointerHandler, Key, Map, Property, Value};
+use jmap_tools::{JsonPointer, Key, Map, Property, Value};
 
 impl VCard {
     pub fn into_jscontact(mut self) -> JSContact<'static> {
         let mut state = State::new(&mut self);
-        let mut patch_objects = Vec::new();
 
         for entry in self.entries {
             let mut entry = EntryState::new(entry);
@@ -133,7 +132,7 @@ impl VCard {
                             entry
                                 .entry
                                 .params
-                                .push(VCardParameter::Language(params.language.take().unwrap()));
+                                .push(VCardParameter::language(params.language.take().unwrap()));
                         }
 
                         let entries =
@@ -296,7 +295,7 @@ impl VCard {
                             entry
                                 .entry
                                 .params
-                                .push(VCardParameter::Language(params.language.take().unwrap()));
+                                .push(VCardParameter::language(params.language.take().unwrap()));
                         }
 
                         /*
@@ -608,7 +607,7 @@ impl VCard {
                             entry
                                 .entry
                                 .params
-                                .push(VCardParameter::Language(params.language().unwrap()));
+                                .push(VCardParameter::language(params.language().unwrap()));
                         }
                         addr_patch
                     } else {
@@ -1048,7 +1047,7 @@ impl VCard {
                     let obj = state.get_mut_object_or_insert(key);
 
                     for key in entry.entry.values.drain(..).filter_map(|v| v.into_text()) {
-                        obj.insert(Key::Owned(key), Value::Bool(true));
+                        obj.insert(Key::from(key), Value::Bool(true));
                     }
                 }
                 VCardProperty::Created | VCardProperty::Rev => {
@@ -1227,13 +1226,17 @@ impl VCard {
                     }
                 }
                 VCardProperty::Jsprop => {
-                    if let Some(VCardParameter::Jsptr(ptr)) = entry.entry.params.first() {
+                    if let Some(VCardParameter {
+                        name: VCardParameterName::Jsptr,
+                        value: VCardParameterValue::Text(ptr),
+                    }) = entry.entry.params.first()
+                    {
                         let ptr = JsonPointer::<JSContactProperty>::parse(ptr);
 
                         if let Some(VCardValue::Text(text)) = entry.entry.values.first()
                             && let Ok(jscontact) = JSContact::parse(text)
                         {
-                            patch_objects.push((ptr, jscontact.0.into_owned()));
+                            state.patch_objects.push((ptr, jscontact.0.into_owned()));
                             continue;
                         }
                     }
@@ -1251,12 +1254,6 @@ impl VCard {
             state.add_conversion_props(entry);
         }
 
-        let mut jscontact = state.into_jscontact();
-
-        for (ptr, patch) in patch_objects {
-            jscontact.0.patch_jptr(ptr.iter(), patch);
-        }
-
-        jscontact
+        state.into_jscontact()
     }
 }

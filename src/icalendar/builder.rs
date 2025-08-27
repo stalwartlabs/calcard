@@ -8,7 +8,8 @@ use crate::{
     common::PartialDateTime,
     icalendar::{
         ICalendar, ICalendarComponent, ICalendarComponentType, ICalendarEntry, ICalendarParameter,
-        ICalendarProperty, ICalendarValue,
+        ICalendarParameterName, ICalendarParameterValue, ICalendarProperty, ICalendarValue,
+        ICalendarValueType,
     },
 };
 use ahash::{AHashMap, AHashSet};
@@ -127,5 +128,51 @@ impl ICalendarComponent {
             params: params.into_iter().collect(),
             values: vec![value],
         });
+    }
+}
+
+impl ICalendarEntry {
+    pub fn new(name: ICalendarProperty) -> Self {
+        Self {
+            name,
+            params: vec![],
+            values: vec![],
+        }
+    }
+
+    pub fn with_params(mut self, params: Vec<ICalendarParameter>) -> Self {
+        self.params = params;
+        self
+    }
+
+    pub fn with_value(mut self, value: impl Into<ICalendarValue>) -> Self {
+        self.values.push(value.into());
+        self
+    }
+
+    pub fn with_values(mut self, values: Vec<ICalendarValue>) -> Self {
+        self.values = values;
+        self
+    }
+
+    pub fn with_param(mut self, param: impl Into<ICalendarParameter>) -> Self {
+        self.params.push(param.into());
+        self
+    }
+
+    pub fn add_param(&mut self, param: impl Into<ICalendarParameter>) {
+        self.params.push(param.into());
+    }
+
+    pub fn with_param_opt(mut self, param: Option<impl Into<ICalendarParameter>>) -> Self {
+        if let Some(param) = param {
+            self.params.push(param.into());
+        }
+        self
+    }
+
+    pub fn is_type(&self, typ: &ICalendarValueType) -> bool {
+        self.parameters(&ICalendarParameterName::Value)
+            .any(|p| matches!(p, ICalendarParameterValue::Value(v) if v == typ))
     }
 }

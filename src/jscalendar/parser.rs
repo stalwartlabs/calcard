@@ -5,6 +5,7 @@
  */
 
 use crate::{
+    common::IanaParse,
     icalendar::ICalendarDuration,
     jscalendar::{
         JSCalendar, JSCalendarAlertAction, JSCalendarDateTime, JSCalendarEventStatus,
@@ -15,7 +16,7 @@ use crate::{
     },
 };
 use chrono::DateTime;
-use jmap_tools::{Element, Key, Value};
+use jmap_tools::{Element, JsonPointer, Key, Value};
 use std::{borrow::Cow, str::FromStr};
 
 impl<'x> JSCalendar<'x> {
@@ -58,9 +59,9 @@ impl Element for JSCalendarValue {
                     .ok(),
                 JSCalendarProperty::Duration
                 | JSCalendarProperty::EstimatedDuration
-                | JSCalendarProperty::Offset => ICalendarDuration::try_from(value.as_bytes())
-                    .ok()
-                    .map(JSCalendarValue::Duration),
+                | JSCalendarProperty::Offset => {
+                    ICalendarDuration::parse(value.as_bytes()).map(JSCalendarValue::Duration)
+                }
                 JSCalendarProperty::Action => JSCalendarAlertAction::from_str(value)
                     .ok()
                     .map(JSCalendarValue::AlertAction),
@@ -149,6 +150,9 @@ impl jmap_tools::Property for JSCalendarProperty {
                 JSCalendarRelation::from_str(value)
                     .ok()
                     .map(JSCalendarProperty::RelationValue)
+            }
+            Some(Key::Property(JSCalendarProperty::ConvertedProperties)) => {
+                JSCalendarProperty::Pointer(JsonPointer::parse(value)).into()
             }
             _ => JSCalendarProperty::from_str(value).ok(),
         }

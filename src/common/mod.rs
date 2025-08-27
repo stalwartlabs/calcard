@@ -4,16 +4,29 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use std::borrow::Cow;
-
-use crate::Token;
 use chrono::{FixedOffset, NaiveDate, NaiveDateTime};
 use mail_parser::DateTime;
 
+pub mod iana;
 pub mod parser;
 pub mod timezone;
 pub mod tokenizer;
+pub mod types;
 pub mod writer;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IanaType<I, O> {
+    Iana(I),
+    Other(O),
+}
+
+pub trait IanaString {
+    fn as_str(&self) -> &'static str;
+}
+
+pub trait IanaParse: Sized {
+    fn parse(value: &[u8]) -> Option<Self>;
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
@@ -55,102 +68,12 @@ pub enum CalendarScale {
     IslamicCivil,
     Hebrew,
     Ethiopic,
-    Other(String),
-}
-
-impl CalendarScale {
-    pub fn as_str(&self) -> &str {
-        match self {
-            CalendarScale::Gregorian => "GREGORIAN",
-            CalendarScale::Chinese => "CHINESE",
-            CalendarScale::IslamicCivil => "ISLAMIC-CIVIL",
-            CalendarScale::Hebrew => "HEBREW",
-            CalendarScale::Ethiopic => "ETHIOPIC",
-            CalendarScale::Other(s) => s.as_str(),
-        }
-    }
-
-    pub fn into_string(self) -> Cow<'static, str> {
-        match self {
-            CalendarScale::Gregorian => Cow::Borrowed("GREGORIAN"),
-            CalendarScale::Chinese => Cow::Borrowed("CHINESE"),
-            CalendarScale::IslamicCivil => Cow::Borrowed("ISLAMIC-CIVIL"),
-            CalendarScale::Hebrew => Cow::Borrowed("HEBREW"),
-            CalendarScale::Ethiopic => Cow::Borrowed("ETHIOPIC"),
-            CalendarScale::Other(s) => Cow::Owned(s),
-        }
-    }
-}
-
-impl AsRef<str> for CalendarScale {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-#[cfg(feature = "rkyv")]
-impl ArchivedCalendarScale {
-    pub fn as_str(&self) -> &str {
-        match self {
-            ArchivedCalendarScale::Gregorian => "GREGORIAN",
-            ArchivedCalendarScale::Chinese => "CHINESE",
-            ArchivedCalendarScale::IslamicCivil => "ISLAMIC-CIVIL",
-            ArchivedCalendarScale::Hebrew => "HEBREW",
-            ArchivedCalendarScale::Ethiopic => "ETHIOPIC",
-            ArchivedCalendarScale::Other(s) => s.as_str(),
-        }
-    }
-}
-
-#[cfg(feature = "rkyv")]
-impl AsRef<str> for ArchivedCalendarScale {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl From<Token<'_>> for CalendarScale {
-    fn from(token: Token<'_>) -> Self {
-        CalendarScale::parse(token.text.as_ref())
-            .unwrap_or_else(|| CalendarScale::Other(token.into_string()))
-    }
-}
-
-impl CalendarScale {
-    pub fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "gregorian" => CalendarScale::Gregorian,
-            "chinese" => CalendarScale::Chinese,
-            "islamic-civil" => CalendarScale::IslamicCivil,
-            "hebrew" => CalendarScale::Hebrew,
-            "ethiopic" => CalendarScale::Ethiopic,
-        )
-    }
-}
-
-impl TryFrom<&[u8]> for CalendarScale {
-    type Error = ();
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        Self::parse(value).ok_or(())
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Encoding {
     QuotedPrintable,
     Base64,
-}
-
-impl Encoding {
-    pub fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            b"QUOTED-PRINTABLE" => Encoding::QuotedPrintable,
-            b"BASE64" => Encoding::Base64,
-            b"Q" => Encoding::QuotedPrintable,
-            b"B" => Encoding::Base64,
-        )
-    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -168,85 +91,155 @@ pub struct Data {
     pub data: Vec<u8>,
 }
 
-impl PartialDateTime {
-    pub fn now() -> Self {
-        Self::from_utc_timestamp(chrono::Utc::now().timestamp())
-    }
-
-    pub fn from_utc_timestamp(value: i64) -> Self {
-        let dt = DateTime::from_timestamp(value);
-
-        PartialDateTime {
-            year: dt.year.into(),
-            month: dt.month.into(),
-            day: dt.day.into(),
-            hour: dt.hour.into(),
-            minute: dt.minute.into(),
-            second: dt.second.into(),
-            tz_hour: dt.tz_hour.into(),
-            tz_minute: dt.tz_minute.into(),
-            tz_minus: false,
-        }
-    }
-
-    pub fn to_date_time(&self) -> Option<DateTimeResult> {
-        let mut dt = DateTimeResult {
-            date_time: NaiveDate::from_ymd_opt(
-                self.year? as i32,
-                self.month? as u32,
-                self.day? as u32,
-            )?
-            .and_hms_opt(
-                self.hour.unwrap_or(0) as u32,
-                self.minute.unwrap_or(0) as u32,
-                self.second.unwrap_or(0) as u32,
-            )?,
-            offset: None,
-        };
-        if let Some(tz_hour) = self.tz_hour {
-            let secs = (tz_hour as i32 * 3600) + (self.tz_minute.unwrap_or(0) as i32 * 60);
-            dt.offset = if self.tz_minus {
-                FixedOffset::west_opt(secs)?
-            } else {
-                FixedOffset::east_opt(secs)?
-            }
-            .into();
-        }
-        Some(dt)
-    }
-}
-
-#[cfg(feature = "rkyv")]
-impl ArchivedPartialDateTime {
-    pub fn to_date_time(&self) -> Option<DateTimeResult> {
-        let mut dt = DateTimeResult {
-            date_time: NaiveDate::from_ymd_opt(
-                self.year.as_ref()?.to_native() as i32,
-                *self.month.as_ref()? as u32,
-                *self.day.as_ref()? as u32,
-            )?
-            .and_hms_opt(
-                self.hour.unwrap_or(0) as u32,
-                self.minute.unwrap_or(0) as u32,
-                self.second.unwrap_or(0) as u32,
-            )?,
-            offset: None,
-        };
-        if let Some(tz_hour) = self.tz_hour.as_ref() {
-            let secs = (*tz_hour as i32 * 3600) + (self.tz_minute.unwrap_or(0) as i32 * 60);
-            dt.offset = if self.tz_minus {
-                FixedOffset::west_opt(secs)?
-            } else {
-                FixedOffset::east_opt(secs)?
-            }
-            .into();
-        }
-        Some(dt)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DateTimeResult {
     pub date_time: NaiveDateTime,
     pub offset: Option<FixedOffset>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
+pub enum LinkRelation {
+    About,
+    Acl,
+    Alternate,
+    Amphtml,
+    ApiCatalog,
+    Appendix,
+    AppleTouchIcon,
+    AppleTouchStartupImage,
+    Archives,
+    Author,
+    BlockedBy,
+    Bookmark,
+    C2paManifest,
+    Canonical,
+    Chapter,
+    CiteAs,
+    Collection,
+    CompressionDictionary,
+    Contents,
+    Convertedfrom,
+    Copyright,
+    CreateForm,
+    Current,
+    Deprecation,
+    Describedby,
+    Describes,
+    Disclosure,
+    DnsPrefetch,
+    Duplicate,
+    Edit,
+    EditForm,
+    EditMedia,
+    Enclosure,
+    External,
+    First,
+    Geofeed,
+    Glossary,
+    Help,
+    Hosts,
+    Hub,
+    IceServer,
+    Icon,
+    Index,
+    Intervalafter,
+    Intervalbefore,
+    Intervalcontains,
+    Intervaldisjoint,
+    Intervalduring,
+    Intervalequals,
+    Intervalfinishedby,
+    Intervalfinishes,
+    Intervalin,
+    Intervalmeets,
+    Intervalmetby,
+    Intervaloverlappedby,
+    Intervaloverlaps,
+    Intervalstartedby,
+    Intervalstarts,
+    Item,
+    Last,
+    LatestVersion,
+    License,
+    Linkset,
+    Lrdd,
+    Manifest,
+    MaskIcon,
+    Me,
+    MediaFeed,
+    Memento,
+    Micropub,
+    Modulepreload,
+    Monitor,
+    MonitorGroup,
+    Next,
+    NextArchive,
+    Nofollow,
+    Noopener,
+    Noreferrer,
+    Opener,
+    Openid2LocalId,
+    Openid2Provider,
+    Original,
+    P3pv1,
+    Payment,
+    Pingback,
+    Preconnect,
+    PredecessorVersion,
+    Prefetch,
+    Preload,
+    Prerender,
+    Prev,
+    Preview,
+    Previous,
+    PrevArchive,
+    PrivacyPolicy,
+    Profile,
+    Publication,
+    RdapActive,
+    RdapBottom,
+    RdapDown,
+    RdapTop,
+    RdapUp,
+    Related,
+    Restconf,
+    Replies,
+    Ruleinput,
+    Search,
+    Section,
+    Self_,
+    Service,
+    ServiceDesc,
+    ServiceDoc,
+    ServiceMeta,
+    SipTrunkingCapability,
+    Sponsored,
+    Start,
+    Status,
+    Stylesheet,
+    Subsection,
+    SuccessorVersion,
+    Sunset,
+    Tag,
+    TermsOfService,
+    Timegate,
+    Timemap,
+    Type,
+    Ugc,
+    Up,
+    VersionHistory,
+    Via,
+    Webmention,
+    WorkingCopy,
+    WorkingCopyOf,
 }

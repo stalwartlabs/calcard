@@ -4,13 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use super::{
-    VCard, VCardEntry, VCardParameter, VCardParameterName, VCardProperty, VCardValue, VCardVersion,
-};
+use super::{VCard, VCardEntry, VCardParameterName, VCardProperty, VCardValue, VCardVersion};
 use crate::{
-    common::{Data, PartialDateTime, writer::write_bytes},
-    vcard::VCardPhonetic,
+    common::{
+        CalendarScale, Data, IanaString, IanaType, PartialDateTime,
+        parser::{Boolean, Timestamp},
+        writer::{write_bytes, write_jscomps},
+    },
+    vcard::{
+        Jscomp, VCardLevel, VCardParameter, VCardParameterValue, VCardPhonetic, VCardType,
+        VCardValueType,
+    },
 };
+use std::borrow::Cow;
 
 impl VCard {
     pub fn uid(&self) -> Option<&str> {
@@ -44,62 +50,74 @@ impl VCard {
 }
 
 impl VCardEntry {
-    pub fn language(&self) -> Option<&str> {
-        self.params.iter().find_map(|p| match p {
-            VCardParameter::Language(lang) => Some(lang.as_str()),
-            _ => None,
+    #[inline]
+    pub fn parameters(
+        &self,
+        prop: &VCardParameterName,
+    ) -> impl Iterator<Item = &VCardParameterValue> {
+        self.params.iter().filter_map(move |param| {
+            if &param.name == prop {
+                Some(&param.value)
+            } else {
+                None
+            }
         })
+    }
+
+    pub fn language(&self) -> Option<&str> {
+        self.parameters(&VCardParameterName::Language)
+            .find_map(|v| v.as_text())
     }
 
     pub fn alt_id(&self) -> Option<&str> {
-        self.params.iter().find_map(|p| match p {
-            VCardParameter::Altid(altid) => Some(altid.as_str()),
-            _ => None,
-        })
+        self.parameters(&VCardParameterName::Altid)
+            .find_map(|v| v.as_text())
     }
 
     pub fn prop_id(&self) -> Option<&str> {
-        self.params.iter().find_map(|p| match p {
-            VCardParameter::PropId(prop_id) => Some(prop_id.as_str()),
-            _ => None,
-        })
+        self.parameters(&VCardParameterName::PropId)
+            .find_map(|v| v.as_text())
     }
 
-    pub fn phonetic_system(&self) -> Option<&VCardPhonetic> {
-        self.params.iter().find_map(|p| match p {
-            VCardParameter::Phonetic(script) => Some(script),
-            _ => None,
-        })
+    pub fn phonetic_system(&self) -> Option<IanaType<&VCardPhonetic, &str>> {
+        self.parameters(&VCardParameterName::Phonetic)
+            .find_map(|v| v.as_phonetic())
     }
 
     pub fn phonetic_script(&self) -> Option<&str> {
-        self.params.iter().find_map(|p| match p {
-            VCardParameter::Script(script) => Some(script.as_str()),
-            _ => None,
-        })
+        self.parameters(&VCardParameterName::Script)
+            .find_map(|v| v.as_text())
     }
 }
 
 impl VCardValue {
     pub fn as_text(&self) -> Option<&str> {
         match self {
-            VCardValue::Text(v) => Some(v.as_str()),
+            VCardValue::Text(v) => v.as_str().into(),
             VCardValue::Sex(v) => v.as_str().into(),
             VCardValue::GramGender(v) => v.as_str().into(),
             VCardValue::Kind(v) => v.as_str().into(),
             VCardValue::Component(v) => v.first().map(|s| s.as_str()),
-            _ => None,
+            VCardValue::Integer(_)
+            | VCardValue::Float(_)
+            | VCardValue::Boolean(_)
+            | VCardValue::PartialDateTime(_)
+            | VCardValue::Binary(_) => None,
         }
     }
 
-    pub fn into_text(self) -> Option<String> {
+    pub fn into_text(self) -> Option<Cow<'static, str>> {
         match self {
-            VCardValue::Text(s) => Some(s),
-            VCardValue::Sex(v) => v.as_str().to_string().into(),
-            VCardValue::GramGender(v) => v.as_str().to_string().into(),
-            VCardValue::Kind(v) => v.as_str().to_string().into(),
-            VCardValue::Component(v) => Some(v.join(",")),
-            _ => None,
+            VCardValue::Text(s) => Some(Cow::Owned(s)),
+            VCardValue::Sex(v) => Some(Cow::Borrowed(v.as_str())),
+            VCardValue::GramGender(v) => Some(Cow::Borrowed(v.as_str())),
+            VCardValue::Kind(v) => Some(Cow::Borrowed(v.as_str())),
+            VCardValue::Component(v) => Some(Cow::Owned(v.join(","))),
+            VCardValue::Integer(_)
+            | VCardValue::Float(_)
+            | VCardValue::Boolean(_)
+            | VCardValue::PartialDateTime(_)
+            | VCardValue::Binary(_) => None,
         }
     }
 
@@ -165,75 +183,431 @@ impl Data {
 }
 
 impl VCardParameter {
-    pub fn matches_name(&self, name: &VCardParameterName) -> bool {
-        match name {
-            VCardParameterName::Language => matches!(self, VCardParameter::Language(_)),
-            VCardParameterName::Value => matches!(self, VCardParameter::Value(_)),
-            VCardParameterName::Pref => matches!(self, VCardParameter::Pref(_)),
-            VCardParameterName::Altid => matches!(self, VCardParameter::Altid(_)),
-            VCardParameterName::Pid => matches!(self, VCardParameter::Pid(_)),
-            VCardParameterName::Type => matches!(self, VCardParameter::Type(_)),
-            VCardParameterName::Mediatype => matches!(self, VCardParameter::Mediatype(_)),
-            VCardParameterName::Calscale => matches!(self, VCardParameter::Calscale(_)),
-            VCardParameterName::SortAs => matches!(self, VCardParameter::SortAs(_)),
-            VCardParameterName::Geo => matches!(self, VCardParameter::Geo(_)),
-            VCardParameterName::Tz => matches!(self, VCardParameter::Tz(_)),
-            VCardParameterName::Index => matches!(self, VCardParameter::Index(_)),
-            VCardParameterName::Level => matches!(self, VCardParameter::Level(_)),
-            VCardParameterName::Group => matches!(self, VCardParameter::Group(_)),
-            VCardParameterName::Cc => matches!(self, VCardParameter::Cc(_)),
-            VCardParameterName::Author => matches!(self, VCardParameter::Author(_)),
-            VCardParameterName::AuthorName => matches!(self, VCardParameter::AuthorName(_)),
-            VCardParameterName::Created => matches!(self, VCardParameter::Created(_)),
-            VCardParameterName::Derived => matches!(self, VCardParameter::Derived(_)),
-            VCardParameterName::Label => matches!(self, VCardParameter::Label(_)),
-            VCardParameterName::Phonetic => matches!(self, VCardParameter::Phonetic(_)),
-            VCardParameterName::PropId => matches!(self, VCardParameter::PropId(_)),
-            VCardParameterName::Script => matches!(self, VCardParameter::Script(_)),
-            VCardParameterName::ServiceType => matches!(self, VCardParameter::ServiceType(_)),
-            VCardParameterName::Username => matches!(self, VCardParameter::Username(_)),
-            VCardParameterName::Jsptr => matches!(self, VCardParameter::Jsptr(_)),
-            VCardParameterName::Jscomps => matches!(self, VCardParameter::Jscomps(_)),
-            VCardParameterName::Other(s) => {
-                if let VCardParameter::Other(v) = self {
-                    v.first().is_some_and(|x| x == s)
-                } else {
-                    false
-                }
+    pub fn new(name: VCardParameterName, value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name,
+            value: value.into(),
+        }
+    }
+
+    pub fn language(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Language,
+            value: value.into(),
+        }
+    }
+
+    pub fn value(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Value,
+            value: value.into(),
+        }
+    }
+
+    pub fn pref(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Pref,
+            value: value.into(),
+        }
+    }
+
+    pub fn altid(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Altid,
+            value: value.into(),
+        }
+    }
+
+    pub fn pid(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Pid,
+            value: value.into(),
+        }
+    }
+
+    pub fn typ(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Type,
+            value: value.into(),
+        }
+    }
+
+    pub fn mediatype(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Mediatype,
+            value: value.into(),
+        }
+    }
+
+    pub fn calscale(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Calscale,
+            value: value.into(),
+        }
+    }
+
+    pub fn sort_as(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::SortAs,
+            value: value.into(),
+        }
+    }
+
+    pub fn geo(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Geo,
+            value: value.into(),
+        }
+    }
+
+    pub fn tz(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Tz,
+            value: value.into(),
+        }
+    }
+
+    pub fn index(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Index,
+            value: value.into(),
+        }
+    }
+
+    pub fn level(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Level,
+            value: value.into(),
+        }
+    }
+
+    pub fn group(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Group,
+            value: value.into(),
+        }
+    }
+
+    pub fn cc(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Cc,
+            value: value.into(),
+        }
+    }
+
+    pub fn author(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Author,
+            value: value.into(),
+        }
+    }
+
+    pub fn author_name(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::AuthorName,
+            value: value.into(),
+        }
+    }
+
+    pub fn created(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Created,
+            value: value.into(),
+        }
+    }
+
+    pub fn derived(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Derived,
+            value: value.into(),
+        }
+    }
+
+    pub fn label(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Label,
+            value: value.into(),
+        }
+    }
+
+    pub fn phonetic(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Phonetic,
+            value: value.into(),
+        }
+    }
+
+    pub fn prop_id(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::PropId,
+            value: value.into(),
+        }
+    }
+
+    pub fn script(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Script,
+            value: value.into(),
+        }
+    }
+
+    pub fn service_type(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::ServiceType,
+            value: value.into(),
+        }
+    }
+
+    pub fn username(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Username,
+            value: value.into(),
+        }
+    }
+
+    pub fn jsptr(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Jsptr,
+            value: value.into(),
+        }
+    }
+
+    pub fn jscomps(value: impl Into<VCardParameterValue>) -> Self {
+        VCardParameter {
+            name: VCardParameterName::Jscomps,
+            value: value.into(),
+        }
+    }
+}
+
+impl VCardParameterValue {
+    pub fn into_text(self) -> Cow<'static, str> {
+        match self {
+            VCardParameterValue::Text(s) => Cow::Owned(s),
+            VCardParameterValue::ValueType(v) => Cow::Borrowed(v.as_str()),
+            VCardParameterValue::Type(v) => Cow::Borrowed(v.as_str()),
+            VCardParameterValue::Calscale(v) => Cow::Borrowed(v.as_str()),
+            VCardParameterValue::Level(v) => Cow::Borrowed(v.as_str()),
+            VCardParameterValue::Phonetic(v) => Cow::Borrowed(v.as_str()),
+            VCardParameterValue::Jscomps(v) => {
+                let mut jscomps = String::new();
+                let _ = write_jscomps(&mut jscomps, &mut 0, &v);
+                Cow::Owned(jscomps)
             }
+            VCardParameterValue::Integer(i) => Cow::Owned(i.to_string()),
+            VCardParameterValue::Timestamp(t) => Cow::Owned(t.to_string()),
+            VCardParameterValue::Bool(b) => Cow::Borrowed(if b { "true" } else { "false" }),
+            VCardParameterValue::Null => Cow::Borrowed(""),
         }
     }
 
     pub fn as_text(&self) -> Option<&str> {
         match self {
-            VCardParameter::Language(s) => Some(s),
-            VCardParameter::Altid(s) => Some(s),
-            VCardParameter::Pid(s) => s.first().map(|x| x.as_str()),
-            VCardParameter::Mediatype(s) => Some(s),
-            VCardParameter::Calscale(s) => Some(s.as_str()),
-            VCardParameter::SortAs(s) => Some(s),
-            VCardParameter::Geo(s) => Some(s),
-            VCardParameter::Tz(s) => Some(s),
-            VCardParameter::Level(s) => Some(s.as_str()),
-            VCardParameter::Group(s) => Some(s),
-            VCardParameter::Cc(s) => Some(s),
-            VCardParameter::Author(s) => Some(s),
-            VCardParameter::AuthorName(s) => Some(s),
-            VCardParameter::Label(s) => Some(s),
-            VCardParameter::Phonetic(s) => Some(s.as_str()),
-            VCardParameter::PropId(s) => Some(s),
-            VCardParameter::Script(s) => Some(s),
-            VCardParameter::ServiceType(s) => Some(s),
-            VCardParameter::Username(s) => Some(s),
-            VCardParameter::Jsptr(s) => Some(s),
-            VCardParameter::Other(items) => items.get(1).map(|x| x.as_str()),
-            VCardParameter::Value(_)
-            | VCardParameter::Pref(_)
-            | VCardParameter::Type(_)
-            | VCardParameter::Index(_)
-            | VCardParameter::Created(_)
-            | VCardParameter::Derived(_)
-            | VCardParameter::Jscomps(_) => None,
+            VCardParameterValue::Text(v) => Some(v.as_str()),
+            VCardParameterValue::ValueType(v) => Some(v.as_str()),
+            VCardParameterValue::Type(v) => Some(v.as_str()),
+            VCardParameterValue::Calscale(v) => Some(v.as_str()),
+            VCardParameterValue::Level(v) => Some(v.as_str()),
+            VCardParameterValue::Phonetic(v) => Some(v.as_str()),
+            VCardParameterValue::Jscomps(_)
+            | VCardParameterValue::Integer(_)
+            | VCardParameterValue::Timestamp(_)
+            | VCardParameterValue::Bool(_)
+            | VCardParameterValue::Null => None,
+        }
+    }
+
+    pub fn into_phonetic(self) -> Option<IanaType<VCardPhonetic, String>> {
+        match self {
+            VCardParameterValue::Phonetic(v) => Some(IanaType::Iana(v)),
+            VCardParameterValue::Text(v) => Some(IanaType::Other(v)),
+            _ => None,
+        }
+    }
+
+    pub fn as_phonetic(&self) -> Option<IanaType<&VCardPhonetic, &str>> {
+        match self {
+            VCardParameterValue::Phonetic(v) => Some(IanaType::Iana(v)),
+            VCardParameterValue::Text(v) => Some(IanaType::Other(v.as_str())),
+            _ => None,
+        }
+    }
+
+    pub fn into_calscale(self) -> Option<IanaType<CalendarScale, String>> {
+        match self {
+            VCardParameterValue::Calscale(v) => Some(IanaType::Iana(v)),
+            VCardParameterValue::Text(v) => Some(IanaType::Other(v)),
+            _ => None,
+        }
+    }
+
+    pub fn as_calscale(&self) -> Option<IanaType<&CalendarScale, &str>> {
+        match self {
+            VCardParameterValue::Calscale(v) => Some(IanaType::Iana(v)),
+            VCardParameterValue::Text(v) => Some(IanaType::Other(v.as_str())),
+            _ => None,
+        }
+    }
+
+    pub fn into_level(self) -> Option<IanaType<VCardLevel, String>> {
+        match self {
+            VCardParameterValue::Level(v) => Some(IanaType::Iana(v)),
+            VCardParameterValue::Text(v) => Some(IanaType::Other(v)),
+            _ => None,
+        }
+    }
+
+    pub fn as_level(&self) -> Option<IanaType<&VCardLevel, &str>> {
+        match self {
+            VCardParameterValue::Level(v) => Some(IanaType::Iana(v)),
+            VCardParameterValue::Text(v) => Some(IanaType::Other(v.as_str())),
+            _ => None,
+        }
+    }
+
+    pub fn into_type(self) -> Option<IanaType<VCardType, String>> {
+        match self {
+            VCardParameterValue::Type(v) => Some(IanaType::Iana(v)),
+            VCardParameterValue::Text(v) => Some(IanaType::Other(v)),
+            _ => None,
+        }
+    }
+
+    pub fn as_type(&self) -> Option<IanaType<&VCardType, &str>> {
+        match self {
+            VCardParameterValue::Type(v) => Some(IanaType::Iana(v)),
+            VCardParameterValue::Text(v) => Some(IanaType::Other(v.as_str())),
+            _ => None,
+        }
+    }
+
+    pub fn into_value_type(self) -> Option<IanaType<VCardValueType, String>> {
+        match self {
+            VCardParameterValue::ValueType(v) => Some(IanaType::Iana(v)),
+            VCardParameterValue::Text(v) => Some(IanaType::Other(v)),
+            _ => None,
+        }
+    }
+
+    pub fn as_value_type(&self) -> Option<IanaType<&VCardValueType, &str>> {
+        match self {
+            VCardParameterValue::ValueType(v) => Some(IanaType::Iana(v)),
+            VCardParameterValue::Text(v) => Some(IanaType::Other(v.as_str())),
+            _ => None,
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<IanaType<bool, &str>> {
+        match self {
+            VCardParameterValue::Bool(b) => Some(IanaType::Iana(*b)),
+            VCardParameterValue::Text(v) => Some(IanaType::Other(v.as_str())),
+            _ => None,
+        }
+    }
+
+    pub fn as_integer(&self) -> Option<IanaType<u32, &str>> {
+        match self {
+            VCardParameterValue::Integer(i) => Some(IanaType::Iana(*i)),
+            VCardParameterValue::Text(v) => Some(IanaType::Other(v.as_str())),
+            _ => None,
+        }
+    }
+
+    pub fn into_timestamp(self) -> Option<IanaType<i64, String>> {
+        match self {
+            VCardParameterValue::Timestamp(t) => Some(IanaType::Iana(t)),
+            VCardParameterValue::Text(v) => Some(IanaType::Other(v)),
+            _ => None,
+        }
+    }
+
+    pub fn as_timestamp(&self) -> Option<IanaType<i64, &str>> {
+        match self {
+            VCardParameterValue::Timestamp(t) => Some(IanaType::Iana(*t)),
+            VCardParameterValue::Text(v) => Some(IanaType::Other(v.as_str())),
+            _ => None,
+        }
+    }
+
+    pub fn into_jscomps(self) -> Option<Vec<Jscomp>> {
+        match self {
+            VCardParameterValue::Jscomps(v) => Some(v),
+            _ => None,
+        }
+    }
+}
+
+impl From<String> for VCardParameterValue {
+    fn from(value: String) -> Self {
+        VCardParameterValue::Text(value)
+    }
+}
+
+impl From<u32> for VCardParameterValue {
+    fn from(value: u32) -> Self {
+        VCardParameterValue::Integer(value)
+    }
+}
+
+impl From<VCardType> for VCardParameterValue {
+    fn from(value: VCardType) -> Self {
+        VCardParameterValue::Type(value)
+    }
+}
+
+impl From<VCardValueType> for VCardParameterValue {
+    fn from(value: VCardValueType) -> Self {
+        VCardParameterValue::ValueType(value)
+    }
+}
+
+impl From<CalendarScale> for VCardParameterValue {
+    fn from(value: CalendarScale) -> Self {
+        VCardParameterValue::Calscale(value)
+    }
+}
+
+impl From<VCardPhonetic> for VCardParameterValue {
+    fn from(value: VCardPhonetic) -> Self {
+        VCardParameterValue::Phonetic(value)
+    }
+}
+
+impl From<VCardLevel> for VCardParameterValue {
+    fn from(value: VCardLevel) -> Self {
+        VCardParameterValue::Level(value)
+    }
+}
+
+impl From<bool> for VCardParameterValue {
+    fn from(value: bool) -> Self {
+        VCardParameterValue::Bool(value)
+    }
+}
+
+impl From<Vec<Jscomp>> for VCardParameterValue {
+    fn from(value: Vec<Jscomp>) -> Self {
+        VCardParameterValue::Jscomps(value)
+    }
+}
+
+impl From<Timestamp> for VCardParameterValue {
+    fn from(value: Timestamp) -> Self {
+        VCardParameterValue::Timestamp(value.0)
+    }
+}
+
+impl From<Boolean> for VCardParameterValue {
+    fn from(value: Boolean) -> Self {
+        VCardParameterValue::Bool(value.0)
+    }
+}
+
+impl<T: Into<VCardParameterValue>> From<IanaType<T, String>> for VCardParameterValue {
+    fn from(value: IanaType<T, String>) -> Self {
+        match value {
+            IanaType::Iana(v) => v.into(),
+            IanaType::Other(s) => s.into(),
         }
     }
 }

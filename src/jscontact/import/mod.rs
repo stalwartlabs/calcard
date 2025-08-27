@@ -5,14 +5,14 @@
  */
 
 use crate::{
-    common::CalendarScale,
+    common::{CalendarScale, IanaType},
     jscontact::{JSContactProperty, JSContactValue},
     vcard::{
         Jscomp, VCardEntry, VCardLevel, VCardParameterName, VCardPhonetic, VCardProperty, VCardType,
     },
 };
 use ahash::AHashMap;
-use jmap_tools::{Key, Map, Value};
+use jmap_tools::{JsonPointer, Key, Map, Value};
 use std::collections::HashMap;
 
 pub mod convert;
@@ -28,6 +28,10 @@ struct State {
     >,
     vcard_converted_properties: AHashMap<String, VCardConvertedProperty>,
     vcard_properties: Vec<Value<'static, JSContactProperty, JSContactValue>>,
+    patch_objects: Vec<(
+        JsonPointer<JSContactProperty>,
+        Value<'static, JSContactProperty, JSContactValue>,
+    )>,
     localizations:
         HashMap<String, Vec<(String, Value<'static, JSContactProperty, JSContactValue>)>>,
     default_language: Option<String>,
@@ -72,18 +76,18 @@ struct ExtractedParams {
     pref: Option<u32>,
     author: Option<String>,
     author_name: Option<String>,
-    phonetic_system: Option<VCardPhonetic>,
+    phonetic_system: Option<IanaType<VCardPhonetic, String>>,
     phonetic_script: Option<String>,
     media_type: Option<String>,
-    calscale: Option<CalendarScale>,
+    calscale: Option<IanaType<CalendarScale, String>>,
     sort_as: Option<String>,
     prop_id: Option<String>,
     alt_id: Option<String>,
-    types: Vec<VCardType>,
+    types: Vec<IanaType<VCardType, String>>,
     geo: Option<String>,
     tz: Option<String>,
     index: Option<u32>,
-    level: Option<VCardLevel>,
+    level: Option<IanaType<VCardLevel, String>>,
     country_code: Option<String>,
     created: Option<i64>,
     label: Option<String>,

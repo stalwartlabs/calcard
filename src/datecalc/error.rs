@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use crate::icalendar::ICalendarFrequency;
+use crate::{common::IanaString, icalendar::ICalendarFrequency};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -133,11 +133,13 @@ impl Display for ValidationError {
                 end_idx,
             } => write!(
                 f,
-                "Invalid value `{value}` for field `{field}`, frequency `{}`, start index `{start_idx}` and end index `{end_idx}`", freq.as_str()
+                "Invalid value `{value}` for field `{field}`, frequency `{}`, start index `{start_idx}` and end index `{end_idx}`",
+                freq.as_str()
             ),
             ValidationError::InvalidByRuleAndFrequency { by_rule, freq } => write!(
                 f,
-                "Invalid BY rule `{by_rule}` with frequency `{}`", freq.as_str()
+                "Invalid BY rule `{by_rule}` with frequency `{}`",
+                freq.as_str()
             ),
             ValidationError::UntilBeforeStart { until, dt_start } => write!(
                 f,

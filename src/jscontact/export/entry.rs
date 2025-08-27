@@ -5,11 +5,14 @@
  */
 
 use crate::{
-    common::{parser::Timestamp, CalendarScale},
-    jscontact::{export::params::ParamValue, JSContactProperty, JSContactValue},
+    common::{
+        CalendarScale, IanaParse,
+        parser::{Boolean, Timestamp},
+    },
+    jscontact::{JSContactProperty, JSContactValue, export::params::ParamValue},
     vcard::{
-        VCardEntry, VCardLevel, VCardParameter, VCardParameterName, VCardPhonetic, VCardProperty,
-        VCardType, VCardValueType,
+        VCardEntry, VCardLevel, VCardParameter, VCardParameterName, VCardParameterValue,
+        VCardPhonetic, VCardProperty, VCardType, VCardValueType,
     },
 };
 use jmap_tools::{Key, Value};
@@ -23,7 +26,7 @@ impl VCardEntry {
             match key {
                 Key::Property(JSContactProperty::Name) => {
                     if let Some(name) = value.into_string() {
-                        self.name = VCardProperty::try_from(name.as_ref())
+                        self.name = VCardProperty::parse(name.as_ref())
                             .unwrap_or(VCardProperty::Other(name));
                     }
                 }
@@ -53,165 +56,83 @@ impl VCardEntry {
             }
 
             let key = key.to_string();
-            let Some(param) = VCardParameterName::try_parse(key.as_ref()) else {
-                self.params.push(VCardParameter::Other(
-                    [key.into_owned()]
-                        .into_iter()
-                        .chain(values.map(|v| v.into_string().into_owned()))
-                        .collect(),
-                ));
+            let Some(param) = VCardParameterName::try_parse(key.as_bytes()) else {
+                let key = key.into_owned();
+
+                for value in values {
+                    self.params.push(VCardParameter {
+                        name: VCardParameterName::Other(key.clone()),
+                        value: value.into_string().into_owned().into(),
+                    });
+                }
+
                 continue;
             };
 
-            let param = match param {
-                VCardParameterName::Language => VCardParameter::Language(
-                    values.map(|v| v.into_string().into_owned()).next().unwrap(),
-                ),
-                VCardParameterName::Value => VCardParameter::Value(
-                    values
-                        .map(|v| {
-                            let v = v.into_string();
-                            VCardValueType::try_from(v.as_bytes())
-                                .unwrap_or_else(|_| VCardValueType::Other(v.into_owned()))
-                        })
-                        .collect(),
-                ),
-                VCardParameterName::Pref => values
-                    .next()
-                    .map(|v| match v.into_number() {
-                        Ok(n) => VCardParameter::Pref(n as u32),
-                        Err(v) => VCardParameter::Other(vec![
-                            VCardParameterName::Pref.as_str().to_string(),
-                            v.into_string().into_owned(),
-                        ]),
-                    })
-                    .unwrap(),
-                VCardParameterName::Altid => VCardParameter::Altid(
-                    values.map(|v| v.into_string().into_owned()).next().unwrap(),
-                ),
-                VCardParameterName::Pid => {
-                    VCardParameter::Pid(values.map(|v| v.into_string().into_owned()).collect())
-                }
-                VCardParameterName::Type => VCardParameter::Type(
-                    values
-                        .map(|v| {
-                            let v = v.into_string();
-                            VCardType::try_from(v.as_bytes())
-                                .unwrap_or_else(|_| VCardType::Other(v.into_owned()))
-                        })
-                        .collect(),
-                ),
-                VCardParameterName::Mediatype => VCardParameter::Mediatype(
-                    values.map(|v| v.into_string().into_owned()).next().unwrap(),
-                ),
-                VCardParameterName::Calscale => {
-                    let value = values.next().map(|v| v.into_string()).unwrap();
-                    CalendarScale::try_from(value.as_bytes())
-                        .map(VCardParameter::Calscale)
-                        .unwrap_or_else(|_| {
-                            VCardParameter::Other(vec![
-                                VCardParameterName::Calscale.as_str().to_string(),
-                                value.into_owned(),
-                            ])
-                        })
-                }
-                VCardParameterName::SortAs => VCardParameter::SortAs(
-                    values.map(|v| v.into_string().into_owned()).next().unwrap(),
-                ),
-                VCardParameterName::Geo => VCardParameter::Geo(
-                    values.map(|v| v.into_string().into_owned()).next().unwrap(),
-                ),
-                VCardParameterName::Tz => {
-                    VCardParameter::Tz(values.map(|v| v.into_string().into_owned()).next().unwrap())
-                }
-                VCardParameterName::Index => values
-                    .next()
-                    .map(|v| match v.into_number() {
-                        Ok(n) => VCardParameter::Index(n as u32),
-                        Err(v) => VCardParameter::Other(vec![
-                            VCardParameterName::Index.as_str().to_string(),
-                            v.into_string().into_owned(),
-                        ]),
-                    })
-                    .unwrap(),
-                VCardParameterName::Level => {
-                    let value = values.next().map(|v| v.into_string()).unwrap();
-                    VCardLevel::try_from(value.as_bytes())
-                        .map(VCardParameter::Level)
-                        .unwrap_or_else(|_| {
-                            VCardParameter::Other(vec![
-                                VCardParameterName::Level.as_str().to_string(),
-                                value.into_owned(),
-                            ])
-                        })
-                }
-                VCardParameterName::Group => {
-                    self.group = values.map(|v| v.into_string().into_owned()).next();
-                    continue;
-                }
-                VCardParameterName::Cc => {
-                    VCardParameter::Cc(values.map(|v| v.into_string().into_owned()).next().unwrap())
-                }
-                VCardParameterName::Author => VCardParameter::Author(
-                    values.map(|v| v.into_string().into_owned()).next().unwrap(),
-                ),
-                VCardParameterName::AuthorName => VCardParameter::AuthorName(
-                    values.map(|v| v.into_string().into_owned()).next().unwrap(),
-                ),
-                VCardParameterName::Created => {
-                    let value = values.next().map(|v| v.into_string()).unwrap();
-                    Timestamp::try_from(value.as_bytes())
-                        .map(|v| VCardParameter::Created(v.0))
-                        .unwrap_or_else(|_| {
-                            VCardParameter::Other(vec![
-                                VCardParameterName::Created.as_str().to_string(),
-                                value.into_owned(),
-                            ])
-                        })
-                }
-                VCardParameterName::Derived => values
-                    .next()
-                    .map(|v| match v.into_bool() {
-                        Ok(n) => VCardParameter::Derived(n),
-                        Err(v) => VCardParameter::Other(vec![
-                            VCardParameterName::Derived.as_str().to_string(),
-                            v.into_string().into_owned(),
-                        ]),
-                    })
-                    .unwrap(),
-                VCardParameterName::Label => VCardParameter::Label(
-                    values.map(|v| v.into_string().into_owned()).next().unwrap(),
-                ),
-                VCardParameterName::Phonetic => {
-                    let value = values.next().map(|v| v.into_string()).unwrap();
-                    VCardPhonetic::try_from(value.as_bytes())
-                        .map(VCardParameter::Phonetic)
-                        .unwrap_or_else(|_| {
-                            VCardParameter::Other(vec![
-                                VCardParameterName::Phonetic.as_str().to_string(),
-                                value.into_owned(),
-                            ])
-                        })
-                }
-                VCardParameterName::PropId => VCardParameter::PropId(
-                    values.map(|v| v.into_string().into_owned()).next().unwrap(),
-                ),
-                VCardParameterName::Script => VCardParameter::Script(
-                    values.map(|v| v.into_string().into_owned()).next().unwrap(),
-                ),
-                VCardParameterName::ServiceType => VCardParameter::ServiceType(
-                    values.map(|v| v.into_string().into_owned()).next().unwrap(),
-                ),
-                VCardParameterName::Username => VCardParameter::Username(
-                    values.map(|v| v.into_string().into_owned()).next().unwrap(),
-                ),
-                VCardParameterName::Jsptr => VCardParameter::Jsptr(
-                    values.map(|v| v.into_string().into_owned()).next().unwrap(),
-                ),
-                _ => unreachable!(),
-            };
+            for value in values {
+                let value = match &param {
+                    VCardParameterName::Value => {
+                        let value = value.into_string();
+                        VCardValueType::parse(value.as_bytes())
+                            .map(VCardParameterValue::ValueType)
+                            .unwrap_or_else(|| VCardParameterValue::Text(value.into_owned()))
+                    }
+                    VCardParameterName::Pref | VCardParameterName::Index => {
+                        match value.into_number() {
+                            Ok(n) => VCardParameterValue::Integer(n as u32),
+                            Err(value) => {
+                                VCardParameterValue::Text(value.into_string().into_owned())
+                            }
+                        }
+                    }
+                    VCardParameterName::Calscale => {
+                        let value = value.into_string();
+                        CalendarScale::parse(value.as_bytes())
+                            .map(VCardParameterValue::Calscale)
+                            .unwrap_or_else(|| VCardParameterValue::Text(value.into_owned()))
+                    }
+                    VCardParameterName::Phonetic => {
+                        let value = value.into_string();
+                        VCardPhonetic::parse(value.as_bytes())
+                            .map(VCardParameterValue::Phonetic)
+                            .unwrap_or_else(|| VCardParameterValue::Text(value.into_owned()))
+                    }
+                    VCardParameterName::Level => {
+                        let value = value.into_string();
+                        VCardLevel::parse(value.as_bytes())
+                            .map(VCardParameterValue::Level)
+                            .unwrap_or_else(|| VCardParameterValue::Text(value.into_owned()))
+                    }
+                    VCardParameterName::Created => {
+                        let value = value.into_string();
+                        Timestamp::parse(value.as_bytes())
+                            .map(|v| VCardParameterValue::Timestamp(v.0))
+                            .unwrap_or_else(|| VCardParameterValue::Text(value.into_owned()))
+                    }
+                    VCardParameterName::Derived => {
+                        let value = value.into_string();
+                        Boolean::parse(value.as_bytes())
+                            .map(|v| VCardParameterValue::Bool(v.0))
+                            .unwrap_or_else(|| VCardParameterValue::Text(value.into_owned()))
+                    }
+                    VCardParameterName::Type => {
+                        let value = value.into_string();
+                        VCardType::parse(value.as_bytes())
+                            .map(VCardParameterValue::Type)
+                            .unwrap_or_else(|| VCardParameterValue::Text(value.into_owned()))
+                    }
+                    VCardParameterName::Group => {
+                        self.group = Some(value.into_string().into_owned());
+                        continue;
+                    }
+                    _ => VCardParameterValue::Text(value.into_string().into_owned()),
+                };
 
-            self.params.push(param);
+                self.params.push(VCardParameter {
+                    name: param.clone(),
+                    value,
+                });
+            }
         }
     }
 }

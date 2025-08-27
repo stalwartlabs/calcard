@@ -11,7 +11,7 @@ use super::{
 use crate::{
     common::{DateTimeResult, timezone::Tz},
     datecalc::{RRuleIter, error::RRuleError, rrule::RRule},
-    icalendar::ICalendarParameter,
+    icalendar::ICalendarParameterName,
 };
 use ahash::{AHashMap, AHashSet};
 use chrono::{DateTime, TimeDelta, TimeZone, Timelike};
@@ -238,11 +238,11 @@ impl ICalendarComponent {
                 (ICalendarProperty::RecurrenceId, Some(ICalendarValue::PartialDateTime(dt))) => {
                     if let Some(dt) = dt.to_date_time() {
                         for param in &entry.params {
-                            match param {
-                                ICalendarParameter::Tzid(id) => {
-                                    rid_tzid = Some(id.as_str());
+                            match &param.name {
+                                ICalendarParameterName::Tzid => {
+                                    rid_tzid = param.value.as_text();
                                 }
-                                ICalendarParameter::Range => {
+                                ICalendarParameterName::Range => {
                                     rid_this_and_future = true;
                                 }
                                 _ => (),

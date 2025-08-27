@@ -8,7 +8,7 @@ use super::*;
 use crate::{
     common::{
         ArchivedPartialDateTime,
-        writer::{write_bytes, write_param, write_param_value, write_params, write_text},
+        writer::{write_bytes, write_param_value, write_text},
     },
     icalendar::ValueSeparator,
 };
@@ -74,156 +74,101 @@ impl ArchivedICalendarEntry {
             line_len += 18;
         }
 
-        let mut value_type = None;
-        for param in self.params.iter() {
-            write!(out, ";")?;
-            line_len += 1;
+        let mut types = None;
+        let mut last_param: Option<&ArchivedICalendarParameterName> = None;
 
-            if line_len + 1 > 75 {
-                write!(out, "\r\n ")?;
-                line_len = 1;
+        for param in self.params.iter() {
+            if last_param.is_some_and(|last_param| last_param == &param.name) {
+                write!(out, ",")?;
+                line_len += 1;
+
+                if line_len + 1 > 75 {
+                    write!(out, "\r\n ")?;
+                    line_len = 1;
+                }
+            } else {
+                write!(out, ";")?;
+                line_len += 1;
+                let name = param.name.as_str();
+                let need_len = name.len() + 1;
+                if line_len + need_len > 75 {
+                    write!(out, "\r\n ")?;
+                    line_len = 1;
+                }
+                if !matches!(param.value, ArchivedICalendarParameterValue::Null) {
+                    write!(out, "{name}=")?;
+                } else {
+                    write!(out, "{name}")?;
+                }
+                line_len += need_len;
+                last_param = Some(&param.name);
             }
 
-            match param {
-                ArchivedICalendarParameter::Altrep(v) => {
-                    write_uri_param(out, &mut line_len, "ALTREP", v)?;
+            match &param.value {
+                ArchivedICalendarParameterValue::Text(v) => {
+                    write_param_value(out, &mut line_len, v)?;
                 }
-                ArchivedICalendarParameter::Cn(v) => {
-                    write_param(out, &mut line_len, "CN", v)?;
+                ArchivedICalendarParameterValue::Integer(i) => {
+                    write!(out, "{i}")?;
+                    line_len += 2;
                 }
-                ArchivedICalendarParameter::Cutype(v) => {
-                    write_param(out, &mut line_len, "CUTYPE", v)?;
+                ArchivedICalendarParameterValue::Bool(v) => {
+                    let v = if !matches!(param.name, ArchivedICalendarParameterName::Range) {
+                        if *v { "TRUE" } else { "FALSE" }
+                    } else {
+                        "THISANDFUTURE"
+                    };
+                    line_len += v.len();
+                    write!(out, "{v}")?;
                 }
-                ArchivedICalendarParameter::DelegatedFrom(v) => {
-                    write_uri_params(out, &mut line_len, "DELEGATED-FROM", v)?;
+                ArchivedICalendarParameterValue::Uri(uri) => {
+                    write!(out, "\"")?;
+                    write_uri(out, &mut line_len, uri, false)?;
+                    write!(out, "\"")?;
                 }
-                ArchivedICalendarParameter::DelegatedTo(v) => {
-                    write_uri_params(out, &mut line_len, "DELEGATED-TO", v)?;
+                ArchivedICalendarParameterValue::Cutype(v) => {
+                    write_param_value(out, &mut line_len, v.as_str())?;
                 }
-                ArchivedICalendarParameter::Dir(v) => {
-                    write_uri_param(out, &mut line_len, "DIR", v)?;
+                ArchivedICalendarParameterValue::Fbtype(v) => {
+                    write_param_value(out, &mut line_len, v.as_str())?;
                 }
-                ArchivedICalendarParameter::Fmttype(v) => {
-                    write_param(out, &mut line_len, "FMTTYPE", v)?;
+                ArchivedICalendarParameterValue::Partstat(v) => {
+                    write_param_value(out, &mut line_len, v.as_str())?;
                 }
-                ArchivedICalendarParameter::Fbtype(v) => {
-                    write_param(out, &mut line_len, "FBTYPE", v)?;
+                ArchivedICalendarParameterValue::Related(v) => {
+                    write_param_value(out, &mut line_len, v.as_str())?;
                 }
-                ArchivedICalendarParameter::Language(v) => {
-                    write_param(out, &mut line_len, "LANGUAGE", v)?;
+                ArchivedICalendarParameterValue::Reltype(v) => {
+                    write_param_value(out, &mut line_len, v.as_str())?;
                 }
-                ArchivedICalendarParameter::Member(v) => {
-                    write_uri_params(out, &mut line_len, "MEMBER", v)?;
+                ArchivedICalendarParameterValue::Role(v) => {
+                    write_param_value(out, &mut line_len, v.as_str())?;
                 }
-                ArchivedICalendarParameter::Partstat(v) => {
-                    write_param(out, &mut line_len, "PARTSTAT", v)?;
+                ArchivedICalendarParameterValue::ScheduleAgent(v) => {
+                    write_param_value(out, &mut line_len, v.as_str())?;
                 }
-                ArchivedICalendarParameter::Range => {
-                    write!(out, "RANGE=THISANDFUTURE")?;
-                    line_len += 18;
+                ArchivedICalendarParameterValue::ScheduleForceSend(v) => {
+                    write_param_value(out, &mut line_len, v.as_str())?;
                 }
-                ArchivedICalendarParameter::Related(v) => {
-                    write_param(out, &mut line_len, "RELATED", v)?;
+                ArchivedICalendarParameterValue::Value(v) => {
+                    types = Some(v);
+                    write_param_value(out, &mut line_len, v.as_str())?;
                 }
-                ArchivedICalendarParameter::Reltype(v) => {
-                    write_param(out, &mut line_len, "RELTYPE", v)?;
+                ArchivedICalendarParameterValue::Display(v) => {
+                    write_param_value(out, &mut line_len, v.as_str())?;
                 }
-                ArchivedICalendarParameter::Role(v) => {
-                    write_param(out, &mut line_len, "ROLE", v)?;
+                ArchivedICalendarParameterValue::Feature(v) => {
+                    write_param_value(out, &mut line_len, v.as_str())?;
                 }
-                ArchivedICalendarParameter::Rsvp(v) => {
-                    write_param(
-                        out,
-                        &mut line_len,
-                        "RSVP",
-                        if *v { "TRUE" } else { "FALSE" },
-                    )?;
-                }
-                ArchivedICalendarParameter::ScheduleAgent(v) => {
-                    write_param(out, &mut line_len, "SCHEDULE-AGENT", v)?;
-                }
-                ArchivedICalendarParameter::ScheduleForceSend(v) => {
-                    write_param(out, &mut line_len, "SCHEDULE-FORCE-SEND", v)?;
-                }
-                ArchivedICalendarParameter::ScheduleStatus(v) => {
-                    write_param(out, &mut line_len, "SCHEDULE-STATUS", v)?;
-                }
-                ArchivedICalendarParameter::SentBy(v) => {
-                    write_uri_param(out, &mut line_len, "SENT-BY", v)?;
-                }
-                ArchivedICalendarParameter::Tzid(v) => {
-                    write_param(out, &mut line_len, "TZID", v)?;
-                }
-                ArchivedICalendarParameter::Value(v) => {
-                    write_param(out, &mut line_len, "VALUE", v)?;
-                    value_type = Some(v);
-                }
-                ArchivedICalendarParameter::Display(v) => {
-                    write_params(out, &mut line_len, "DISPLAY", v)?;
-                }
-                ArchivedICalendarParameter::Email(v) => {
-                    write_param(out, &mut line_len, "EMAIL", v)?;
-                }
-                ArchivedICalendarParameter::Feature(v) => {
-                    write_params(out, &mut line_len, "FEATURE", v)?;
-                }
-                ArchivedICalendarParameter::Label(v) => {
-                    write_param(out, &mut line_len, "LABEL", v)?;
-                }
-                ArchivedICalendarParameter::Size(v) => {
-                    write!(out, "SIZE={}", v)?;
-                    line_len += 8;
-                }
-                ArchivedICalendarParameter::Filename(v) => {
-                    write_param(out, &mut line_len, "FILENAME", v)?;
-                }
-                ArchivedICalendarParameter::ManagedId(v) => {
-                    write_param(out, &mut line_len, "MANAGED-ID", v)?;
-                }
-                ArchivedICalendarParameter::Order(v) => {
-                    write!(out, "ORDER={}", v)?;
-                    line_len += 8;
-                }
-                ArchivedICalendarParameter::Schema(v) => {
-                    write_uri_param(out, &mut line_len, "SCHEMA", v)?;
-                }
-                ArchivedICalendarParameter::Derived(v) => {
-                    write_param(
-                        out,
-                        &mut line_len,
-                        "DERIVED",
-                        if *v { "TRUE" } else { "FALSE" },
-                    )?;
-                }
-                ArchivedICalendarParameter::Gap(v) => {
-                    write!(out, "GAP={}", v)?;
+                ArchivedICalendarParameterValue::Duration(v) => {
+                    write!(out, "{v}")?;
                     line_len += 14;
                 }
-                ArchivedICalendarParameter::Linkrel(v) => {
-                    write_uri_param(out, &mut line_len, "LINKREL", v)?;
+                ArchivedICalendarParameterValue::Linkrel(v) => {
+                    write_param_value(out, &mut line_len, v.as_str())?;
                 }
-                ArchivedICalendarParameter::Jsid(v) => {
-                    write_param(out, &mut line_len, "JSID", v)?;
-                }
-                ArchivedICalendarParameter::Jsptr(v) => {
-                    write_param(out, &mut line_len, "JSPTR", v)?;
-                }
-                ArchivedICalendarParameter::Other(v) => {
-                    for (pos, item) in v.iter().enumerate() {
-                        if pos == 0 {
-                            write!(out, "{item}")?;
-                            line_len += item.len() + 1;
-                        } else {
-                            if pos == 1 {
-                                write!(out, "=")?;
-                            } else {
-                                write!(out, ",")?;
-                            }
-                            line_len += 1;
-
-                            write_param_value(out, &mut line_len, item)?;
-                        }
-                    }
+                ArchivedICalendarParameterValue::Null => {
+                    last_param = None;
                 }
             }
         }
@@ -266,7 +211,7 @@ impl ArchivedICalendarEntry {
                         continue;
                     }
                     ArchivedICalendarValue::PartialDateTime(v) => {
-                        v.format_as_ical(out, value_type.unwrap_or(&default_type))?;
+                        v.format_as_ical(out, types.unwrap_or(&default_type))?;
                         line_len += 6;
                         continue;
                     }
@@ -319,7 +264,7 @@ impl ArchivedICalendarEntry {
     }
 }
 
-pub(crate) fn write_uri_param(
+/*pub(crate) fn write_uri_param(
     out: &mut impl Write,
     line_len: &mut usize,
     name: &str,
@@ -352,7 +297,7 @@ pub(crate) fn write_uri_params(
     }
 
     Ok(())
-}
+}*/
 
 pub(crate) fn write_uri(
     out: &mut impl Write,

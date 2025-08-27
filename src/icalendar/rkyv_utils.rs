@@ -163,173 +163,105 @@ impl ArchivedICalendarValue {
     }
 }
 
+impl ArchivedICalendarParameterName {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ArchivedICalendarParameterName::Altrep => "ALTREP",
+            ArchivedICalendarParameterName::Cn => "CN",
+            ArchivedICalendarParameterName::Cutype => "CUTYPE",
+            ArchivedICalendarParameterName::DelegatedFrom => "DELEGATED-FROM",
+            ArchivedICalendarParameterName::DelegatedTo => "DELEGATED-TO",
+            ArchivedICalendarParameterName::Dir => "DIR",
+            ArchivedICalendarParameterName::Fmttype => "FMTTYPE",
+            ArchivedICalendarParameterName::Fbtype => "FBTYPE",
+            ArchivedICalendarParameterName::Language => "LANGUAGE",
+            ArchivedICalendarParameterName::Member => "MEMBER",
+            ArchivedICalendarParameterName::Partstat => "PARTSTAT",
+            ArchivedICalendarParameterName::Range => "RANGE",
+            ArchivedICalendarParameterName::Related => "RELATED",
+            ArchivedICalendarParameterName::Reltype => "RELTYPE",
+            ArchivedICalendarParameterName::Role => "ROLE",
+            ArchivedICalendarParameterName::Rsvp => "RSVP",
+            ArchivedICalendarParameterName::ScheduleAgent => "SCHEDULE-AGENT",
+            ArchivedICalendarParameterName::ScheduleForceSend => "SCHEDULE-FORCE-SEND",
+            ArchivedICalendarParameterName::ScheduleStatus => "SCHEDULE-STATUS",
+            ArchivedICalendarParameterName::SentBy => "SENT-BY",
+            ArchivedICalendarParameterName::Tzid => "TZID",
+            ArchivedICalendarParameterName::Value => "VALUE",
+            ArchivedICalendarParameterName::Display => "DISPLAY",
+            ArchivedICalendarParameterName::Email => "EMAIL",
+            ArchivedICalendarParameterName::Feature => "FEATURE",
+            ArchivedICalendarParameterName::Label => "LABEL",
+            ArchivedICalendarParameterName::Size => "SIZE",
+            ArchivedICalendarParameterName::Filename => "FILENAME",
+            ArchivedICalendarParameterName::ManagedId => "MANAGED-ID",
+            ArchivedICalendarParameterName::Order => "ORDER",
+            ArchivedICalendarParameterName::Schema => "SCHEMA",
+            ArchivedICalendarParameterName::Derived => "DERIVED",
+            ArchivedICalendarParameterName::Gap => "GAP",
+            ArchivedICalendarParameterName::Linkrel => "LINKREL",
+            ArchivedICalendarParameterName::Jsptr => "JSPTR",
+            ArchivedICalendarParameterName::Jsid => "JSID",
+            ArchivedICalendarParameterName::Other(name) => name.as_str(),
+        }
+    }
+}
+
 impl ArchivedICalendarEntry {
+    #[inline]
+    pub fn parameters(
+        &self,
+        prop: &ICalendarParameterName,
+    ) -> impl Iterator<Item = &ArchivedICalendarParameterValue> {
+        self.params.iter().filter_map(move |param| {
+            if &param.name == prop {
+                Some(&param.value)
+            } else {
+                None
+            }
+        })
+    }
+
     pub fn size(&self) -> usize {
         self.values.iter().map(|value| value.size()).sum::<usize>()
-            + self.params.iter().map(|param| param.size()).sum::<usize>()
+            + self
+                .params
+                .iter()
+                .map(|param| std::mem::size_of::<ICalendarParameterName>() + param.value.size())
+                .sum::<usize>()
             + self.name.as_str().len()
     }
 }
 
-impl ArchivedICalendarParameter {
-    pub fn matches_name(&self, name: &ICalendarParameterName) -> bool {
-        match name {
-            ICalendarParameterName::Altrep => matches!(self, ArchivedICalendarParameter::Altrep(_)),
-            ICalendarParameterName::Cn => matches!(self, ArchivedICalendarParameter::Cn(_)),
-            ICalendarParameterName::Cutype => matches!(self, ArchivedICalendarParameter::Cutype(_)),
-            ICalendarParameterName::DelegatedFrom => {
-                matches!(self, ArchivedICalendarParameter::DelegatedFrom(_))
-            }
-            ICalendarParameterName::DelegatedTo => {
-                matches!(self, ArchivedICalendarParameter::DelegatedTo(_))
-            }
-            ICalendarParameterName::Dir => matches!(self, ArchivedICalendarParameter::Dir(_)),
-            ICalendarParameterName::Fmttype => {
-                matches!(self, ArchivedICalendarParameter::Fmttype(_))
-            }
-            ICalendarParameterName::Fbtype => matches!(self, ArchivedICalendarParameter::Fbtype(_)),
-            ICalendarParameterName::Language => {
-                matches!(self, ArchivedICalendarParameter::Language(_))
-            }
-            ICalendarParameterName::Member => matches!(self, ArchivedICalendarParameter::Member(_)),
-            ICalendarParameterName::Partstat => {
-                matches!(self, ArchivedICalendarParameter::Partstat(_))
-            }
-            ICalendarParameterName::Range => matches!(self, ArchivedICalendarParameter::Range),
-            ICalendarParameterName::Related => {
-                matches!(self, ArchivedICalendarParameter::Related(_))
-            }
-            ICalendarParameterName::Reltype => {
-                matches!(self, ArchivedICalendarParameter::Reltype(_))
-            }
-            ICalendarParameterName::Role => matches!(self, ArchivedICalendarParameter::Role(_)),
-            ICalendarParameterName::Rsvp => matches!(self, ArchivedICalendarParameter::Rsvp(_)),
-            ICalendarParameterName::ScheduleAgent => {
-                matches!(self, ArchivedICalendarParameter::ScheduleAgent(_))
-            }
-            ICalendarParameterName::ScheduleForceSend => {
-                matches!(self, ArchivedICalendarParameter::ScheduleForceSend(_))
-            }
-            ICalendarParameterName::ScheduleStatus => {
-                matches!(self, ArchivedICalendarParameter::ScheduleStatus(_))
-            }
-            ICalendarParameterName::SentBy => matches!(self, ArchivedICalendarParameter::SentBy(_)),
-            ICalendarParameterName::Tzid => matches!(self, ArchivedICalendarParameter::Tzid(_)),
-            ICalendarParameterName::Value => matches!(self, ArchivedICalendarParameter::Value(_)),
-            ICalendarParameterName::Display => {
-                matches!(self, ArchivedICalendarParameter::Display(_))
-            }
-            ICalendarParameterName::Email => matches!(self, ArchivedICalendarParameter::Email(_)),
-            ICalendarParameterName::Feature => {
-                matches!(self, ArchivedICalendarParameter::Feature(_))
-            }
-            ICalendarParameterName::Label => matches!(self, ArchivedICalendarParameter::Label(_)),
-            ICalendarParameterName::Size => matches!(self, ArchivedICalendarParameter::Size(_)),
-            ICalendarParameterName::Filename => {
-                matches!(self, ArchivedICalendarParameter::Filename(_))
-            }
-            ICalendarParameterName::ManagedId => {
-                matches!(self, ArchivedICalendarParameter::ManagedId(_))
-            }
-            ICalendarParameterName::Order => matches!(self, ArchivedICalendarParameter::Order(_)),
-            ICalendarParameterName::Schema => matches!(self, ArchivedICalendarParameter::Schema(_)),
-            ICalendarParameterName::Derived => {
-                matches!(self, ArchivedICalendarParameter::Derived(_))
-            }
-            ICalendarParameterName::Gap => matches!(self, ArchivedICalendarParameter::Gap(_)),
-            ICalendarParameterName::Linkrel => {
-                matches!(self, ArchivedICalendarParameter::Linkrel(_))
-            }
-            ICalendarParameterName::Jsptr => matches!(self, ArchivedICalendarParameter::Jsptr(_)),
-            ICalendarParameterName::Jsid => matches!(self, ArchivedICalendarParameter::Jsid(_)),
-            ICalendarParameterName::Other(name) => {
-                if let ArchivedICalendarParameter::Other(o) = self {
-                    o.iter().any(|s| s == name)
-                } else {
-                    false
-                }
-            }
-        }
-    }
-
+impl ArchivedICalendarParameterValue {
     pub fn as_text(&self) -> Option<&str> {
         match self {
-            ArchivedICalendarParameter::Altrep(uri) => uri.as_str(),
-            ArchivedICalendarParameter::Cn(v) => v.as_str().into(),
-            ArchivedICalendarParameter::Cutype(v) => v.as_str().into(),
-            ArchivedICalendarParameter::DelegatedFrom(uris) => {
-                uris.first().and_then(|u| u.as_str())
-            }
-            ArchivedICalendarParameter::DelegatedTo(uris) => uris.first().and_then(|u| u.as_str()),
-            ArchivedICalendarParameter::Dir(v) => v.as_str(),
-            ArchivedICalendarParameter::Fmttype(v) => v.as_str().into(),
-            ArchivedICalendarParameter::Fbtype(v) => v.as_str().into(),
-            ArchivedICalendarParameter::Language(v) => v.as_str().into(),
-            ArchivedICalendarParameter::Member(uris) => uris.first().and_then(|u| u.as_str()),
-            ArchivedICalendarParameter::Partstat(v) => v.as_str().into(),
-            ArchivedICalendarParameter::Range => "THISANDFUTURE".into(),
-            ArchivedICalendarParameter::Related(v) => v.as_str().into(),
-            ArchivedICalendarParameter::Reltype(v) => v.as_str().into(),
-            ArchivedICalendarParameter::Role(v) => v.as_str().into(),
-            ArchivedICalendarParameter::Rsvp(v) => (if *v { "true" } else { "false" }).into(),
-            ArchivedICalendarParameter::ScheduleAgent(v) => v.as_str().into(),
-            ArchivedICalendarParameter::ScheduleForceSend(v) => v.as_str().into(),
-            ArchivedICalendarParameter::ScheduleStatus(v) => v.as_str().into(),
-            ArchivedICalendarParameter::SentBy(v) => v.as_str(),
-            ArchivedICalendarParameter::Tzid(v) => v.as_str().into(),
-            ArchivedICalendarParameter::Value(v) => v.as_str().into(),
-            ArchivedICalendarParameter::Display(items) => items.first().map(|s| s.as_str()),
-            ArchivedICalendarParameter::Email(v) => v.as_str().into(),
-            ArchivedICalendarParameter::Feature(items) => items.first().map(|s| s.as_str()),
-            ArchivedICalendarParameter::Label(v) => v.as_str().into(),
-            ArchivedICalendarParameter::Size(_) => None,
-            ArchivedICalendarParameter::Filename(v) => v.as_str().into(),
-            ArchivedICalendarParameter::ManagedId(v) => v.as_str().into(),
-            ArchivedICalendarParameter::Order(_) => None,
-            ArchivedICalendarParameter::Schema(v) => v.as_str(),
-            ArchivedICalendarParameter::Derived(v) => (if *v { "true" } else { "false" }).into(),
-            ArchivedICalendarParameter::Gap(_) => None,
-            ArchivedICalendarParameter::Linkrel(v) => v.as_str(),
-            ArchivedICalendarParameter::Jsptr(v) => v.as_str().into(),
-            ArchivedICalendarParameter::Jsid(v) => v.as_str().into(),
-            ArchivedICalendarParameter::Other(items) => items.first().map(|s| s.as_str()),
+            ArchivedICalendarParameterValue::Text(v) => Some(v.as_str()),
+            ArchivedICalendarParameterValue::Bool(v) => Some(if *v { "TRUE" } else { "FALSE" }),
+            ArchivedICalendarParameterValue::Uri(uri) => uri.as_str(),
+            ArchivedICalendarParameterValue::Cutype(v) => Some(v.as_str()),
+            ArchivedICalendarParameterValue::Fbtype(v) => Some(v.as_str()),
+            ArchivedICalendarParameterValue::Partstat(v) => Some(v.as_str()),
+            ArchivedICalendarParameterValue::Related(v) => Some(v.as_str()),
+            ArchivedICalendarParameterValue::Reltype(v) => Some(v.as_str()),
+            ArchivedICalendarParameterValue::Role(v) => Some(v.as_str()),
+            ArchivedICalendarParameterValue::ScheduleAgent(v) => Some(v.as_str()),
+            ArchivedICalendarParameterValue::ScheduleForceSend(v) => Some(v.as_str()),
+            ArchivedICalendarParameterValue::Value(v) => Some(v.as_str()),
+            ArchivedICalendarParameterValue::Display(v) => Some(v.as_str()),
+            ArchivedICalendarParameterValue::Feature(v) => Some(v.as_str()),
+            ArchivedICalendarParameterValue::Linkrel(v) => Some(v.as_str()),
+            ArchivedICalendarParameterValue::Duration(_)
+            | ArchivedICalendarParameterValue::Integer(_)
+            | ArchivedICalendarParameterValue::Null => None,
         }
     }
 
     pub fn size(&self) -> usize {
         match self {
-            ArchivedICalendarParameter::Altrep(s) => s.size(),
-            ArchivedICalendarParameter::Cn(s) => s.len(),
-            ArchivedICalendarParameter::Cutype(s) => s.as_str().len(),
-            ArchivedICalendarParameter::DelegatedFrom(v) => v.iter().map(|s| s.size()).sum(),
-            ArchivedICalendarParameter::DelegatedTo(v) => v.iter().map(|s| s.size()).sum(),
-            ArchivedICalendarParameter::Dir(s) => s.size(),
-            ArchivedICalendarParameter::Fmttype(s) => s.len(),
-            ArchivedICalendarParameter::Fbtype(s) => s.as_str().len(),
-            ArchivedICalendarParameter::Language(s) => s.len(),
-            ArchivedICalendarParameter::Member(v) => v.iter().map(|s| s.size()).sum(),
-            ArchivedICalendarParameter::Partstat(s) => s.as_str().len(),
-            ArchivedICalendarParameter::Related(r) => r.as_str().len(),
-            ArchivedICalendarParameter::Reltype(r) => r.as_str().len(),
-            ArchivedICalendarParameter::Role(r) => r.as_str().len(),
-            ArchivedICalendarParameter::ScheduleAgent(a) => a.as_str().len(),
-            ArchivedICalendarParameter::ScheduleForceSend(a) => a.as_str().len(),
-            ArchivedICalendarParameter::ScheduleStatus(a) => a.len(),
-            ArchivedICalendarParameter::SentBy(u) => u.size(),
-            ArchivedICalendarParameter::Tzid(t) => t.len(),
-            ArchivedICalendarParameter::Value(t) => t.as_str().len(),
-            ArchivedICalendarParameter::Display(d) => d.iter().map(|s| s.as_str().len()).sum(),
-            ArchivedICalendarParameter::Email(e) => e.len(),
-            ArchivedICalendarParameter::Feature(f) => f.iter().map(|s| s.as_str().len()).sum(),
-            ArchivedICalendarParameter::Label(l) => l.len(),
-            ArchivedICalendarParameter::Filename(s) => s.as_str().len(),
-            ArchivedICalendarParameter::ManagedId(s) => s.as_str().len(),
-            ArchivedICalendarParameter::Schema(s) => s.size(),
-            ArchivedICalendarParameter::Linkrel(l) => l.size(),
-            ArchivedICalendarParameter::Jsptr(s) => s.len(),
-            ArchivedICalendarParameter::Jsid(s) => s.len(),
-            ArchivedICalendarParameter::Other(o) => o.iter().map(|s| s.len()).sum(),
-            _ => std::mem::size_of::<ICalendarParameter>(),
+            ArchivedICalendarParameterValue::Text(v) => v.len(),
+            ArchivedICalendarParameterValue::Uri(v) => v.size(),
+            _ => std::mem::size_of::<ICalendarParameterValue>(),
         }
     }
 }

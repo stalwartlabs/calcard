@@ -6,10 +6,9 @@
 
 use super::{
     ArchivedICalendar, ArchivedICalendarComponent, ArchivedICalendarComponentType,
-    ArchivedICalendarEntry, ArchivedICalendarParameter, ArchivedICalendarProperty,
-    ArchivedICalendarValue,
+    ArchivedICalendarEntry, ArchivedICalendarProperty, ArchivedICalendarValue,
 };
-use crate::common::timezone::Tz;
+use crate::{common::timezone::Tz, icalendar::ICalendarParameterName};
 use std::str::FromStr;
 
 impl ArchivedICalendar {
@@ -64,12 +63,7 @@ impl ArchivedICalendarComponent {
 
 impl ArchivedICalendarEntry {
     pub fn tz_id(&self) -> Option<&str> {
-        self.params.iter().find_map(|param| {
-            if let ArchivedICalendarParameter::Tzid(tzid) = param {
-                Some(tzid.as_str())
-            } else {
-                None
-            }
-        })
+        self.parameters(&ICalendarParameterName::Tzid)
+            .find_map(|param| param.as_text())
     }
 }

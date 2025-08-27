@@ -4,11 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use std::borrow::Cow;
-
 use crate::{
-    common::{tokenizer::Token, CalendarScale, Data, PartialDateTime},
     Entry, Parser,
+    common::{CalendarScale, Data, IanaParse, IanaString, IanaType, PartialDateTime},
 };
 
 pub mod builder;
@@ -32,7 +30,7 @@ pub mod rkyv_writer;
     feature = "rkyv",
     derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
 )]
-#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq)))]
 pub struct VCard {
     pub entries: Vec<VCardEntry>,
 }
@@ -55,7 +53,7 @@ pub enum VCardVersion {
     feature = "rkyv",
     derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
 )]
-#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq)))]
 pub struct VCardEntry {
     pub group: Option<String>,
     pub name: VCardProperty,
@@ -75,6 +73,7 @@ pub struct VCardEntry {
 )]
 #[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum VCardProperty {
+    Other(String),
     Begin,
     End,
     Source,        // [RFC6350, Section 6.1.3]
@@ -127,12 +126,10 @@ pub enum VCardProperty {
     Pronouns,      // [RFC9554, Section 3.4]
     Socialprofile, // [RFC9554, Section 3.5]
     Jsprop,        // [RFC9555, Section 3.2.1]
-    Other(String),
 }
 
-impl TryFrom<&[u8]> for VCardProperty {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+impl IanaParse for VCardProperty {
+    fn parse(value: &[u8]) -> Option<Self> {
         hashify::tiny_map_ignore_case!(value,
             "BEGIN" => VCardProperty::Begin,
             "END" => VCardProperty::End,
@@ -187,7 +184,6 @@ impl TryFrom<&[u8]> for VCardProperty {
             "SOCIALPROFILE" => VCardProperty::Socialprofile,
             "JSPROP" => VCardProperty::Jsprop,
         )
-        .ok_or(())
     }
 }
 
@@ -246,68 +242,12 @@ impl VCardProperty {
             VCardProperty::Jsprop => "JSPROP",
             VCardProperty::Begin => "BEGIN",
             VCardProperty::End => "END",
-            VCardProperty::Other(s) => s.as_str(),
+            VCardProperty::Other(v) => v.as_str(),
         }
     }
+}
 
-    pub fn into_string(self) -> Cow<'static, str> {
-        match self {
-            VCardProperty::Source => Cow::Borrowed("SOURCE"),
-            VCardProperty::Kind => Cow::Borrowed("KIND"),
-            VCardProperty::Xml => Cow::Borrowed("XML"),
-            VCardProperty::Fn => Cow::Borrowed("FN"),
-            VCardProperty::N => Cow::Borrowed("N"),
-            VCardProperty::Nickname => Cow::Borrowed("NICKNAME"),
-            VCardProperty::Photo => Cow::Borrowed("PHOTO"),
-            VCardProperty::Bday => Cow::Borrowed("BDAY"),
-            VCardProperty::Anniversary => Cow::Borrowed("ANNIVERSARY"),
-            VCardProperty::Gender => Cow::Borrowed("GENDER"),
-            VCardProperty::Adr => Cow::Borrowed("ADR"),
-            VCardProperty::Tel => Cow::Borrowed("TEL"),
-            VCardProperty::Email => Cow::Borrowed("EMAIL"),
-            VCardProperty::Impp => Cow::Borrowed("IMPP"),
-            VCardProperty::Lang => Cow::Borrowed("LANG"),
-            VCardProperty::Tz => Cow::Borrowed("TZ"),
-            VCardProperty::Geo => Cow::Borrowed("GEO"),
-            VCardProperty::Title => Cow::Borrowed("TITLE"),
-            VCardProperty::Role => Cow::Borrowed("ROLE"),
-            VCardProperty::Logo => Cow::Borrowed("LOGO"),
-            VCardProperty::Org => Cow::Borrowed("ORG"),
-            VCardProperty::Member => Cow::Borrowed("MEMBER"),
-            VCardProperty::Related => Cow::Borrowed("RELATED"),
-            VCardProperty::Categories => Cow::Borrowed("CATEGORIES"),
-            VCardProperty::Note => Cow::Borrowed("NOTE"),
-            VCardProperty::Prodid => Cow::Borrowed("PRODID"),
-            VCardProperty::Rev => Cow::Borrowed("REV"),
-            VCardProperty::Sound => Cow::Borrowed("SOUND"),
-            VCardProperty::Uid => Cow::Borrowed("UID"),
-            VCardProperty::Clientpidmap => Cow::Borrowed("CLIENTPIDMAP"),
-            VCardProperty::Url => Cow::Borrowed("URL"),
-            VCardProperty::Version => Cow::Borrowed("VERSION"),
-            VCardProperty::Key => Cow::Borrowed("KEY"),
-            VCardProperty::Fburl => Cow::Borrowed("FBURL"),
-            VCardProperty::Caladruri => Cow::Borrowed("CALADRURI"),
-            VCardProperty::Caluri => Cow::Borrowed("CALURI"),
-            VCardProperty::Birthplace => Cow::Borrowed("BIRTHPLACE"),
-            VCardProperty::Deathplace => Cow::Borrowed("DEATHPLACE"),
-            VCardProperty::Deathdate => Cow::Borrowed("DEATHDATE"),
-            VCardProperty::Expertise => Cow::Borrowed("EXPERTISE"),
-            VCardProperty::Hobby => Cow::Borrowed("HOBBY"),
-            VCardProperty::Interest => Cow::Borrowed("INTEREST"),
-            VCardProperty::OrgDirectory => Cow::Borrowed("ORG-DIRECTORY"),
-            VCardProperty::ContactUri => Cow::Borrowed("CONTACT-URI"),
-            VCardProperty::Created => Cow::Borrowed("CREATED"),
-            VCardProperty::Gramgender => Cow::Borrowed("GRAMGENDER"),
-            VCardProperty::Language => Cow::Borrowed("LANGUAGE"),
-            VCardProperty::Pronouns => Cow::Borrowed("PRONOUNS"),
-            VCardProperty::Socialprofile => Cow::Borrowed("SOCIALPROFILE"),
-            VCardProperty::Jsprop => Cow::Borrowed("JSPROP"),
-            VCardProperty::Begin => Cow::Borrowed("BEGIN"),
-            VCardProperty::End => Cow::Borrowed("END"),
-            VCardProperty::Other(s) => Cow::Owned(s),
-        }
-    }
-
+impl VCardProperty {
     // Returns the default value type and whether the property is multi-valued.
     pub(crate) fn default_types(&self) -> (ValueType, ValueSeparator) {
         match self {
@@ -440,7 +380,7 @@ impl VCardProperty {
     feature = "rkyv",
     derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
 )]
-#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq)))]
 pub enum VCardValue {
     Text(String),
     Integer(i64),
@@ -456,7 +396,22 @@ pub enum VCardValue {
 
 impl Eq for VCardValue {}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
+)]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq)))]
+pub struct VCardParameter {
+    pub name: VCardParameterName,
+    pub value: VCardParameterValue,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -466,39 +421,22 @@ impl Eq for VCardValue {}
     feature = "rkyv",
     derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
 )]
-#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
-pub enum VCardParameter {
-    Language(String),           // [RFC6350, Section 5.1]
-    Value(Vec<VCardValueType>), // [RFC6350, Section 5.2]
-    Pref(u32),                  // [RFC6350, Section 5.3]
-    Altid(String),              // [RFC6350, Section 5.4]
-    Pid(Vec<String>),           // [RFC6350, Section 5.5]
-    Type(Vec<VCardType>),       // [RFC6350, Section 5.6]
-    Mediatype(String),          // [RFC6350, Section 5.7]
-    Calscale(CalendarScale),    // [RFC6350, Section 5.8]
-    SortAs(String),             // [RFC6350, Section 5.9]
-    Geo(String),                // [RFC6350, Section 5.10]
-    Tz(String),                 // [RFC6350, Section 5.11]
-    Index(u32),                 // [RFC6715, Section 3.1]
-    Level(VCardLevel),          // [RFC6715, Section 3.2]
-    Group(String),              // [RFC7095, Section 8.1]
-    Cc(String),                 // [RFC8605, Section 3.1]
-    Author(String),             // [RFC9554, Section 4.1]
-    AuthorName(String),         // [RFC9554, Section 4.2]
-    Created(i64),               // [RFC9554, Section 4.3]
-    Derived(bool),              // [RFC9554, Section 4.4]
-    Label(String),              // [RFC6350, Section 6.3.1][RFC9554, Section 4.5]
-    Phonetic(VCardPhonetic),    // [RFC9554, Section 4.6]
-    PropId(String),             // [RFC9554, Section 4.7]
-    Script(String),             // [RFC9554, Section 4.8]
-    ServiceType(String),        // [RFC9554, Section 4.9]
-    Username(String),           // [RFC9554, Section 4.10]
-    Jsptr(String),              // [RFC9555, Section 3.3.2]
-    Other(Vec<String>),
-    Jscomps(Vec<Jscomp>), // [RFC9555, Section 3.3.2]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq)))]
+pub enum VCardParameterValue {
+    Text(String),
+    Integer(u32),
+    Timestamp(i64),
+    Bool(bool),
+    ValueType(VCardValueType),
+    Type(VCardType),
+    Calscale(CalendarScale),
+    Level(VCardLevel),
+    Phonetic(VCardPhonetic),
+    Jscomps(Vec<Jscomp>),
+    Null,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -513,7 +451,7 @@ pub enum Jscomp {
     Separator(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -522,8 +460,9 @@ pub enum Jscomp {
     feature = "rkyv",
     derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
 )]
-#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
+#[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(PartialEq)))]
 pub enum VCardParameterName {
+    Other(String),
     Language,    // [RFC6350, Section 5.1]
     Value,       // [RFC6350, Section 5.2]
     Pref,        // [RFC6350, Section 5.3]
@@ -550,11 +489,10 @@ pub enum VCardParameterName {
     ServiceType, // [RFC9554, Section 4.9]
     Username,    // [RFC9554, Section 4.10]
     Jsptr,       // [RFC9555, Section 3.3.2]
-    Other(String),
-    Jscomps, // [RFC9555, Section 3.3.2]
+    Jscomps,     // [RFC9555, Section 3.3.2]
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -578,11 +516,10 @@ pub enum VCardValueType {
     Timestamp,     // [RFC6350, Section 4.3.5]
     Uri,           // [RFC6350, Section 4.2]
     UtcOffset,     // [RFC6350, Section 4.7]
-    Other(String),
 }
 
-impl VCardValueType {
-    pub fn as_str(&self) -> &str {
+impl IanaString for VCardValueType {
+    fn as_str(&self) -> &'static str {
         match self {
             VCardValueType::Boolean => "BOOLEAN",
             VCardValueType::Date => "DATE",
@@ -596,46 +533,12 @@ impl VCardValueType {
             VCardValueType::Timestamp => "TIMESTAMP",
             VCardValueType::Uri => "URI",
             VCardValueType::UtcOffset => "UTC-OFFSET",
-            VCardValueType::Other(s) => s.as_str(),
-        }
-    }
-
-    pub fn into_string(self) -> Cow<'static, str> {
-        match self {
-            VCardValueType::Boolean => Cow::Borrowed("BOOLEAN"),
-            VCardValueType::Date => Cow::Borrowed("DATE"),
-            VCardValueType::DateAndOrTime => Cow::Borrowed("DATE-AND-OR-TIME"),
-            VCardValueType::DateTime => Cow::Borrowed("DATE-TIME"),
-            VCardValueType::Float => Cow::Borrowed("FLOAT"),
-            VCardValueType::Integer => Cow::Borrowed("INTEGER"),
-            VCardValueType::LanguageTag => Cow::Borrowed("LANGUAGE-TAG"),
-            VCardValueType::Text => Cow::Borrowed("TEXT"),
-            VCardValueType::Time => Cow::Borrowed("TIME"),
-            VCardValueType::Timestamp => Cow::Borrowed("TIMESTAMP"),
-            VCardValueType::Uri => Cow::Borrowed("URI"),
-            VCardValueType::UtcOffset => Cow::Borrowed("UTC-OFFSET"),
-            VCardValueType::Other(s) => Cow::Owned(s),
         }
     }
 }
 
-impl AsRef<str> for VCardValueType {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl From<Token<'_>> for VCardValueType {
-    fn from(token: Token<'_>) -> Self {
-        VCardValueType::try_from(token.text.as_ref())
-            .unwrap_or_else(|_| VCardValueType::Other(token.into_string()))
-    }
-}
-
-impl TryFrom<&[u8]> for VCardValueType {
-    type Error = ();
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+impl IanaParse for VCardValueType {
+    fn parse(value: &[u8]) -> Option<Self> {
         hashify::tiny_map_ignore_case!(value,
             "BOOLEAN" => VCardValueType::Boolean,
             "DATE" => VCardValueType::Date,
@@ -650,11 +553,10 @@ impl TryFrom<&[u8]> for VCardValueType {
             "URI" => VCardValueType::Uri,
             "UTC-OFFSET" => VCardValueType::UtcOffset,
         )
-        .ok_or(())
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -673,9 +575,8 @@ pub enum VCardLevel {
     Low,      // [RFC6715, Section 3.2]
 }
 
-impl TryFrom<&[u8]> for VCardLevel {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+impl IanaParse for VCardLevel {
+    fn parse(value: &[u8]) -> Option<Self> {
         hashify::tiny_map_ignore_case!(value,
             "beginner" => VCardLevel::Beginner,
             "average" => VCardLevel::Average,
@@ -684,12 +585,11 @@ impl TryFrom<&[u8]> for VCardLevel {
             "medium" => VCardLevel::Medium,
             "low" => VCardLevel::Low,
         )
-        .ok_or(())
     }
 }
 
-impl VCardLevel {
-    pub fn as_str(&self) -> &'static str {
+impl IanaString for VCardLevel {
+    fn as_str(&self) -> &'static str {
         match self {
             VCardLevel::Beginner => "BEGINNER",
             VCardLevel::Average => "AVERAGE",
@@ -701,13 +601,7 @@ impl VCardLevel {
     }
 }
 
-impl AsRef<str> for VCardLevel {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -723,59 +617,31 @@ pub enum VCardPhonetic {
     Jyut,   // [RFC9554, Section 4.6]
     Piny,   // [RFC9554, Section 4.6]
     Script, // [RFC9554, Section 4.6]
-    Other(String),
 }
 
-impl From<Token<'_>> for VCardPhonetic {
-    fn from(token: Token<'_>) -> Self {
-        VCardPhonetic::try_from(token.text.as_ref())
-            .unwrap_or_else(|_| VCardPhonetic::Other(token.into_string()))
-    }
-}
-
-impl TryFrom<&[u8]> for VCardPhonetic {
-    type Error = ();
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+impl IanaParse for VCardPhonetic {
+    fn parse(value: &[u8]) -> Option<Self> {
         hashify::tiny_map_ignore_case!(value,
             "ipa" => VCardPhonetic::Ipa,
             "jyut" => VCardPhonetic::Jyut,
             "piny" => VCardPhonetic::Piny,
             "script" => VCardPhonetic::Script,
         )
-        .ok_or(())
     }
 }
 
-impl VCardPhonetic {
-    pub fn as_str(&self) -> &str {
+impl IanaString for VCardPhonetic {
+    fn as_str(&self) -> &'static str {
         match self {
             VCardPhonetic::Ipa => "IPA",
             VCardPhonetic::Jyut => "JYUT",
             VCardPhonetic::Piny => "PINY",
             VCardPhonetic::Script => "SCRIPT",
-            VCardPhonetic::Other(s) => s.as_str(),
-        }
-    }
-
-    pub fn into_string(self) -> Cow<'static, str> {
-        match self {
-            VCardPhonetic::Ipa => Cow::Borrowed("IPA"),
-            VCardPhonetic::Jyut => Cow::Borrowed("JYUT"),
-            VCardPhonetic::Piny => Cow::Borrowed("PINY"),
-            VCardPhonetic::Script => Cow::Borrowed("SCRIPT"),
-            VCardPhonetic::Other(s) => Cow::Owned(s),
         }
     }
 }
 
-impl AsRef<str> for VCardPhonetic {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -819,12 +685,10 @@ pub enum VCardType {
     Pager,        // [RFC6350, Section 6.4.1]
     Textphone,    // [RFC6350, Section 6.4.1]
     MainNumber,   // [RFC7852]
-    Other(String),
 }
 
-impl TryFrom<&[u8]> for VCardType {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+impl IanaParse for VCardType {
+    fn parse(value: &[u8]) -> Option<Self> {
         hashify::tiny_map_ignore_case!(value,
             "work" => VCardType::Work,
             "home" => VCardType::Home,
@@ -859,12 +723,11 @@ impl TryFrom<&[u8]> for VCardType {
             "textphone" => VCardType::Textphone,
             "main-number" => VCardType::MainNumber,
         )
-        .ok_or(())
     }
 }
 
-impl VCardType {
-    pub fn as_str(&self) -> &str {
+impl IanaString for VCardType {
+    fn as_str(&self) -> &'static str {
         match self {
             VCardType::Work => "WORK",
             VCardType::Home => "HOME",
@@ -898,64 +761,11 @@ impl VCardType {
             VCardType::Pager => "PAGER",
             VCardType::Textphone => "TEXTPHONE",
             VCardType::MainNumber => "MAIN-NUMBER",
-            VCardType::Other(s) => s.as_str(),
-        }
-    }
-
-    pub fn into_string(self) -> Cow<'static, str> {
-        // all variants
-        match self {
-            VCardType::Work => Cow::Borrowed("WORK"),
-            VCardType::Home => Cow::Borrowed("HOME"),
-            VCardType::Billing => Cow::Borrowed("BILLING"),
-            VCardType::Delivery => Cow::Borrowed("DELIVERY"),
-            VCardType::Contact => Cow::Borrowed("CONTACT"),
-            VCardType::Acquaintance => Cow::Borrowed("ACQUAINTANCE"),
-            VCardType::Friend => Cow::Borrowed("FRIEND"),
-            VCardType::Met => Cow::Borrowed("MET"),
-            VCardType::CoWorker => Cow::Borrowed("CO-WORKER"),
-            VCardType::Colleague => Cow::Borrowed("COLLEAGUE"),
-            VCardType::CoResident => Cow::Borrowed("CO-RESIDENT"),
-            VCardType::Neighbor => Cow::Borrowed("NEIGHBOR"),
-            VCardType::Child => Cow::Borrowed("CHILD"),
-            VCardType::Parent => Cow::Borrowed("PARENT"),
-            VCardType::Sibling => Cow::Borrowed("SIBLING"),
-            VCardType::Spouse => Cow::Borrowed("SPOUSE"),
-            VCardType::Kin => Cow::Borrowed("KIN"),
-            VCardType::Muse => Cow::Borrowed("MUSE"),
-            VCardType::Crush => Cow::Borrowed("CRUSH"),
-            VCardType::Date => Cow::Borrowed("DATE"),
-            VCardType::Sweetheart => Cow::Borrowed("SWEETHEART"),
-            VCardType::Me => Cow::Borrowed("ME"),
-            VCardType::Agent => Cow::Borrowed("AGENT"),
-            VCardType::Emergency => Cow::Borrowed("EMERGENCY"),
-            VCardType::Text => Cow::Borrowed("TEXT"),
-            VCardType::Voice => Cow::Borrowed("VOICE"),
-            VCardType::Fax => Cow::Borrowed("FAX"),
-            VCardType::Cell => Cow::Borrowed("CELL"),
-            VCardType::Video => Cow::Borrowed("VIDEO"),
-            VCardType::Pager => Cow::Borrowed("PAGER"),
-            VCardType::Textphone => Cow::Borrowed("TEXTPHONE"),
-            VCardType::MainNumber => Cow::Owned(String::from("MAIN-NUMBER")),
-            VCardType::Other(s) => Cow::Owned(s),
         }
     }
 }
 
-impl AsRef<str> for VCardType {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl From<Token<'_>> for VCardType {
-    fn from(token: Token<'_>) -> Self {
-        VCardType::try_from(token.text.as_ref())
-            .unwrap_or_else(|_| VCardType::Other(token.into_string()))
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -974,9 +784,8 @@ pub enum VCardGramGender {
     Neuter,    // [RFC9554, Section 3.2]
 }
 
-impl TryFrom<&[u8]> for VCardGramGender {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+impl IanaParse for VCardGramGender {
+    fn parse(value: &[u8]) -> Option<Self> {
         hashify::tiny_map_ignore_case!(value,
             "animate" => VCardGramGender::Animate,
             "common" => VCardGramGender::Common,
@@ -985,12 +794,11 @@ impl TryFrom<&[u8]> for VCardGramGender {
             "masculine" => VCardGramGender::Masculine,
             "neuter" => VCardGramGender::Neuter,
         )
-        .ok_or(())
     }
 }
 
-impl VCardGramGender {
-    pub fn as_str(&self) -> &'static str {
+impl IanaString for VCardGramGender {
+    fn as_str(&self) -> &'static str {
         match self {
             VCardGramGender::Animate => "ANIMATE",
             VCardGramGender::Common => "COMMON",
@@ -1002,7 +810,7 @@ impl VCardGramGender {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -1020,9 +828,8 @@ pub enum VCardSex {
     Unknown,
 }
 
-impl TryFrom<&[u8]> for VCardSex {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+impl IanaParse for VCardSex {
+    fn parse(value: &[u8]) -> Option<Self> {
         hashify::tiny_map_ignore_case!(value,
             "M" => VCardSex::Male,
             "F" => VCardSex::Female,
@@ -1030,12 +837,11 @@ impl TryFrom<&[u8]> for VCardSex {
             "N" => VCardSex::NoneOrNotApplicable,
             "U" => VCardSex::Unknown,
         )
-        .ok_or(())
     }
 }
 
-impl VCardSex {
-    pub fn as_str(&self) -> &'static str {
+impl IanaString for VCardSex {
+    fn as_str(&self) -> &'static str {
         match self {
             VCardSex::Male => "M",
             VCardSex::Female => "F",
@@ -1046,7 +852,7 @@ impl VCardSex {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -1065,9 +871,8 @@ pub enum VCardKind {
     Device,      // [RFC6869, Section 3]
 }
 
-impl TryFrom<&[u8]> for VCardKind {
-    type Error = ();
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+impl IanaParse for VCardKind {
+    fn parse(value: &[u8]) -> Option<Self> {
         hashify::tiny_map_ignore_case!(value,
             "individual" => VCardKind::Individual,
             "group" => VCardKind::Group,
@@ -1076,12 +881,11 @@ impl TryFrom<&[u8]> for VCardKind {
             "application" => VCardKind::Application,
             "device" => VCardKind::Device,
         )
-        .ok_or(())
     }
 }
 
-impl VCardKind {
-    pub fn as_str(&self) -> &'static str {
+impl IanaString for VCardKind {
+    fn as_str(&self) -> &'static str {
         match self {
             VCardKind::Individual => "INDIVIDUAL",
             VCardKind::Group => "GROUP",

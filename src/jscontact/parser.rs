@@ -5,7 +5,7 @@
  */
 
 use crate::{
-    common::CalendarScale,
+    common::{CalendarScale, IanaParse, IanaString},
     jscontact::{
         Context, Feature, JSContact, JSContactGrammaticalGender, JSContactKind, JSContactLevel,
         JSContactPhoneticSystem, JSContactProperty, JSContactRelation, JSContactType,

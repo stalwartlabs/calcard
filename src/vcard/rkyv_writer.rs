@@ -7,7 +7,7 @@
 use crate::{
     common::{
         parser::Timestamp,
-        writer::{write_bytes, write_param, write_param_value, write_params, write_text},
+        writer::{write_bytes, write_param_value, write_text},
     },
     vcard::*,
 };
@@ -50,169 +50,80 @@ impl ArchivedVCardEntry {
         let entry_name = self.name.as_str();
         write!(out, "{}", entry_name)?;
         line_len += entry_name.len();
-        let mut types = &[][..];
+        let mut types = None;
+        let mut last_param: Option<&ArchivedVCardParameterName> = None;
 
         for param in self.params.iter() {
-            write!(out, ";")?;
-            line_len += 1;
+            if last_param.is_some_and(|last_param| last_param == &param.name) {
+                write!(out, ",")?;
+                line_len += 1;
 
-            if line_len + 1 > 75 {
-                write!(out, "\r\n ")?;
-                line_len = 1;
+                if line_len + 1 > 75 {
+                    write!(out, "\r\n ")?;
+                    line_len = 1;
+                }
+            } else {
+                write!(out, ";")?;
+                line_len += 1;
+                let name = param.name.as_str();
+                let need_len = name.len() + 1;
+                if line_len + need_len > 75 {
+                    write!(out, "\r\n ")?;
+                    line_len = 1;
+                }
+                if !matches!(param.value, ArchivedVCardParameterValue::Null) {
+                    write!(out, "{name}=")?;
+                } else {
+                    write!(out, "{name}")?;
+                }
+                line_len += need_len;
+                last_param = Some(&param.name);
             }
 
-            match param {
-                ArchivedVCardParameter::Language(v) => {
-                    write_param(out, &mut line_len, "LANGUAGE", v)?;
+            match &param.value {
+                ArchivedVCardParameterValue::Text(v) => {
+                    write_param_value(out, &mut line_len, v)?;
                 }
-                ArchivedVCardParameter::Value(v) => {
-                    write_params(out, &mut line_len, "VALUE", v)?;
-                    types = v.as_slice();
+                ArchivedVCardParameterValue::Integer(i) => {
+                    write!(out, "{}", i)?;
+                    line_len += 2;
                 }
-                ArchivedVCardParameter::Pref(v) => {
-                    write!(out, "PREF={v}")?;
-                    line_len += 7;
-                }
-                ArchivedVCardParameter::Altid(v) => {
-                    write_param(out, &mut line_len, "ALTID", v)?;
-                }
-                ArchivedVCardParameter::Pid(v) => {
-                    write_params(out, &mut line_len, "PID", v)?;
-                }
-                ArchivedVCardParameter::Type(v) => {
-                    write_params(out, &mut line_len, "TYPE", v.as_slice())?;
-                }
-                ArchivedVCardParameter::Mediatype(v) => {
-                    write_param(out, &mut line_len, "MEDIATYPE", v)?;
-                }
-                ArchivedVCardParameter::Calscale(v) => {
-                    write_param(out, &mut line_len, "CALSCALE", v)?;
-                }
-                ArchivedVCardParameter::SortAs(v) => {
-                    write_param(out, &mut line_len, "SORT-AS", v)?;
-                }
-                ArchivedVCardParameter::Geo(v) => {
-                    write_param(out, &mut line_len, "GEO", v)?;
-                }
-                ArchivedVCardParameter::Tz(v) => {
-                    write_param(out, &mut line_len, "TZ", v)?;
-                }
-                ArchivedVCardParameter::Index(v) => {
-                    write!(out, "INDEX={v}")?;
-                    line_len += 8;
-                }
-                ArchivedVCardParameter::Level(v) => {
-                    write_param(out, &mut line_len, "LEVEL", v)?;
-                }
-                ArchivedVCardParameter::Group(v) => {
-                    write_param(out, &mut line_len, "GROUP", v)?;
-                }
-                ArchivedVCardParameter::Cc(v) => {
-                    write_param(out, &mut line_len, "CC", v)?;
-                }
-                ArchivedVCardParameter::Author(v) => {
-                    write_param(out, &mut line_len, "AUTHOR", v)?;
-                }
-                ArchivedVCardParameter::AuthorName(v) => {
-                    write_param(out, &mut line_len, "AUTHOR-NAME", v)?;
-                }
-                ArchivedVCardParameter::Created(v) => {
-                    write!(out, "CREATED={}", Timestamp(v.to_native()))?;
+                ArchivedVCardParameterValue::Timestamp(v) => {
+                    write!(out, "{}", Timestamp(v.to_native()))?;
                     line_len += 17;
                 }
-                ArchivedVCardParameter::Derived(v) => {
-                    write_param(
-                        out,
-                        &mut line_len,
-                        "DERIVED",
-                        if *v { "TRUE" } else { "FALSE" },
-                    )?;
+                ArchivedVCardParameterValue::Bool(v) => {
+                    let v = if *v { "TRUE" } else { "FALSE" };
+                    line_len += v.len();
+                    write!(out, "{v}")?;
                 }
-                ArchivedVCardParameter::Label(v) => {
-                    write_param(out, &mut line_len, "LABEL", v)?;
-                }
-                ArchivedVCardParameter::Phonetic(v) => {
-                    write_param(out, &mut line_len, "PHONETIC", v)?;
-                }
-                ArchivedVCardParameter::PropId(v) => {
-                    write_param(out, &mut line_len, "PROP-ID", v)?;
-                }
-                ArchivedVCardParameter::Script(v) => {
-                    write_param(out, &mut line_len, "SCRIPT", v)?;
-                }
-                ArchivedVCardParameter::ServiceType(v) => {
-                    write_param(out, &mut line_len, "SERVICE-TYPE", v)?;
-                }
-                ArchivedVCardParameter::Username(v) => {
-                    write_param(out, &mut line_len, "USERNAME", v)?;
-                }
-                ArchivedVCardParameter::Jsptr(v) => {
-                    write_param(out, &mut line_len, "JSPTR", v)?;
-                }
-                ArchivedVCardParameter::Jscomps(v) => {
-                    out.write_str("JSCOMPS=\"")?;
-                    line_len += "JSCOMPS=\"".len();
-
-                    for (pos, item) in v.iter().enumerate() {
-                        if pos > 0 {
-                            out.write_char(';')?;
-                            line_len += 1;
-                        }
-                        match item {
-                            ArchivedJscomp::Entry { position, value } => {
-                                write!(out, "{position}")?;
-                                if *position > 9 {
-                                    line_len += 2;
-                                } else {
-                                    line_len += 1;
-                                }
-                                if *value > 0 {
-                                    write!(out, ",{value}")?;
-                                    out.write_char(',')?;
-                                    if *value > 9 {
-                                        line_len += 3;
-                                    } else {
-                                        line_len += 2;
-                                    }
-                                }
-                            }
-                            ArchivedJscomp::Separator(s) => {
-                                if !s.is_empty() {
-                                    out.write_str("s,")?;
-                                    line_len += 2;
-
-                                    for ch in s.chars() {
-                                        if matches!(ch, ',' | ':' | '=' | ' ' | ';' | '"') {
-                                            out.write_char('\\')?;
-                                            line_len += 1;
-                                        }
-                                        out.write_char(ch)?;
-                                        line_len += 1;
-                                    }
-                                }
-                            }
-                        }
+                ArchivedVCardParameterValue::ValueType(v) => {
+                    if types.is_none() {
+                        types = Some(v);
                     }
-
+                    write_param_value(out, &mut line_len, v.as_str())?;
+                }
+                ArchivedVCardParameterValue::Type(v) => {
+                    write_param_value(out, &mut line_len, v.as_str())?;
+                }
+                ArchivedVCardParameterValue::Calscale(v) => {
+                    write_param_value(out, &mut line_len, v.as_str())?;
+                }
+                ArchivedVCardParameterValue::Level(v) => {
+                    write_param_value(out, &mut line_len, v.as_str())?;
+                }
+                ArchivedVCardParameterValue::Phonetic(v) => {
+                    write_param_value(out, &mut line_len, v.as_str())?;
+                }
+                ArchivedVCardParameterValue::Jscomps(v) => {
                     out.write_str("\"")?;
                     line_len += 1;
+                    write_jscomps(out, &mut line_len, v)?;
+                    out.write_str("\"")?;
+                    last_param = None;
                 }
-                ArchivedVCardParameter::Other(v) => {
-                    for (pos, item) in v.iter().enumerate() {
-                        if pos == 0 {
-                            write!(out, "{item}")?;
-                            line_len += item.len() + 1;
-                        } else {
-                            if pos == 1 {
-                                write!(out, "=")?;
-                            } else {
-                                write!(out, ",")?;
-                            }
-                            line_len += 1;
-
-                            write_param_value(out, &mut line_len, item)?;
-                        }
-                    }
+                ArchivedVCardParameterValue::Null => {
+                    last_param = None;
                 }
             }
         }
@@ -234,10 +145,8 @@ impl ArchivedVCardEntry {
             let default_type = default_type.unwrap_vcard();
 
             let mut separator = ";";
-            let mut escape_semicolon = matches!(
-                types.first().unwrap_or(&default_type),
-                ArchivedVCardValueType::Text
-            );
+            let mut escape_semicolon =
+                matches!(types.unwrap_or(&default_type), ArchivedVCardValueType::Text);
             let mut escape_comma = escape_semicolon;
 
             match value_separator {
@@ -291,7 +200,15 @@ impl ArchivedVCardEntry {
                         line_len += text.len();
                     }
                     ArchivedVCardValue::PartialDateTime(v) => {
-                        let typ = types.get(pos).unwrap_or(&default_type);
+                        let typ = if pos == 0 {
+                            types
+                        } else {
+                            self.parameters(&VCardParameterName::Value)
+                                .nth(pos)
+                                .and_then(|v| v.as_value_type())
+                                .and_then(|v| v.iana().copied())
+                        }
+                        .unwrap_or(&default_type);
                         if is_v4 {
                             v.format_as_vcard(out, typ)?;
                         } else {
@@ -340,8 +257,8 @@ impl crate::common::ArchivedPartialDateTime {
         out: &mut impl Write,
         fmt: &ArchivedVCardValueType,
     ) -> std::fmt::Result {
-        use rkyv::option::ArchivedOption;
         use ArchivedVCardValueType;
+        use rkyv::option::ArchivedOption;
 
         if matches!(fmt, ArchivedVCardValueType::Timestamp) {
             write!(
@@ -617,4 +534,52 @@ impl Display for ArchivedVCard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.write_to(f, self.version().unwrap_or_default())
     }
+}
+
+pub(crate) fn write_jscomps(
+    out: &mut impl Write,
+    line_len: &mut usize,
+    values: &[ArchivedJscomp],
+) -> std::fmt::Result {
+    for (pos, item) in values.iter().enumerate() {
+        if pos > 0 {
+            out.write_char(';')?;
+            *line_len += 1;
+        }
+        match item {
+            ArchivedJscomp::Entry { position, value } => {
+                write!(out, "{position}")?;
+                if *position > 9 {
+                    *line_len += 2;
+                } else {
+                    *line_len += 1;
+                }
+                if *value > 0 {
+                    write!(out, ",{value}")?;
+                    if *value > 9 {
+                        *line_len += 3;
+                    } else {
+                        *line_len += 2;
+                    }
+                }
+            }
+            ArchivedJscomp::Separator(s) => {
+                if !s.is_empty() {
+                    out.write_str("s,")?;
+                    *line_len += 2;
+
+                    for ch in s.chars() {
+                        if matches!(ch, ',' | ':' | '=' | ';' | '"') {
+                            out.write_char('\\')?;
+                            *line_len += 1;
+                        }
+                        out.write_char(ch)?;
+                        *line_len += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
 }

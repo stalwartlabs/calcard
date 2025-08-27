@@ -5,7 +5,8 @@
  */
 
 use crate::vcard::{
-    VCardEntry, VCardKind, VCardParameter, VCardProperty, VCardValue, VCardValueType,
+    VCardEntry, VCardKind, VCardParameter, VCardParameterName, VCardParameterValue, VCardProperty,
+    VCardValue, VCardValueType,
 };
 
 impl VCardEntry {
@@ -55,9 +56,8 @@ impl VCardEntry {
     }
 
     pub fn is_type(&self, typ: &VCardValueType) -> bool {
-        self.params
-            .iter()
-            .any(|p| matches!(p, VCardParameter::Value(v) if v.contains(typ)))
+        self.parameters(&VCardParameterName::Value)
+            .any(|p| matches!(p, VCardParameterValue::ValueType(v) if v == typ))
     }
 }
 

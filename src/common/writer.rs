@@ -130,15 +130,24 @@ pub(crate) fn write_bytes(
     Ok(())
 }
 
+pub(crate) trait NeedsQuotes {
+    fn needs_quotes(&self) -> bool;
+}
+
+impl<T: AsRef<[u8]>> NeedsQuotes for T {
+    fn needs_quotes(&self) -> bool {
+        self.as_ref()
+            .iter()
+            .any(|&ch| matches!(ch, b',' | b':' | b'=' | b' ' | b';' | b'"'))
+    }
+}
+
 pub(crate) fn write_param_value(
     out: &mut impl Write,
     line_len: &mut usize,
     value: &str,
 ) -> std::fmt::Result {
-    let needs_quotes = value
-        .as_bytes()
-        .iter()
-        .any(|&ch| matches!(ch, b',' | b':' | b'=' | b' ' | b';' | b'"'));
+    let needs_quotes = value.needs_quotes();
 
     if needs_quotes {
         write!(out, "\"")?;
@@ -184,7 +193,7 @@ pub(crate) fn write_param_value(
     Ok(())
 }
 
-pub(crate) fn write_param(
+/*pub(crate) fn write_param(
     out: &mut impl Write,
     line_len: &mut usize,
     name: &str,
@@ -216,7 +225,7 @@ pub(crate) fn write_params(
     }
 
     Ok(())
-}
+}*/
 
 pub(crate) fn write_jscomps(
     out: &mut impl Write,

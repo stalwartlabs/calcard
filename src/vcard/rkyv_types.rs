@@ -64,7 +64,9 @@ impl ArchivedVCardProperty {
             ArchivedVCardProperty::Other(s) => s.as_str(),
         }
     }
+}
 
+impl ArchivedVCardProperty {
     // Returns the default value type and whether the property is multi-valued.
     pub(crate) fn default_types(&self) -> (ArchivedValueType, ValueSeparator) {
         match self {
@@ -261,20 +263,20 @@ impl ArchivedVCardProperty {
                 ArchivedValueType::Vcard(ArchivedVCardValueType::Text),
                 ValueSeparator::None,
             ),
-            ArchivedVCardProperty::Other(_) => (
-                ArchivedValueType::Vcard(ArchivedVCardValueType::Text),
-                ValueSeparator::None,
-            ),
             ArchivedVCardProperty::Begin | ArchivedVCardProperty::End => (
                 ArchivedValueType::Vcard(ArchivedVCardValueType::Text),
                 ValueSeparator::Skip,
+            ),
+            ArchivedVCardProperty::Other(_) => (
+                ArchivedValueType::Vcard(ArchivedVCardValueType::Text),
+                ValueSeparator::None,
             ),
         }
     }
 }
 
-impl ArchivedVCardValueType {
-    pub fn as_str(&self) -> &str {
+impl IanaString for ArchivedVCardValueType {
+    fn as_str(&self) -> &'static str {
         match self {
             ArchivedVCardValueType::Boolean => "BOOLEAN",
             ArchivedVCardValueType::Date => "DATE",
@@ -288,19 +290,12 @@ impl ArchivedVCardValueType {
             ArchivedVCardValueType::Timestamp => "TIMESTAMP",
             ArchivedVCardValueType::Uri => "URI",
             ArchivedVCardValueType::UtcOffset => "UTC-OFFSET",
-            ArchivedVCardValueType::Other(s) => s.as_str(),
         }
     }
 }
 
-impl AsRef<str> for ArchivedVCardValueType {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl ArchivedVCardLevel {
-    pub fn as_str(&self) -> &str {
+impl IanaString for ArchivedVCardLevel {
+    fn as_str(&self) -> &'static str {
         match self {
             ArchivedVCardLevel::Beginner => "BEGINNER",
             ArchivedVCardLevel::Average => "AVERAGE",
@@ -312,32 +307,19 @@ impl ArchivedVCardLevel {
     }
 }
 
-impl AsRef<str> for ArchivedVCardLevel {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl ArchivedVCardPhonetic {
-    pub fn as_str(&self) -> &str {
+impl IanaString for ArchivedVCardPhonetic {
+    fn as_str(&self) -> &'static str {
         match self {
             ArchivedVCardPhonetic::Ipa => "IPA",
             ArchivedVCardPhonetic::Jyut => "JYUT",
             ArchivedVCardPhonetic::Piny => "PINY",
             ArchivedVCardPhonetic::Script => "SCRIPT",
-            ArchivedVCardPhonetic::Other(s) => s.as_str(),
         }
     }
 }
 
-impl AsRef<str> for ArchivedVCardPhonetic {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl ArchivedVCardType {
-    pub fn as_str(&self) -> &str {
+impl IanaString for ArchivedVCardType {
+    fn as_str(&self) -> &'static str {
         match self {
             ArchivedVCardType::Work => "WORK",
             ArchivedVCardType::Home => "HOME",
@@ -371,19 +353,12 @@ impl ArchivedVCardType {
             ArchivedVCardType::Pager => "PAGER",
             ArchivedVCardType::Textphone => "TEXTPHONE",
             ArchivedVCardType::MainNumber => "MAIN-NUMBER",
-            ArchivedVCardType::Other(s) => s.as_str(),
         }
     }
 }
 
-impl AsRef<str> for ArchivedVCardType {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl ArchivedVCardGramGender {
-    pub fn as_str(&self) -> &str {
+impl IanaString for ArchivedVCardGramGender {
+    fn as_str(&self) -> &'static str {
         match self {
             ArchivedVCardGramGender::Animate => "ANIMATE",
             ArchivedVCardGramGender::Common => "COMMON",
@@ -395,8 +370,8 @@ impl ArchivedVCardGramGender {
     }
 }
 
-impl ArchivedVCardSex {
-    pub fn as_str(&self) -> &str {
+impl IanaString for ArchivedVCardSex {
+    fn as_str(&self) -> &'static str {
         match self {
             ArchivedVCardSex::Male => "M",
             ArchivedVCardSex::Female => "F",
@@ -407,8 +382,8 @@ impl ArchivedVCardSex {
     }
 }
 
-impl ArchivedVCardKind {
-    pub fn as_str(&self) -> &str {
+impl IanaString for ArchivedVCardKind {
+    fn as_str(&self) -> &'static str {
         match self {
             ArchivedVCardKind::Individual => "INDIVIDUAL",
             ArchivedVCardKind::Group => "GROUP",

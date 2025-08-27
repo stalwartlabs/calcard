@@ -5,12 +5,16 @@
  */
 
 use super::{Data, PartialDateTime, tokenizer::Token};
-use crate::Parser;
+use crate::{
+    Parser,
+    common::{IanaParse, IanaString, IanaType},
+    icalendar::Uri,
+};
 use mail_parser::{
     DateTime,
     decoders::{base64::base64_decode, hex::decode_hex},
 };
-use std::{borrow::Cow, iter::Peekable, slice::Iter, str::FromStr};
+use std::{iter::Peekable, slice::Iter, str::FromStr};
 
 impl<'x> Parser<'x> {
     pub(crate) fn raw_token(&mut self) -> Option<&'x str> {
@@ -23,7 +27,7 @@ impl<'x> Parser<'x> {
             .and_then(|v| std::str::from_utf8(v).ok())
     }
 
-    pub(crate) fn buf_to_string(&mut self) -> String {
+    /*pub(crate) fn buf_to_string(&mut self) -> String {
         match self.token_buf.len() {
             0 => String::new(),
             1 => self.token_buf.pop().unwrap().into_string(),
@@ -63,14 +67,19 @@ impl<'x> Parser<'x> {
         result
     }
 
-    pub(crate) fn buf_to_bool(&mut self) -> bool {
-        let result = self
-            .token_buf
-            .pop()
-            .is_some_and(|token| token.text.as_ref().eq_ignore_ascii_case(b"TRUE"));
+    pub(crate) fn buf_to_bool(&mut self) -> Option<Result<bool, String>> {
+        let result = self.token_buf.pop().map(|token| {
+            if token.text.as_ref().eq_ignore_ascii_case(b"TRUE") {
+                Ok(true)
+            } else if token.text.as_ref().eq_ignore_ascii_case(b"FALSE") {
+                Ok(false)
+            } else {
+                Err(token.into_string())
+            }
+        });
         self.token_buf.clear();
         result
-    }
+    }*/
 
     pub(crate) fn buf_parse_many<T: From<Token<'x>>>(&mut self) -> Vec<T> {
         self.token_buf.drain(..).map(T::from).collect()
@@ -82,14 +91,14 @@ impl<'x> Parser<'x> {
         result
     }
 
-    pub(crate) fn buf_try_parse_one<T: for<'y> TryFrom<&'y [u8]>>(&mut self) -> Option<T> {
+    /*pub(crate) fn buf_try_parse_one<T: IanaParse>(&mut self) -> Option<T> {
         let result = self
             .token_buf
             .first()
-            .and_then(|t| T::try_from(t.text.as_ref()).ok());
+            .and_then(|t| T::parse(t.text.as_ref()));
         self.token_buf.clear();
         result
-    }
+    }*/
 }
 
 impl Token<'_> {
@@ -321,16 +330,24 @@ impl PartialDateTime {
             && self.tz_minute.is_none()
     }
 
+    #[inline(always)]
     pub fn has_date(&self) -> bool {
         self.year.is_some() && self.month.is_some() && self.day.is_some()
     }
 
+    #[inline(always)]
     pub fn has_time(&self) -> bool {
         self.hour.is_some() && self.minute.is_some()
     }
 
+    #[inline(always)]
     pub fn has_zone(&self) -> bool {
         self.tz_hour.is_some()
+    }
+
+    #[inline(always)]
+    pub fn has_date_and_time(&self) -> bool {
+        self.has_date() && self.has_time()
     }
 
     fn to_datetime(&self) -> Option<DateTime> {
@@ -462,22 +479,18 @@ impl FromStr for Timestamp {
     }
 }
 
-impl TryFrom<&[u8]> for Timestamp {
-    type Error = ();
-
-    fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
+impl IanaParse for Timestamp {
+    fn parse(value: &[u8]) -> Option<Self> {
         let mut dt = PartialDateTime::default();
         dt.parse_timestamp(&mut value.iter().peekable(), true);
-        dt.to_timestamp().map(Timestamp).ok_or(())
+        dt.to_timestamp().map(Timestamp)
     }
 }
 
 pub(crate) struct Integer(pub i64);
 
-impl TryFrom<&[u8]> for Integer {
-    type Error = ();
-
-    fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
+impl IanaParse for Integer {
+    fn parse(value: &[u8]) -> Option<Self> {
         let mut num: i64 = 0;
         let mut is_negative = false;
 
@@ -492,12 +505,63 @@ impl TryFrom<&[u8]> for Integer {
                 }
                 _ => {
                     if !ch.is_ascii_whitespace() {
-                        return Err(());
+                        return None;
                     }
                 }
             }
         }
 
-        Ok(Integer(if is_negative { -num } else { num }))
+        Some(Integer(if is_negative { -num } else { num }))
+    }
+}
+
+pub(crate) struct Boolean(pub bool);
+
+impl IanaParse for Boolean {
+    fn parse(value: &[u8]) -> Option<Self> {
+        if value.eq_ignore_ascii_case(b"true") {
+            Some(Boolean(true))
+        } else if value.eq_ignore_ascii_case(b"false") {
+            Some(Boolean(false))
+        } else {
+            None
+        }
+    }
+}
+
+impl<I> From<Token<'_>> for IanaType<I, String>
+where
+    I: IanaParse,
+{
+    fn from(value: Token<'_>) -> Self {
+        I::parse(value.text.as_ref())
+            .map(IanaType::Iana)
+            .unwrap_or_else(|| IanaType::Other(value.into_string()))
+    }
+}
+
+impl<I> From<Token<'_>> for IanaType<I, Uri>
+where
+    I: IanaString
+        + IanaParse
+        + std::fmt::Debug
+        + Clone
+        + PartialEq
+        + Eq
+        + PartialOrd
+        + Ord
+        + std::hash::Hash,
+{
+    fn from(value: Token<'_>) -> Self {
+        I::parse(value.text.as_ref())
+            .map(IanaType::Iana)
+            .unwrap_or_else(|| {
+                IanaType::Other(
+                    value
+                        .into_uri_bytes()
+                        .map(Uri::Data)
+                        .unwrap_or_else(Uri::Location),
+                )
+            })
     }
 }

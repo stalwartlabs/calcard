@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use crate::Parser;
+use crate::{Parser, common::IanaParse};
 use std::borrow::Cow;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -283,13 +283,13 @@ impl<'x> Parser<'x> {
         &mut self,
         separator: StopChar,
         last_stop_char: &mut StopChar,
-    ) -> Option<Result<T, ()>>
+    ) -> Option<Option<T>>
     where
-        T: for<'y> TryFrom<&'y [u8], Error = ()> + 'static,
+        T: IanaParse + 'static,
     {
         if *last_stop_char != separator {
             self.token_until_lf(last_stop_char)
-                .map(|token| T::try_from(token.text.as_ref()))
+                .map(|token| T::parse(token.text.as_ref()))
         } else {
             None
         }

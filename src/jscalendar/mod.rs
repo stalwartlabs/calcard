@@ -4,10 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
+pub mod export;
+pub mod import;
 pub mod parser;
 
-use crate::icalendar::ICalendarDuration;
-use jmap_tools::Value;
+use crate::{
+    common::{IanaString, LinkRelation},
+    icalendar::ICalendarDuration,
+};
+use jmap_tools::{JsonPointer, Value};
 use mail_parser::DateTime;
 use serde::Serialize;
 use std::{borrow::Cow, str::FromStr};
@@ -149,11 +154,19 @@ pub enum JSCalendarProperty {
     MainLocationId,
     OrganizerCalendarAddress,
     RecurrenceRule,
+    ICalComponent,
+    Properties,
+    Parameters,
+    ConvertedProperties,
+    ValueType,
+    Components,
     DateTime(JSCalendarDateTime),
     LinkDisplay(JSCalendarLinkDisplay),
     VirtualLocationFeature(JSCalendarVirtualLocationFeature),
     ParticipantRole(JSCalendarParticipantRole),
     RelationValue(JSCalendarRelation),
+    LinkRelation(LinkRelation),
+    Pointer(JsonPointer<JSCalendarProperty>),
 }
 
 impl FromStr for JSCalendarProperty {
@@ -270,6 +283,12 @@ impl FromStr for JSCalendarProperty {
             "mainLocationId" => JSCalendarProperty::MainLocationId,
             "organizerCalendarAddress" => JSCalendarProperty::OrganizerCalendarAddress,
             "recurrenceRule" => JSCalendarProperty::RecurrenceRule,
+            "properties" => JSCalendarProperty::Properties,
+            "components" => JSCalendarProperty::Components,
+            "valueType" => JSCalendarProperty::ValueType,
+            "convertedProperties" => JSCalendarProperty::ConvertedProperties,
+            "parameters" => JSCalendarProperty::Parameters,
+            "ICalComponent" => JSCalendarProperty::ICalComponent
         )
         .cloned()
         .ok_or(())
@@ -388,18 +407,30 @@ impl JSCalendarProperty {
             JSCalendarProperty::MainLocationId => "mainLocationId",
             JSCalendarProperty::OrganizerCalendarAddress => "organizerCalendarAddress",
             JSCalendarProperty::RecurrenceRule => "recurrenceRule",
+            JSCalendarProperty::Properties => "properties",
+            JSCalendarProperty::Components => "components",
+            JSCalendarProperty::ValueType => "valueType",
+            JSCalendarProperty::ConvertedProperties => "convertedProperties",
+            JSCalendarProperty::Parameters => "parameters",
+            JSCalendarProperty::ICalComponent => "ICalComponent",
             JSCalendarProperty::LinkDisplay(v) => v.as_str(),
             JSCalendarProperty::VirtualLocationFeature(v) => v.as_str(),
             JSCalendarProperty::ParticipantRole(v) => v.as_str(),
             JSCalendarProperty::RelationValue(v) => v.as_str(),
+            JSCalendarProperty::LinkRelation(v) => return v.as_str().to_string().into(),
             JSCalendarProperty::DateTime(dt) => return dt.to_rfc3339().into(),
+            JSCalendarProperty::Pointer(pointer) => return Cow::Owned(pointer.to_string()),
         }
         .into()
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum JSCalendarType {
+    #[default]
+    Event,
+    Task,
+    Group,
     Alert,
     Boolean,
     Duration,
@@ -422,12 +453,16 @@ pub enum JSCalendarType {
     UnsignedInt,
     UTCDateTime,
     VirtualLocation,
+    ICalComponent,
 }
 
 impl FromStr for JSCalendarType {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         hashify::tiny_map!(s.as_bytes(),
+            "Event" => JSCalendarType::Event,
+            "Task" => JSCalendarType::Task,
+            "Group" => JSCalendarType::Group,
             "Alert" => JSCalendarType::Alert,
             "Boolean" => JSCalendarType::Boolean,
             "Duration" => JSCalendarType::Duration,
@@ -450,6 +485,7 @@ impl FromStr for JSCalendarType {
             "UnsignedInt" => JSCalendarType::UnsignedInt,
             "UTCDateTime" => JSCalendarType::UTCDateTime,
             "VirtualLocation" => JSCalendarType::VirtualLocation,
+            "ICalComponent" => JSCalendarType::ICalComponent,
         )
         .ok_or(())
     }
@@ -458,6 +494,9 @@ impl FromStr for JSCalendarType {
 impl JSCalendarType {
     pub fn as_str(&self) -> &'static str {
         match self {
+            JSCalendarType::Event => "Event",
+            JSCalendarType::Task => "Task",
+            JSCalendarType::Group => "Group",
             JSCalendarType::Alert => "Alert",
             JSCalendarType::Boolean => "Boolean",
             JSCalendarType::Duration => "Duration",
@@ -480,6 +519,7 @@ impl JSCalendarType {
             JSCalendarType::UnsignedInt => "UnsignedInt",
             JSCalendarType::UTCDateTime => "UTCDateTime",
             JSCalendarType::VirtualLocation => "VirtualLocation",
+            JSCalendarType::ICalComponent => "ICalComponent",
         }
     }
 }
@@ -924,6 +964,13 @@ impl JSCalendarEventStatus {
 }
 
 impl JSCalendarDateTime {
+    pub fn new(timestamp: i64, is_local: bool) -> Self {
+        Self {
+            timestamp,
+            is_local,
+        }
+    }
+
     pub fn to_rfc3339(&self) -> String {
         let dt = DateTime::from_timestamp(self.timestamp);
         if !self.is_local {

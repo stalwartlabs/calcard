@@ -5,7 +5,7 @@
  */
 
 use crate::{
-    common::{Data, timezone::Tz},
+    common::{Data, IanaParse, IanaType, timezone::Tz},
     jscontact::{
         JSContact, JSContactKind, JSContactProperty, JSContactValue,
         export::{
@@ -17,8 +17,8 @@ use crate::{
         },
     },
     vcard::{
-        Jscomp, VCard, VCardEntry, VCardLevel, VCardParameter, VCardPhonetic, VCardProperty,
-        VCardType, VCardValue, VCardValueType, ValueType,
+        Jscomp, VCard, VCardEntry, VCardLevel, VCardParameter, VCardParameterValue, VCardPhonetic,
+        VCardProperty, VCardType, VCardValue, VCardValueType, ValueType,
     },
 };
 use jmap_tools::{JsonPointer, JsonPointerItem, Key, Map, Value};
@@ -27,18 +27,13 @@ use std::{collections::HashMap, str::FromStr};
 impl JSContact<'_> {
     pub fn into_vcard(self) -> Option<VCard> {
         let mut state = State::default();
-        let js_properties = self.0.into_object()?.into_vec();
-        let mut properties = Vec::with_capacity(js_properties.len());
+        let mut properties = self.0.into_object()?.into_vec();
         let mut localized_properties: HashMap<String, Vec<_>> = HashMap::new();
 
-        for (property, value) in js_properties {
-            let Key::Property(property) = property else {
-                state.insert_jsprop(&[property.to_string().as_ref()], value);
-                continue;
-            };
-            match property {
-                JSContactProperty::Localizations => {
-                    for (lang, value) in value.into_expanded_object() {
+        for (property, value) in &mut properties {
+            match (property, value) {
+                (Key::Property(JSContactProperty::Localizations), Value::Object(obj)) => {
+                    for (lang, value) in std::mem::take(obj.as_mut_vec()) {
                         let mut localizations: Value<'_, JSContactProperty, JSContactValue> =
                             Value::Object(Map::from(Vec::with_capacity(3)));
                         for (key, value) in value.into_expanded_object() {
@@ -66,25 +61,13 @@ impl JSContact<'_> {
                         if let Some(localizations) =
                             localizations.into_object().filter(|x| !x.is_empty())
                         {
-                            localized_properties.insert(
-                                lang.into_string(),
-                                localizations
-                                    .into_vec()
-                                    .into_iter()
-                                    .filter_map(|(key, value)| {
-                                        if let Key::Property(property) = key {
-                                            Some((property, value))
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                    .collect(),
-                            );
+                            localized_properties
+                                .insert(lang.into_string(), localizations.into_vec());
                         }
                     }
                 }
-                JSContactProperty::VCard => {
-                    for (sub_property, value) in value.into_expanded_object() {
+                (Key::Property(JSContactProperty::VCard), Value::Object(obj)) => {
+                    for (sub_property, value) in std::mem::take(obj.as_mut_vec()) {
                         match sub_property {
                             Key::Property(JSContactProperty::ConvertedProperties) => {
                                 for (key, value) in value.into_expanded_object() {
@@ -147,9 +130,7 @@ impl JSContact<'_> {
                         state.converted_props.sort_unstable_by(|a, b| a.0.cmp(&b.0));
                     }
                 }
-                _ => {
-                    properties.push((property, value));
-                }
+                _ => {}
             }
         }
 
@@ -191,6 +172,11 @@ impl JSContact<'_> {
             state.language = language;
 
             for (property, value) in properties {
+                let Key::Property(property) = property else {
+                    state.insert_jsprop(&[property.to_string().as_ref()], value);
+                    continue;
+                };
+
                 match property {
                     JSContactProperty::Uid
                     | JSContactProperty::Kind
@@ -242,17 +228,17 @@ impl JSContact<'_> {
                                     }
                                     Key::Property(JSContactProperty::Pref) => {
                                         if let Some(pref) = value.as_u64() {
-                                            entry.params.push(VCardParameter::Pref(pref as u32));
+                                            entry.params.push(VCardParameter::pref(pref as u32));
                                         }
                                     }
                                     Key::Property(JSContactProperty::ListAs) => {
                                         if let Some(index) = value.as_u64() {
-                                            entry.params.push(VCardParameter::Index(index as u32));
+                                            entry.params.push(VCardParameter::index(index as u32));
                                         }
                                     }
                                     Key::Property(JSContactProperty::MediaType) => {
                                         if let Some(text) = value.into_string() {
-                                            entry.params.push(VCardParameter::Mediatype(text));
+                                            entry.params.push(VCardParameter::mediatype(text));
                                         }
                                     }
                                     Key::Property(JSContactProperty::Label) => {
@@ -262,7 +248,9 @@ impl JSContact<'_> {
                                     }
                                     Key::Property(JSContactProperty::Contexts) => {
                                         if let Some(types) = convert_types(value, true) {
-                                            entry.params.push(VCardParameter::Type(types));
+                                            for typ in types {
+                                                entry.params.push(VCardParameter::typ(typ));
+                                            }
                                         }
                                     }
                                     _ => {
@@ -280,7 +268,7 @@ impl JSContact<'_> {
 
                             state.insert_vcard(
                                 &[JSContactProperty::Directories],
-                                entry.with_param(VCardParameter::PropId(name.into_string())),
+                                entry.with_param(VCardParameter::prop_id(name.into_string())),
                             );
                         }
                     }
@@ -369,8 +357,8 @@ impl JSContact<'_> {
                                                                         .unwrap(),
                                                                 )
                                                                 .with_value(text)
-                                                                .with_param(VCardParameter::Value(
-                                                                    vec![VCardValueType::Uri],
+                                                                .with_param(VCardParameter::value(
+                                                                    VCardValueType::Uri,
                                                                 )),
                                                             );
                                                         }
@@ -411,7 +399,7 @@ impl JSContact<'_> {
                                             JSContactProperty::Anniversaries,
                                             JSContactProperty::Place,
                                         ],
-                                        place.with_param(VCardParameter::PropId(
+                                        place.with_param(VCardParameter::prop_id(
                                             name.to_string().into_owned(),
                                         )),
                                     );
@@ -421,7 +409,7 @@ impl JSContact<'_> {
                                 if let Some(date) = date {
                                     let mut entry = VCardEntry::new(vcard_property);
                                     if let Some(calscale) = calscale {
-                                        entry.params.push(VCardParameter::Calscale(calscale));
+                                        entry.params.push(VCardParameter::calscale(calscale));
                                     }
                                     state.insert_vcard(
                                         &[
@@ -429,7 +417,7 @@ impl JSContact<'_> {
                                             JSContactProperty::Date,
                                         ],
                                         entry
-                                            .with_param(VCardParameter::PropId(name.into_string()))
+                                            .with_param(VCardParameter::prop_id(name.into_string()))
                                             .with_value(VCardValue::PartialDateTime(date)),
                                     );
                                 }
@@ -592,21 +580,23 @@ impl JSContact<'_> {
                                     if let (Some(surname), Some(given)) =
                                         (surname.as_ref(), given.as_ref())
                                     {
-                                        params.push(VCardParameter::SortAs(format!(
+                                        params.push(VCardParameter::sort_as(format!(
                                             "{surname},{given}"
                                         )));
                                     } else if let Some(surname) = surname.or(given) {
-                                        params.push(VCardParameter::SortAs(surname));
+                                        params.push(VCardParameter::sort_as(surname));
                                     }
                                 }
                                 Key::Property(JSContactProperty::PhoneticSystem) => {
-                                    if let Ok(phonetic_system) = VCardPhonetic::try_from(value) {
-                                        params.push(VCardParameter::Phonetic(phonetic_system));
+                                    if let Ok(phonetic_system) =
+                                        IanaType::<VCardPhonetic, String>::try_from(value)
+                                    {
+                                        params.push(VCardParameter::phonetic(phonetic_system));
                                     }
                                 }
                                 Key::Property(JSContactProperty::PhoneticScript) => {
                                     if let Some(phonetic_script) = value.into_string() {
-                                        params.push(VCardParameter::Script(phonetic_script));
+                                        params.push(VCardParameter::script(phonetic_script));
                                     }
                                 }
                                 Key::Property(JSContactProperty::DefaultSeparator) => {
@@ -629,7 +619,7 @@ impl JSContact<'_> {
 
                         if num_parts > 0 || !params.is_empty() {
                             if jscomps.len() > 1 {
-                                params.push(VCardParameter::Jscomps(jscomps));
+                                params.push(VCardParameter::jscomps(jscomps));
                             }
 
                             // To vCard: add any "surname2" NameComponent to the Family name component, after all "surname" values.
@@ -704,7 +694,7 @@ impl JSContact<'_> {
                                                 }
                                                 Key::Property(JSContactProperty::Pref) => {
                                                     if let Some(pref) = value.as_i64() {
-                                                        entry.add_param(VCardParameter::Pref(
+                                                        entry.add_param(VCardParameter::pref(
                                                             pref as u32,
                                                         ));
                                                     }
@@ -728,7 +718,7 @@ impl JSContact<'_> {
                                                 JSContactProperty::SpeakToAs,
                                                 JSContactProperty::Pronouns,
                                             ],
-                                            entry.with_param(VCardParameter::PropId(
+                                            entry.with_param(VCardParameter::prop_id(
                                                 name.into_string(),
                                             )),
                                         );
@@ -762,12 +752,14 @@ impl JSContact<'_> {
                                     }
                                     Key::Property(JSContactProperty::Pref) => {
                                         if let Some(pref) = value.as_i64() {
-                                            entry.add_param(VCardParameter::Pref(pref as u32));
+                                            entry.add_param(VCardParameter::pref(pref as u32));
                                         }
                                     }
                                     Key::Property(JSContactProperty::Contexts) => {
                                         if let Some(types) = convert_types(value, true) {
-                                            entry.params.push(VCardParameter::Type(types));
+                                            for typ in types {
+                                                entry.params.push(VCardParameter::typ(typ));
+                                            }
                                         }
                                     }
                                     _ => {
@@ -785,7 +777,7 @@ impl JSContact<'_> {
 
                             state.insert_vcard(
                                 &[JSContactProperty::Nicknames],
-                                entry.with_param(VCardParameter::PropId(name.into_string())),
+                                entry.with_param(VCardParameter::prop_id(name.into_string())),
                             );
                         }
                     }
@@ -815,17 +807,17 @@ impl JSContact<'_> {
                                         }
                                         Key::Property(JSContactProperty::MediaType) => {
                                             if let Some(text) = value.into_string() {
-                                                entry.params.push(VCardParameter::Mediatype(text));
+                                                entry.params.push(VCardParameter::mediatype(text));
                                             }
                                         }
                                         Key::Property(JSContactProperty::Label) => {
                                             if let Some(text) = value.into_string() {
-                                                entry.params.push(VCardParameter::Label(text));
+                                                entry.params.push(VCardParameter::label(text));
                                             }
                                         }
                                         Key::Property(JSContactProperty::Pref) => {
                                             if let Some(pref) = value.as_i64() {
-                                                entry.add_param(VCardParameter::Pref(pref as u32));
+                                                entry.add_param(VCardParameter::pref(pref as u32));
                                             }
                                         }
                                         Key::Property(JSContactProperty::Kind) => {}
@@ -844,7 +836,7 @@ impl JSContact<'_> {
 
                                 state.insert_vcard(
                                     &[JSContactProperty::Media],
-                                    entry.with_param(VCardParameter::PropId(name.into_string())),
+                                    entry.with_param(VCardParameter::prop_id(name.into_string())),
                                 );
                             } else {
                                 state.insert_jsprop(
@@ -965,7 +957,7 @@ impl JSContact<'_> {
                                     }
                                     Key::Property(JSContactProperty::Full) => {
                                         if let Some(value) = value.into_string() {
-                                            params.push(VCardParameter::Label(value));
+                                            params.push(VCardParameter::label(value));
                                         }
                                     }
                                     Key::Property(JSContactProperty::Coordinates) => {
@@ -976,28 +968,31 @@ impl JSContact<'_> {
                                     }
                                     Key::Property(JSContactProperty::CountryCode) => {
                                         if let Some(value) = value.into_string() {
-                                            params.push(VCardParameter::Cc(value));
+                                            params.push(VCardParameter::cc(value));
                                         }
                                     }
                                     Key::Property(JSContactProperty::Pref) => {
                                         if let Some(value) = value.as_i64() {
-                                            params.push(VCardParameter::Pref(value as u32));
+                                            params.push(VCardParameter::pref(value as u32));
                                         }
                                     }
                                     Key::Property(JSContactProperty::PhoneticSystem) => {
-                                        if let Ok(phonetic_system) = VCardPhonetic::try_from(value)
+                                        if let Ok(phonetic_system) =
+                                            IanaType::<VCardPhonetic, String>::try_from(value)
                                         {
-                                            params.push(VCardParameter::Phonetic(phonetic_system));
+                                            params.push(VCardParameter::phonetic(phonetic_system));
                                         }
                                     }
                                     Key::Property(JSContactProperty::PhoneticScript) => {
                                         if let Some(value) = value.into_string() {
-                                            params.push(VCardParameter::Script(value));
+                                            params.push(VCardParameter::script(value));
                                         }
                                     }
                                     Key::Property(JSContactProperty::Contexts) => {
                                         if let Some(types) = convert_types(value, true) {
-                                            params.push(VCardParameter::Type(types));
+                                            for typ in types {
+                                                params.push(VCardParameter::typ(typ));
+                                            }
                                         }
                                     }
                                     Key::Property(JSContactProperty::DefaultSeparator) => {
@@ -1040,7 +1035,7 @@ impl JSContact<'_> {
                                         ),
                                     );
                                 } else {
-                                    params.push(VCardParameter::Tz(timezone));
+                                    params.push(VCardParameter::tz(timezone));
                                 }
                             }
 
@@ -1059,15 +1054,15 @@ impl JSContact<'_> {
                                         VCardEntry::new(VCardProperty::Geo).with_value(geo),
                                     );
                                 } else {
-                                    params.push(VCardParameter::Geo(geo));
+                                    params.push(VCardParameter::geo(geo));
                                 }
                             }
 
                             if num_parts > 0 || !params.is_empty() {
-                                params.push(VCardParameter::PropId(name.to_string().to_string()));
+                                params.push(VCardParameter::prop_id(name.to_string().to_string()));
 
                                 if jscomps.len() > 1 {
-                                    params.push(VCardParameter::Jscomps(jscomps));
+                                    params.push(VCardParameter::jscomps(jscomps));
                                 }
 
                                 /*
@@ -1176,12 +1171,14 @@ impl JSContact<'_> {
                                     }
                                     Key::Property(JSContactProperty::SortAs) => {
                                         if let Some(sort_as) = value.into_string() {
-                                            entry.add_param(VCardParameter::SortAs(sort_as));
+                                            entry.add_param(VCardParameter::sort_as(sort_as));
                                         }
                                     }
                                     Key::Property(JSContactProperty::Contexts) => {
                                         if let Some(types) = convert_types(value, true) {
-                                            entry.params.push(VCardParameter::Type(types));
+                                            for typ in types {
+                                                entry.params.push(VCardParameter::typ(typ));
+                                            }
                                         }
                                     }
                                     _ => {
@@ -1199,7 +1196,7 @@ impl JSContact<'_> {
 
                             state.insert_vcard(
                                 &[JSContactProperty::Organizations],
-                                entry.with_param(VCardParameter::PropId(name.into_string())),
+                                entry.with_param(VCardParameter::prop_id(name.into_string())),
                             );
                         }
                     }
@@ -1261,12 +1258,14 @@ impl JSContact<'_> {
                                     }
                                     Key::Property(JSContactProperty::Pref) => {
                                         if let Some(pref) = value.as_i64() {
-                                            entry.add_param(VCardParameter::Pref(pref as u32));
+                                            entry.add_param(VCardParameter::pref(pref as u32));
                                         }
                                     }
                                     Key::Property(JSContactProperty::Contexts) => {
                                         if let Some(types) = convert_types(value, true) {
-                                            entry.params.push(VCardParameter::Type(types));
+                                            for typ in types {
+                                                entry.params.push(VCardParameter::typ(typ));
+                                            }
                                         }
                                     }
                                     Key::Property(JSContactProperty::OrganizationId)
@@ -1289,7 +1288,7 @@ impl JSContact<'_> {
 
                             state.insert_vcard(
                                 &[JSContactProperty::Titles],
-                                entry.with_param(VCardParameter::PropId(name.into_string())),
+                                entry.with_param(VCardParameter::prop_id(name.into_string())),
                             );
                         }
                     }
@@ -1306,17 +1305,19 @@ impl JSContact<'_> {
                                     }
                                     Key::Property(JSContactProperty::Contexts) => {
                                         if let Some(types) = convert_types(value, true) {
-                                            entry.params.push(VCardParameter::Type(types));
+                                            for typ in types {
+                                                entry.params.push(VCardParameter::typ(typ));
+                                            }
                                         }
                                     }
                                     Key::Property(JSContactProperty::Pref) => {
                                         if let Some(pref) = value.as_i64() {
-                                            entry.add_param(VCardParameter::Pref(pref as u32));
+                                            entry.add_param(VCardParameter::pref(pref as u32));
                                         }
                                     }
                                     Key::Property(JSContactProperty::Label) => {
                                         if let Some(label) = value.into_string() {
-                                            entry.params.push(VCardParameter::Label(label));
+                                            entry.params.push(VCardParameter::label(label));
                                         }
                                     }
                                     _ => {
@@ -1334,7 +1335,7 @@ impl JSContact<'_> {
 
                             state.insert_vcard(
                                 &[JSContactProperty::Emails],
-                                entry.with_param(VCardParameter::PropId(name.into_string())),
+                                entry.with_param(VCardParameter::prop_id(name.into_string())),
                             );
                         }
                     }
@@ -1351,27 +1352,29 @@ impl JSContact<'_> {
                                     }
                                     Key::Property(JSContactProperty::Service) => {
                                         if let Some(service) = value.into_string() {
-                                            entry.add_param(VCardParameter::ServiceType(service));
+                                            entry.add_param(VCardParameter::service_type(service));
                                         }
                                     }
                                     Key::Property(JSContactProperty::User) => {
                                         if let Some(username) = value.into_string() {
-                                            entry.add_param(VCardParameter::Username(username));
+                                            entry.add_param(VCardParameter::username(username));
                                         }
                                     }
                                     Key::Property(JSContactProperty::Contexts) => {
                                         if let Some(types) = convert_types(value, true) {
-                                            entry.params.push(VCardParameter::Type(types));
+                                            for typ in types {
+                                                entry.params.push(VCardParameter::typ(typ));
+                                            }
                                         }
                                     }
                                     Key::Property(JSContactProperty::Label) => {
                                         if let Some(label) = value.into_string() {
-                                            entry.add_param(VCardParameter::Label(label));
+                                            entry.add_param(VCardParameter::label(label));
                                         }
                                     }
                                     Key::Property(JSContactProperty::Pref) => {
                                         if let Some(pref) = value.as_i64() {
-                                            entry.add_param(VCardParameter::Pref(pref as u32));
+                                            entry.add_param(VCardParameter::pref(pref as u32));
                                         }
                                     }
                                     _ => {
@@ -1389,7 +1392,7 @@ impl JSContact<'_> {
 
                             state.insert_vcard(
                                 &[JSContactProperty::OnlineServices],
-                                entry.with_param(VCardParameter::PropId(name.into_string())),
+                                entry.with_param(VCardParameter::prop_id(name.into_string())),
                             );
                         }
                     }
@@ -1424,12 +1427,12 @@ impl JSContact<'_> {
                                     }
                                     Key::Property(JSContactProperty::Pref) => {
                                         if let Some(pref) = value.as_i64() {
-                                            entry.add_param(VCardParameter::Pref(pref as u32));
+                                            entry.add_param(VCardParameter::pref(pref as u32));
                                         }
                                     }
                                     Key::Property(JSContactProperty::Label) => {
                                         if let Some(label) = value.into_string() {
-                                            entry.params.push(VCardParameter::Label(label));
+                                            entry.params.push(VCardParameter::label(label));
                                         }
                                     }
                                     _ => {
@@ -1446,11 +1449,13 @@ impl JSContact<'_> {
                             }
 
                             if !types.is_empty() {
-                                entry.params.push(VCardParameter::Type(types));
+                                for typ in types {
+                                    entry.params.push(VCardParameter::typ(typ));
+                                }
                             }
                             state.insert_vcard(
                                 &[JSContactProperty::Phones],
-                                entry.with_param(VCardParameter::PropId(name.into_string())),
+                                entry.with_param(VCardParameter::prop_id(name.into_string())),
                             );
                         }
                     }
@@ -1467,17 +1472,19 @@ impl JSContact<'_> {
                                     }
                                     Key::Property(JSContactProperty::Pref) => {
                                         if let Some(pref) = value.as_i64() {
-                                            entry.add_param(VCardParameter::Pref(pref as u32));
+                                            entry.add_param(VCardParameter::pref(pref as u32));
                                         }
                                     }
                                     Key::Property(JSContactProperty::Contexts) => {
                                         if let Some(types) = convert_types(value, true) {
-                                            entry.params.push(VCardParameter::Type(types));
+                                            for typ in types {
+                                                entry.params.push(VCardParameter::typ(typ));
+                                            }
                                         }
                                     }
                                     Key::Property(JSContactProperty::Label) => {
                                         if let Some(label) = value.into_string() {
-                                            entry.params.push(VCardParameter::Label(label));
+                                            entry.params.push(VCardParameter::label(label));
                                         }
                                     }
                                     _ => {
@@ -1495,7 +1502,7 @@ impl JSContact<'_> {
 
                             state.insert_vcard(
                                 &[JSContactProperty::PreferredLanguages],
-                                entry.with_param(VCardParameter::PropId(name.into_string())),
+                                entry.with_param(VCardParameter::prop_id(name.into_string())),
                             );
                         }
                     }
@@ -1522,22 +1529,24 @@ impl JSContact<'_> {
                                         }
                                         Key::Property(JSContactProperty::MediaType) => {
                                             if let Some(text) = value.into_string() {
-                                                entry.params.push(VCardParameter::Mediatype(text));
+                                                entry.params.push(VCardParameter::mediatype(text));
                                             }
                                         }
                                         Key::Property(JSContactProperty::Label) => {
                                             if let Some(text) = value.into_string() {
-                                                entry.params.push(VCardParameter::Label(text));
+                                                entry.params.push(VCardParameter::label(text));
                                             }
                                         }
                                         Key::Property(JSContactProperty::Pref) => {
                                             if let Some(pref) = value.as_i64() {
-                                                entry.add_param(VCardParameter::Pref(pref as u32));
+                                                entry.add_param(VCardParameter::pref(pref as u32));
                                             }
                                         }
                                         Key::Property(JSContactProperty::Contexts) => {
                                             if let Some(types) = convert_types(value, true) {
-                                                entry.params.push(VCardParameter::Type(types));
+                                                for typ in types {
+                                                    entry.params.push(VCardParameter::typ(typ));
+                                                }
                                             }
                                         }
                                         Key::Property(JSContactProperty::Kind) => {}
@@ -1556,7 +1565,7 @@ impl JSContact<'_> {
 
                                 state.insert_vcard(
                                     &[JSContactProperty::Calendars],
-                                    entry.with_param(VCardParameter::PropId(name.into_string())),
+                                    entry.with_param(VCardParameter::prop_id(name.into_string())),
                                 );
                             } else {
                                 state.insert_jsprop(
@@ -1591,22 +1600,24 @@ impl JSContact<'_> {
                                     }
                                     Key::Property(JSContactProperty::MediaType) => {
                                         if let Some(text) = value.into_string() {
-                                            entry.params.push(VCardParameter::Mediatype(text));
+                                            entry.params.push(VCardParameter::mediatype(text));
                                         }
                                     }
                                     Key::Property(JSContactProperty::Label) => {
                                         if let Some(text) = value.into_string() {
-                                            entry.params.push(VCardParameter::Label(text));
+                                            entry.params.push(VCardParameter::label(text));
                                         }
                                     }
                                     Key::Property(JSContactProperty::Pref) => {
                                         if let Some(pref) = value.as_i64() {
-                                            entry.add_param(VCardParameter::Pref(pref as u32));
+                                            entry.add_param(VCardParameter::pref(pref as u32));
                                         }
                                     }
                                     Key::Property(JSContactProperty::Contexts) => {
                                         if let Some(types) = convert_types(value, true) {
-                                            entry.params.push(VCardParameter::Type(types));
+                                            for typ in types {
+                                                entry.params.push(VCardParameter::typ(typ));
+                                            }
                                         }
                                     }
                                     Key::Property(JSContactProperty::Kind) => {
@@ -1634,7 +1645,7 @@ impl JSContact<'_> {
 
                             state.insert_vcard(
                                 std::slice::from_ref(&property),
-                                entry.with_param(VCardParameter::PropId(name.into_string())),
+                                entry.with_param(VCardParameter::prop_id(name.into_string())),
                             );
                         }
                     }
@@ -1652,7 +1663,9 @@ impl JSContact<'_> {
                                     Key::Property(JSContactProperty::Created) => {
                                         if let Value::Element(JSContactValue::Timestamp(t)) = value
                                         {
-                                            entry.params.push(VCardParameter::Created(t));
+                                            entry.params.push(VCardParameter::created(
+                                                VCardParameterValue::Timestamp(t),
+                                            ));
                                         }
                                     }
                                     Key::Property(JSContactProperty::Author) => {
@@ -1661,14 +1674,14 @@ impl JSContact<'_> {
                                                 Key::Property(JSContactProperty::Name) => {
                                                     if let Some(name) = value.into_string() {
                                                         entry.add_param(
-                                                            VCardParameter::AuthorName(name),
+                                                            VCardParameter::author_name(name),
                                                         );
                                                     }
                                                 }
                                                 Key::Property(JSContactProperty::Uri) => {
                                                     if let Some(uri) = value.into_string() {
                                                         entry
-                                                            .add_param(VCardParameter::Author(uri));
+                                                            .add_param(VCardParameter::author(uri));
                                                     }
                                                 }
                                                 _ => {
@@ -1701,7 +1714,7 @@ impl JSContact<'_> {
 
                             state.insert_vcard(
                                 &[JSContactProperty::Notes],
-                                entry.with_param(VCardParameter::PropId(name.into_string())),
+                                entry.with_param(VCardParameter::prop_id(name.into_string())),
                             );
                         }
                     }
@@ -1729,30 +1742,38 @@ impl JSContact<'_> {
                                         }
                                         Key::Property(JSContactProperty::Label) => {
                                             if let Some(label) = value.into_string() {
-                                                entry.add_param(VCardParameter::Label(label));
+                                                entry.add_param(VCardParameter::label(label));
                                             }
                                         }
                                         Key::Property(JSContactProperty::ListAs) => {
                                             if let Some(pref) = value.as_i64() {
-                                                entry.add_param(VCardParameter::Index(pref as u32));
+                                                entry.add_param(VCardParameter::index(pref as u32));
                                             }
                                         }
                                         Key::Property(JSContactProperty::Level) => {
-                                            if let Ok(level) = VCardLevel::try_from(value) {
+                                            if let Ok(level) =
+                                                IanaType::<VCardLevel, String>::try_from(value)
+                                            {
                                                 let level = if matches!(
                                                     entry.name,
                                                     VCardProperty::Expertise
                                                 ) {
                                                     match level {
-                                                        VCardLevel::High => VCardLevel::Expert,
-                                                        VCardLevel::Medium => VCardLevel::Average,
-                                                        VCardLevel::Low => VCardLevel::Beginner,
+                                                        IanaType::Iana(VCardLevel::High) => {
+                                                            IanaType::Iana(VCardLevel::Expert)
+                                                        }
+                                                        IanaType::Iana(VCardLevel::Medium) => {
+                                                            IanaType::Iana(VCardLevel::Average)
+                                                        }
+                                                        IanaType::Iana(VCardLevel::Low) => {
+                                                            IanaType::Iana(VCardLevel::Beginner)
+                                                        }
                                                         _ => level,
                                                     }
                                                 } else {
                                                     level
                                                 };
-                                                entry.params.push(VCardParameter::Level(level));
+                                                entry.params.push(VCardParameter::level(level));
                                             }
                                         }
                                         Key::Property(JSContactProperty::Kind) => {}
@@ -1771,7 +1792,7 @@ impl JSContact<'_> {
 
                                 state.insert_vcard(
                                     &[JSContactProperty::PersonalInfo],
-                                    entry.with_param(VCardParameter::PropId(name.into_string())),
+                                    entry.with_param(VCardParameter::prop_id(name.into_string())),
                                 );
                             } else {
                                 state.insert_jsprop(
@@ -1785,17 +1806,20 @@ impl JSContact<'_> {
                         for (name, value) in value.into_expanded_object() {
                             let mut entry = VCardEntry::new(VCardProperty::Related)
                                 .with_value(name.to_string().into_owned());
-                            let mut types = vec![];
 
                             for (sub_property, value) in value.into_expanded_object() {
                                 if let Key::Property(JSContactProperty::Relation) = sub_property {
                                     for (typ, set) in value.into_expanded_boolean_set() {
                                         if set {
                                             let typ = typ.to_string();
-                                            match VCardType::try_from(typ.as_ref().as_bytes()) {
-                                                Ok(typ) => types.push(typ),
-                                                Err(_) => {
-                                                    types.push(VCardType::Other(typ.into_owned()));
+                                            match VCardType::parse(typ.as_ref().as_bytes()) {
+                                                Some(typ) => {
+                                                    entry.params.push(VCardParameter::typ(typ))
+                                                }
+                                                None => {
+                                                    entry.params.push(VCardParameter::typ(
+                                                        typ.into_owned(),
+                                                    ));
                                                 }
                                             }
                                         }
@@ -1812,14 +1836,13 @@ impl JSContact<'_> {
                                 }
                             }
 
-                            if !types.is_empty() {
-                                entry.params.push(VCardParameter::Type(types));
-                            }
-
                             state.insert_vcard(&[JSContactProperty::RelatedTo], entry);
                         }
                     }
-                    JSContactProperty::Type | JSContactProperty::Version => (),
+                    JSContactProperty::Type
+                    | JSContactProperty::Version
+                    | JSContactProperty::Localizations
+                    | JSContactProperty::VCard => (),
                     _ => {
                         state.insert_jsprop(&[property.to_string().as_ref()], value);
                     }

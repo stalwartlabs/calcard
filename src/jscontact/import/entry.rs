@@ -5,15 +5,14 @@
  */
 
 use crate::{
-    common::writer::write_jscomps,
+    common::{IanaString, IanaType, writer::write_jscomps},
     jscontact::{
         JSContactGrammaticalGender, JSContactKind, JSContactProperty, JSContactType,
         JSContactValue,
         import::{EntryState, VCardParams},
     },
     vcard::{
-        VCardEntry, VCardGramGender, VCardKind, VCardParameter, VCardParameterName, VCardValue,
-        VCardValueType,
+        VCardEntry, VCardGramGender, VCardKind, VCardParameterName, VCardValue, VCardValueType,
     },
 };
 use jmap_tools::{JsonPointer, Key, Map, Value};
@@ -32,7 +31,7 @@ impl EntryState {
     pub(super) fn jcal_parameters(
         &mut self,
         params: &mut VCardParams,
-        value_type: &mut Option<VCardValueType>,
+        value_type: &mut Option<IanaType<VCardValueType, String>>,
     ) {
         if self.entry.params.is_empty() && self.entry.group.is_none() {
             return;
@@ -41,166 +40,47 @@ impl EntryState {
         let default_type = default_type.unwrap_vcard();
 
         for param in std::mem::take(&mut self.entry.params) {
-            match param {
-                VCardParameter::Language(v) => params
-                    .0
-                    .entry(VCardParameterName::Language)
-                    .or_default()
-                    .push(v.into()),
-                VCardParameter::Value(v) => {
-                    if let Some(v) = v.into_iter().next()
-                        && v != default_type
+            let value = match &param.name {
+                VCardParameterName::Value => {
+                    if let Some(v) = param
+                        .value
+                        .into_value_type()
+                        .filter(|v| !v.is_iana_and(|v| v == &default_type))
                     {
                         *value_type = Some(v);
                     }
+                    continue;
                 }
-                VCardParameter::Pref(v) => params
-                    .0
-                    .entry(VCardParameterName::Pref)
-                    .or_default()
-                    .push(v.to_string().into()),
-                VCardParameter::Altid(v) => params
-                    .0
-                    .entry(VCardParameterName::Altid)
-                    .or_default()
-                    .push(v.into()),
-                VCardParameter::Pid(v) => {
-                    params
-                        .0
-                        .entry(VCardParameterName::Pid)
-                        .or_default()
-                        .extend(v.into_iter().map(Into::into));
+
+                VCardParameterName::Created => {
+                    let Some(IanaType::Iana(timestamp)) = param.value.into_timestamp() else {
+                        continue;
+                    };
+
+                    Value::Element(JSContactValue::Timestamp(timestamp))
                 }
-                VCardParameter::Type(v) => {
-                    params
-                        .0
-                        .entry(VCardParameterName::Type)
-                        .or_default()
-                        .extend(v.into_iter().map(|t| Value::from(t.into_string())));
-                }
-                VCardParameter::Mediatype(v) => params
-                    .0
-                    .entry(VCardParameterName::Mediatype)
-                    .or_default()
-                    .push(v.into()),
-                VCardParameter::Calscale(v) => params
-                    .0
-                    .entry(VCardParameterName::Calscale)
-                    .or_default()
-                    .push(v.into_string().into()),
-                VCardParameter::SortAs(v) => params
-                    .0
-                    .entry(VCardParameterName::SortAs)
-                    .or_default()
-                    .push(v.into()),
-                VCardParameter::Geo(v) => params
-                    .0
-                    .entry(VCardParameterName::Geo)
-                    .or_default()
-                    .push(v.into()),
-                VCardParameter::Tz(v) => params
-                    .0
-                    .entry(VCardParameterName::Tz)
-                    .or_default()
-                    .push(v.into()),
-                VCardParameter::Index(v) => params
-                    .0
-                    .entry(VCardParameterName::Index)
-                    .or_default()
-                    .push(v.to_string().into()),
-                VCardParameter::Level(v) => params
-                    .0
-                    .entry(VCardParameterName::Level)
-                    .or_default()
-                    .push(v.as_str().into()),
-                VCardParameter::Group(_) => {
-                    // The GROUP parameter (Section 7.1 of [RFC7095]) does not convert to JSContact.
-                    // It exclusively is for use in jCard and MUST NOT be set in a vCard.
-                }
-                VCardParameter::Cc(v) => params
-                    .0
-                    .entry(VCardParameterName::Cc)
-                    .or_default()
-                    .push(v.into()),
-                VCardParameter::Author(v) => params
-                    .0
-                    .entry(VCardParameterName::Author)
-                    .or_default()
-                    .push(v.into()),
-                VCardParameter::AuthorName(v) => params
-                    .0
-                    .entry(VCardParameterName::AuthorName)
-                    .or_default()
-                    .push(v.into()),
-                VCardParameter::Created(v) => params
-                    .0
-                    .entry(VCardParameterName::Created)
-                    .or_default()
-                    .push(v.into()),
-                VCardParameter::Derived(v) => params
-                    .0
-                    .entry(VCardParameterName::Derived)
-                    .or_default()
-                    .push(v.to_string().into()),
-                VCardParameter::Label(v) => params
-                    .0
-                    .entry(VCardParameterName::Label)
-                    .or_default()
-                    .push(v.into()),
-                VCardParameter::Phonetic(v) => params
-                    .0
-                    .entry(VCardParameterName::Phonetic)
-                    .or_default()
-                    .push(v.into_string().into()),
-                VCardParameter::PropId(v) => params
-                    .0
-                    .entry(VCardParameterName::PropId)
-                    .or_default()
-                    .push(v.into()),
-                VCardParameter::Script(v) => params
-                    .0
-                    .entry(VCardParameterName::Script)
-                    .or_default()
-                    .push(v.into()),
-                VCardParameter::ServiceType(v) => params
-                    .0
-                    .entry(VCardParameterName::ServiceType)
-                    .or_default()
-                    .push(v.into()),
-                VCardParameter::Username(v) => params
-                    .0
-                    .entry(VCardParameterName::Username)
-                    .or_default()
-                    .push(v.into()),
-                VCardParameter::Jsptr(v) => params
-                    .0
-                    .entry(VCardParameterName::Jsptr)
-                    .or_default()
-                    .push(v.into()),
-                VCardParameter::Jscomps(v) => {
+                VCardParameterName::Jscomps => {
+                    let Some(v) = param.value.into_jscomps() else {
+                        continue;
+                    };
                     let mut jscomps = String::new();
                     let _ = write_jscomps(&mut jscomps, &mut 0, &v);
-                    params
-                        .0
-                        .entry(VCardParameterName::Jscomps)
-                        .or_default()
-                        .push(jscomps.into())
+                    Value::Str(jscomps.into())
                 }
-                VCardParameter::Other(v) => {
-                    if v.len() > 1 {
-                        let mut v = v.into_iter();
-                        let name = v.next().unwrap();
+                VCardParameterName::Other(name) if name.eq_ignore_ascii_case("group") => {
+                    // The GROUP parameter (Section 7.1 of [RFC7095]) does not convert to JSContact.
+                    // It exclusively is for use in jCard and MUST NOT be set in a vCard.
+                    continue;
+                }
+                VCardParameterName::Group => {
+                    // The GROUP parameter (Section 7.1 of [RFC7095]) does not convert to JSContact.
+                    // It exclusively is for use in jCard and MUST NOT be set in a vCard.
+                    continue;
+                }
+                _ => Value::Str(param.value.into_text()),
+            };
 
-                        if !name.eq_ignore_ascii_case("group") {
-                            params
-                                .0
-                                .entry(VCardParameterName::Other(name))
-                                .or_default()
-                                .extend(v.map(Into::into));
-                        }
-                    }
-                }
-            }
+            params.0.entry(param.name).or_default().push(value);
         }
 
         if let Some(group) = self.entry.group.take() {

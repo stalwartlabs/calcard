@@ -5,6 +5,7 @@
  */
 
 use crate::{
+    common::IanaType,
     jscontact::{
         JSContactKind, JSContactLevel, JSContactPhoneticSystem, JSContactProperty, JSContactValue,
         import::{ExtractedParams, VCardParams},
@@ -26,7 +27,7 @@ impl ExtractedParams {
         self.language.take()
     }
 
-    pub(super) fn types(&mut self) -> Vec<VCardType> {
+    pub(super) fn types(&mut self) -> Vec<IanaType<VCardType, String>> {
         std::mem::take(&mut self.types)
     }
 
@@ -60,14 +61,16 @@ impl ExtractedParams {
                 if is_phone
                     && matches!(
                         typ,
-                        VCardType::Fax
-                            | VCardType::Cell
-                            | VCardType::Video
-                            | VCardType::Pager
-                            | VCardType::Textphone
-                            | VCardType::MainNumber
-                            | VCardType::Text
-                            | VCardType::Voice
+                        IanaType::Iana(
+                            VCardType::Fax
+                                | VCardType::Cell
+                                | VCardType::Video
+                                | VCardType::Pager
+                                | VCardType::Textphone
+                                | VCardType::MainNumber
+                                | VCardType::Text
+                                | VCardType::Voice
+                        )
                     )
                 {
                     features.get_or_insert_default()
@@ -75,7 +78,7 @@ impl ExtractedParams {
                     contexts.get_or_insert_default()
                 }
                 .push((
-                    if !matches!(typ, VCardType::Home) {
+                    if !matches!(typ, IanaType::Iana(VCardType::Home)) {
                         Key::Owned(typ.into_string().to_ascii_lowercase())
                     } else {
                         Key::Borrowed("private")
@@ -134,19 +137,15 @@ impl ExtractedParams {
             (
                 Key::Property(JSContactProperty::PhoneticSystem),
                 self.phonetic_system.map(|v| match v {
-                    VCardPhonetic::Ipa => {
-                        Value::Element(JSContactValue::PhoneticSystem(JSContactPhoneticSystem::Ipa))
+                    IanaType::Iana(value) => {
+                        Value::Element(JSContactValue::PhoneticSystem(match value {
+                            VCardPhonetic::Ipa => JSContactPhoneticSystem::Ipa,
+                            VCardPhonetic::Jyut => JSContactPhoneticSystem::Jyut,
+                            VCardPhonetic::Piny => JSContactPhoneticSystem::Piny,
+                            VCardPhonetic::Script => JSContactPhoneticSystem::Script,
+                        }))
                     }
-                    VCardPhonetic::Jyut => Value::Element(JSContactValue::PhoneticSystem(
-                        JSContactPhoneticSystem::Jyut,
-                    )),
-                    VCardPhonetic::Piny => Value::Element(JSContactValue::PhoneticSystem(
-                        JSContactPhoneticSystem::Piny,
-                    )),
-                    VCardPhonetic::Script => Value::Element(JSContactValue::PhoneticSystem(
-                        JSContactPhoneticSystem::Script,
-                    )),
-                    VCardPhonetic::Other(value) => Value::Str(value.into()),
+                    IanaType::Other(value) => Value::Str(value.into()),
                 }),
             ),
             (
@@ -155,8 +154,10 @@ impl ExtractedParams {
             ),
             (
                 Key::Property(JSContactProperty::CalendarScale),
-                self.calscale
-                    .map(|v| Value::Element(JSContactValue::CalendarScale(v))),
+                self.calscale.map(|value| match value {
+                    IanaType::Iana(value) => Value::Element(JSContactValue::CalendarScale(value)),
+                    IanaType::Other(value) => Value::Str(value.into()),
+                }),
             ),
             (
                 Key::Property(JSContactProperty::SortAs),
@@ -215,12 +216,13 @@ impl ExtractedParams {
             ),
             (
                 Key::Property(JSContactProperty::Level),
-                self.level.map(|v| {
-                    Value::Element(JSContactValue::Level(match v {
+                self.level.map(|value| match value {
+                    IanaType::Iana(value) => Value::Element(JSContactValue::Level(match value {
                         VCardLevel::Beginner | VCardLevel::Low => JSContactLevel::Low,
                         VCardLevel::Average | VCardLevel::Medium => JSContactLevel::Medium,
                         VCardLevel::Expert | VCardLevel::High => JSContactLevel::High,
-                    }))
+                    })),
+                    IanaType::Other(value) => Value::Str(value.into()),
                 }),
             ),
             (

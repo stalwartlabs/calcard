@@ -5,7 +5,7 @@
  */
 
 use crate::{
-    common::{CalendarScale, PartialDateTime},
+    common::{CalendarScale, IanaParse, IanaType, PartialDateTime},
     jscontact::{
         JSContactGrammaticalGender, JSContactKind, JSContactLevel, JSContactPhoneticSystem,
         JSContactProperty, JSContactValue,
@@ -160,17 +160,17 @@ pub(super) fn convert_value<'x>(
         Value::Str(s) => {
             match value_type {
                 ValueType::Kind => {
-                    if let Ok(kind) = VCardKind::try_from(s.as_ref().as_bytes()) {
+                    if let Some(kind) = VCardKind::parse(s.as_ref().as_bytes()) {
                         return Ok(VCardValue::Kind(kind));
                     }
                 }
                 ValueType::Sex => {
-                    if let Ok(sex) = VCardSex::try_from(s.as_ref().as_bytes()) {
+                    if let Some(sex) = VCardSex::parse(s.as_ref().as_bytes()) {
                         return Ok(VCardValue::Sex(sex));
                     }
                 }
                 ValueType::GramGender => {
-                    if let Ok(gender) = VCardGramGender::try_from(s.as_ref().as_bytes()) {
+                    if let Some(gender) = VCardGramGender::parse(s.as_ref().as_bytes()) {
                         return Ok(VCardValue::GramGender(gender));
                     }
                 }
@@ -191,18 +191,18 @@ pub(super) fn convert_value<'x>(
 pub(super) fn convert_types(
     value: Value<'_, JSContactProperty, JSContactValue>,
     is_context: bool,
-) -> Option<Vec<VCardType>> {
+) -> Option<Vec<IanaType<VCardType, String>>> {
     let mut types = Vec::new();
     for (typ, set) in value.into_expanded_boolean_set() {
         if set {
             let typ = typ.to_string();
-            match VCardType::try_from(typ.as_ref().as_bytes()) {
-                Ok(typ) => types.push(typ),
-                Err(_) => {
+            match VCardType::parse(typ.as_ref().as_bytes()) {
+                Some(typ) => types.push(IanaType::Iana(typ)),
+                None => {
                     if is_context && typ.eq_ignore_ascii_case("private") {
-                        types.push(VCardType::Home);
+                        types.push(IanaType::Iana(VCardType::Home));
                     } else {
-                        types.push(VCardType::Other(typ.into_owned()));
+                        types.push(IanaType::Other(typ.into_owned()));
                     }
                 }
             }
@@ -233,37 +233,41 @@ pub(super) fn map_kind<T>(
         })
 }
 
-impl TryFrom<Value<'_, JSContactProperty, JSContactValue>> for VCardPhonetic {
+impl TryFrom<Value<'_, JSContactProperty, JSContactValue>> for IanaType<VCardPhonetic, String> {
     type Error = ();
-
     fn try_from(value: Value<'_, JSContactProperty, JSContactValue>) -> Result<Self, Self::Error> {
         match value {
-            Value::Element(JSContactValue::PhoneticSystem(system)) => Ok(match system {
-                JSContactPhoneticSystem::Ipa => VCardPhonetic::Ipa,
-                JSContactPhoneticSystem::Jyut => VCardPhonetic::Jyut,
-                JSContactPhoneticSystem::Piny => VCardPhonetic::Piny,
-                JSContactPhoneticSystem::Script => VCardPhonetic::Script,
-            }),
-            Value::Str(text) => match VCardPhonetic::try_from(text.as_ref().as_bytes()) {
-                Ok(phonetic) => Ok(phonetic),
-                Err(_) => Ok(VCardPhonetic::Other(text.into_owned())),
+            Value::Element(JSContactValue::PhoneticSystem(system)) => {
+                Ok(IanaType::Iana(match system {
+                    JSContactPhoneticSystem::Ipa => VCardPhonetic::Ipa,
+                    JSContactPhoneticSystem::Jyut => VCardPhonetic::Jyut,
+                    JSContactPhoneticSystem::Piny => VCardPhonetic::Piny,
+                    JSContactPhoneticSystem::Script => VCardPhonetic::Script,
+                }))
+            }
+            Value::Str(text) => match VCardPhonetic::parse(text.as_ref().as_bytes()) {
+                Some(phonetic) => Ok(IanaType::Iana(phonetic)),
+                None => Ok(IanaType::Other(text.into_owned())),
             },
             _ => Err(()),
         }
     }
 }
 
-impl TryFrom<Value<'_, JSContactProperty, JSContactValue>> for VCardLevel {
+impl TryFrom<Value<'_, JSContactProperty, JSContactValue>> for IanaType<VCardLevel, String> {
     type Error = ();
 
     fn try_from(value: Value<'_, JSContactProperty, JSContactValue>) -> Result<Self, Self::Error> {
         match value {
-            Value::Element(JSContactValue::Level(level)) => Ok(match level {
+            Value::Element(JSContactValue::Level(level)) => Ok(IanaType::Iana(match level {
                 JSContactLevel::High => VCardLevel::High,
                 JSContactLevel::Low => VCardLevel::Low,
                 JSContactLevel::Medium => VCardLevel::Medium,
-            }),
-            Value::Str(text) => VCardLevel::try_from(text.as_ref().as_bytes()),
+            })),
+            Value::Str(text) => match VCardLevel::parse(text.as_ref().as_bytes()) {
+                Some(level) => Ok(IanaType::Iana(level)),
+                None => Ok(IanaType::Other(text.into_owned())),
+            },
             _ => Err(()),
         }
     }

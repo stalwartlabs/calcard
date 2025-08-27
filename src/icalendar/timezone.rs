@@ -5,10 +5,10 @@
  */
 
 use super::{
-    ICalendar, ICalendarComponent, ICalendarComponentType, ICalendarEntry, ICalendarParameter,
-    ICalendarProperty, ICalendarValue,
+    ICalendar, ICalendarComponent, ICalendarComponentType, ICalendarEntry, ICalendarProperty,
+    ICalendarValue,
 };
-use crate::common::timezone::Tz;
+use crate::{common::timezone::Tz, icalendar::ICalendarParameterName};
 use std::{collections::HashMap, str::FromStr};
 
 pub struct TzResolver<'x> {
@@ -87,12 +87,7 @@ impl ICalendarComponent {
 
 impl ICalendarEntry {
     pub fn tz_id(&self) -> Option<&str> {
-        self.params.iter().find_map(|param| {
-            if let ICalendarParameter::Tzid(tzid) = param {
-                Some(tzid.as_str())
-            } else {
-                None
-            }
-        })
+        self.parameters(&ICalendarParameterName::Tzid)
+            .find_map(|v| v.as_text())
     }
 }
