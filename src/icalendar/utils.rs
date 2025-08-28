@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     common::{IanaString, PartialDateTime},
-    icalendar::{ICalendarParameter, ICalendarParameterValue},
+    icalendar::ICalendarParameterValue,
 };
 
 impl ICalendar {
@@ -109,15 +109,6 @@ impl ICalendarComponent {
                 }
                 _ => None,
             })
-    }
-}
-
-impl ICalendarParameter {
-    pub fn new(name: ICalendarParameterName, value: impl Into<ICalendarParameterValue>) -> Self {
-        ICalendarParameter {
-            name,
-            value: value.into(),
-        }
     }
 }
 

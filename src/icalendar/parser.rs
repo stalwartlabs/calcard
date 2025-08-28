@@ -493,10 +493,7 @@ impl Parser<'_> {
                         ICalendarParameterName::Rsvp | ICalendarParameterName::Derived => {
                             param_values.push(ICalendarParameter::new(
                                 param_name.clone(),
-                                match IanaType::<Boolean, String>::from(token) {
-                                    IanaType::Iana(value) => ICalendarParameterValue::Bool(value.0),
-                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
-                                },
+                                IanaType::<Boolean, String>::from(token),
                             ));
                         }
                         ICalendarParameterName::Range => {
@@ -510,105 +507,61 @@ impl Parser<'_> {
                         ICalendarParameterName::Size | ICalendarParameterName::Order => {
                             param_values.push(ICalendarParameter::new(
                                 param_name.clone(),
-                                match IanaType::<Integer, String>::from(token) {
-                                    IanaType::Iana(value) => {
-                                        ICalendarParameterValue::Integer(value.0.unsigned_abs())
-                                    }
-                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
-                                },
+                                IanaType::<Integer, String>::from(token),
                             ));
                         }
                         ICalendarParameterName::Gap => {
                             param_values.push(ICalendarParameter::new(
                                 param_name.clone(),
-                                match IanaType::from(token) {
-                                    IanaType::Iana(value) => {
-                                        ICalendarParameterValue::Duration(value)
-                                    }
-                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
-                                },
+                                IanaType::<ICalendarDuration, String>::from(token),
                             ));
                         }
                         ICalendarParameterName::Cutype => {
                             param_values.push(ICalendarParameter::new(
                                 param_name.clone(),
-                                match IanaType::from(token) {
-                                    IanaType::Iana(value) => ICalendarParameterValue::Cutype(value),
-                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
-                                },
+                                IanaType::<ICalendarUserTypes, String>::from(token),
                             ));
                         }
                         ICalendarParameterName::Fbtype => {
                             param_values.push(ICalendarParameter::new(
                                 param_name.clone(),
-                                match IanaType::from(token) {
-                                    IanaType::Iana(value) => ICalendarParameterValue::Fbtype(value),
-                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
-                                },
+                                IanaType::<ICalendarFreeBusyType, String>::from(token),
                             ));
                         }
                         ICalendarParameterName::Partstat => {
                             param_values.push(ICalendarParameter::new(
                                 param_name.clone(),
-                                match IanaType::from(token) {
-                                    IanaType::Iana(value) => {
-                                        ICalendarParameterValue::Partstat(value)
-                                    }
-                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
-                                },
+                                IanaType::<ICalendarParticipationStatus, String>::from(token),
                             ));
                         }
                         ICalendarParameterName::Related => {
                             param_values.push(ICalendarParameter::new(
                                 param_name.clone(),
-                                match IanaType::from(token) {
-                                    IanaType::Iana(value) => {
-                                        ICalendarParameterValue::Related(value)
-                                    }
-                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
-                                },
+                                IanaType::<Related, String>::from(token),
                             ));
                         }
                         ICalendarParameterName::Reltype => {
                             param_values.push(ICalendarParameter::new(
                                 param_name.clone(),
-                                match IanaType::from(token) {
-                                    IanaType::Iana(value) => {
-                                        ICalendarParameterValue::Reltype(value)
-                                    }
-                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
-                                },
+                                IanaType::<ICalendarRelationshipType, String>::from(token),
                             ));
                         }
                         ICalendarParameterName::Role => {
                             param_values.push(ICalendarParameter::new(
                                 param_name.clone(),
-                                match IanaType::from(token) {
-                                    IanaType::Iana(value) => ICalendarParameterValue::Role(value),
-                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
-                                },
+                                IanaType::<ICalendarParticipationRole, String>::from(token),
                             ));
                         }
                         ICalendarParameterName::ScheduleAgent => {
                             param_values.push(ICalendarParameter::new(
                                 param_name.clone(),
-                                match IanaType::from(token) {
-                                    IanaType::Iana(value) => {
-                                        ICalendarParameterValue::ScheduleAgent(value)
-                                    }
-                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
-                                },
+                                IanaType::<ICalendarScheduleAgentValue, String>::from(token),
                             ));
                         }
                         ICalendarParameterName::ScheduleForceSend => {
                             param_values.push(ICalendarParameter::new(
                                 param_name.clone(),
-                                match IanaType::from(token) {
-                                    IanaType::Iana(value) => {
-                                        ICalendarParameterValue::ScheduleForceSend(value)
-                                    }
-                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
-                                },
+                                IanaType::<ICalendarScheduleForceSendValue, String>::from(token),
                             ));
                         }
                         ICalendarParameterName::Value => {
@@ -617,34 +570,19 @@ impl Parser<'_> {
                         ICalendarParameterName::Display => {
                             param_values.push(ICalendarParameter::new(
                                 param_name.clone(),
-                                match IanaType::from(token) {
-                                    IanaType::Iana(value) => {
-                                        ICalendarParameterValue::Display(value)
-                                    }
-                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
-                                },
+                                IanaType::<ICalendarDisplayType, String>::from(token),
                             ));
                         }
                         ICalendarParameterName::Feature => {
                             param_values.push(ICalendarParameter::new(
                                 param_name.clone(),
-                                match IanaType::from(token) {
-                                    IanaType::Iana(value) => {
-                                        ICalendarParameterValue::Feature(value)
-                                    }
-                                    IanaType::Other(value) => ICalendarParameterValue::Text(value),
-                                },
+                                IanaType::<ICalendarFeatureType, String>::from(token),
                             ));
                         }
                         ICalendarParameterName::Linkrel => {
                             param_values.push(ICalendarParameter::new(
                                 param_name.clone(),
-                                match IanaType::<LinkRelation, Uri>::from(token) {
-                                    IanaType::Iana(value) => {
-                                        ICalendarParameterValue::Linkrel(value)
-                                    }
-                                    IanaType::Other(value) => ICalendarParameterValue::Uri(value),
-                                },
+                                IanaType::<LinkRelation, String>::from(token),
                             ));
                         }
                         _ => {
@@ -1140,93 +1078,36 @@ impl From<Token<'_>> for Uri {
     }
 }
 
-impl ICalendarParameterName {
-    pub fn try_parse(input: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(input,
-                b"ALTREP" => ICalendarParameterName::Altrep,
-                b"CN" => ICalendarParameterName::Cn,
-                b"CUTYPE" => ICalendarParameterName::Cutype,
-                b"DELEGATED-FROM" => ICalendarParameterName::DelegatedFrom,
-                b"DELEGATED-TO" => ICalendarParameterName::DelegatedTo,
-                b"DIR" => ICalendarParameterName::Dir,
-                b"FMTTYPE" => ICalendarParameterName::Fmttype,
-                b"FBTYPE" => ICalendarParameterName::Fbtype,
-                b"LANGUAGE" => ICalendarParameterName::Language,
-                b"MEMBER" => ICalendarParameterName::Member,
-                b"PARTSTAT" => ICalendarParameterName::Partstat,
-                b"RANGE" => ICalendarParameterName::Range,
-                b"RELATED" => ICalendarParameterName::Related,
-                b"RELTYPE" => ICalendarParameterName::Reltype,
-                b"ROLE" => ICalendarParameterName::Role,
-                b"RSVP" => ICalendarParameterName::Rsvp,
-                b"SCHEDULE-AGENT" => ICalendarParameterName::ScheduleAgent,
-                b"SCHEDULE-FORCE-SEND" => ICalendarParameterName::ScheduleForceSend,
-                b"SCHEDULE-STATUS" => ICalendarParameterName::ScheduleStatus,
-                b"SENT-BY" => ICalendarParameterName::SentBy,
-                b"TZID" => ICalendarParameterName::Tzid,
-                b"VALUE" => ICalendarParameterName::Value,
-                b"DISPLAY" => ICalendarParameterName::Display,
-                b"EMAIL" => ICalendarParameterName::Email,
-                b"FEATURE" => ICalendarParameterName::Feature,
-                b"LABEL" => ICalendarParameterName::Label,
-                b"SIZE" => ICalendarParameterName::Size,
-                b"FILENAME" => ICalendarParameterName::Filename,
-                b"MANAGED-ID" => ICalendarParameterName::ManagedId,
-                b"ORDER" => ICalendarParameterName::Order,
-                b"SCHEMA" => ICalendarParameterName::Schema,
-                b"DERIVED" => ICalendarParameterName::Derived,
-                b"GAP" => ICalendarParameterName::Gap,
-                b"LINKREL" => ICalendarParameterName::Linkrel,
-                b"JSPTR" => ICalendarParameterName::Jsptr,
-                b"JSID" => ICalendarParameterName::Jsid,
-        )
-    }
+impl IanaParse for ICalendarDay {
+    fn parse(value: &[u8]) -> Option<Self> {
+        let mut iter = value.iter().enumerate();
+        let mut is_negative = false;
+        let mut has_ordwk = false;
+        let mut ordwk: i16 = 0;
 
-    pub fn as_str(&self) -> &str {
-        match self {
-            ICalendarParameterName::Altrep => "ALTREP",
-            ICalendarParameterName::Cn => "CN",
-            ICalendarParameterName::Cutype => "CUTYPE",
-            ICalendarParameterName::DelegatedFrom => "DELEGATED-FROM",
-            ICalendarParameterName::DelegatedTo => "DELEGATED-TO",
-            ICalendarParameterName::Dir => "DIR",
-            ICalendarParameterName::Fmttype => "FMTTYPE",
-            ICalendarParameterName::Fbtype => "FBTYPE",
-            ICalendarParameterName::Language => "LANGUAGE",
-            ICalendarParameterName::Member => "MEMBER",
-            ICalendarParameterName::Partstat => "PARTSTAT",
-            ICalendarParameterName::Range => "RANGE",
-            ICalendarParameterName::Related => "RELATED",
-            ICalendarParameterName::Reltype => "RELTYPE",
-            ICalendarParameterName::Role => "ROLE",
-            ICalendarParameterName::Rsvp => "RSVP",
-            ICalendarParameterName::ScheduleAgent => "SCHEDULE-AGENT",
-            ICalendarParameterName::ScheduleForceSend => "SCHEDULE-FORCE-SEND",
-            ICalendarParameterName::ScheduleStatus => "SCHEDULE-STATUS",
-            ICalendarParameterName::SentBy => "SENT-BY",
-            ICalendarParameterName::Tzid => "TZID",
-            ICalendarParameterName::Value => "VALUE",
-            ICalendarParameterName::Display => "DISPLAY",
-            ICalendarParameterName::Email => "EMAIL",
-            ICalendarParameterName::Feature => "FEATURE",
-            ICalendarParameterName::Label => "LABEL",
-            ICalendarParameterName::Size => "SIZE",
-            ICalendarParameterName::Filename => "FILENAME",
-            ICalendarParameterName::ManagedId => "MANAGED-ID",
-            ICalendarParameterName::Order => "ORDER",
-            ICalendarParameterName::Schema => "SCHEMA",
-            ICalendarParameterName::Derived => "DERIVED",
-            ICalendarParameterName::Gap => "GAP",
-            ICalendarParameterName::Linkrel => "LINKREL",
-            ICalendarParameterName::Jsptr => "JSPTR",
-            ICalendarParameterName::Jsid => "JSID",
-            ICalendarParameterName::Other(name) => name.as_str(),
+        loop {
+            let (pos, ch) = iter.next()?;
+
+            match ch {
+                b'0'..=b'9' => {
+                    ordwk = ordwk.saturating_mul(10).saturating_add((ch - b'0') as i16);
+                    has_ordwk = true;
+                }
+                b'-' if pos == 0 => {
+                    is_negative = true;
+                }
+                b'+' if pos == 0 => {}
+                b'A'..=b'Z' | b'a'..=b'z' => {
+                    return ICalendarWeekday::parse(value.get(pos..).unwrap_or_default()).map(
+                        |weekday| ICalendarDay {
+                            ordwk: has_ordwk.then_some(if is_negative { -ordwk } else { ordwk }),
+                            weekday,
+                        },
+                    );
+                }
+                _ => return None,
+            }
         }
-    }
-
-    pub fn parse(input: &str) -> Self {
-        Self::try_parse(input.as_bytes())
-            .unwrap_or_else(|| ICalendarParameterName::Other(input.to_string()))
     }
 }
 

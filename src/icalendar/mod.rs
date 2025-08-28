@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use crate::{
-    Entry, Parser,
-    common::{CalendarScale, Data, IanaParse, IanaString, IanaType, LinkRelation, PartialDateTime},
+use crate::common::{
+    CalendarScale, Data, IanaParse, IanaString, IanaType, LinkRelation, PartialDateTime,
 };
 use std::hash::{Hash, Hasher};
 
@@ -14,6 +13,7 @@ pub mod builder;
 pub mod dates;
 pub mod parser;
 pub mod timezone;
+pub mod types;
 pub mod utils;
 pub mod writer;
 
@@ -106,15 +106,6 @@ pub enum ICalendarValue {
     Proximity(ICalendarProximityValue),
 }
 
-impl Eq for ICalendarValue {}
-
-#[allow(clippy::derive_ord_xor_partial_ord)]
-impl Ord for ICalendarValue {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap_or(std::cmp::Ordering::Equal)
-    }
-}
-
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
@@ -189,39 +180,6 @@ pub struct ICalendarDay {
 #[repr(transparent)]
 pub struct ICalendarMonth(i8);
 
-impl IanaParse for ICalendarDay {
-    fn parse(value: &[u8]) -> Option<Self> {
-        let mut iter = value.iter().enumerate();
-        let mut is_negative = false;
-        let mut has_ordwk = false;
-        let mut ordwk: i16 = 0;
-
-        loop {
-            let (pos, ch) = iter.next()?;
-
-            match ch {
-                b'0'..=b'9' => {
-                    ordwk = ordwk.saturating_mul(10).saturating_add((ch - b'0') as i16);
-                    has_ordwk = true;
-                }
-                b'-' if pos == 0 => {
-                    is_negative = true;
-                }
-                b'+' if pos == 0 => {}
-                b'A'..=b'Z' | b'a'..=b'z' => {
-                    return ICalendarWeekday::parse(value.get(pos..).unwrap_or_default()).map(
-                        |weekday| ICalendarDay {
-                            ordwk: has_ordwk.then_some(if is_negative { -ordwk } else { ordwk }),
-                            weekday,
-                        },
-                    );
-                }
-                _ => return None,
-            }
-        }
-    }
-}
-
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
@@ -244,54 +202,6 @@ pub enum ICalendarFrequency {
     Secondly = 6,
 }
 
-impl IanaParse for ICalendarFrequency {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            b"SECONDLY" => ICalendarFrequency::Secondly,
-            b"MINUTELY" => ICalendarFrequency::Minutely,
-            b"HOURLY" => ICalendarFrequency::Hourly,
-            b"DAILY" => ICalendarFrequency::Daily,
-            b"WEEKLY" => ICalendarFrequency::Weekly,
-            b"MONTHLY" => ICalendarFrequency::Monthly,
-            b"YEARLY" => ICalendarFrequency::Yearly,
-        )
-    }
-}
-
-impl IanaString for ICalendarFrequency {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarFrequency::Secondly => "SECONDLY",
-            ICalendarFrequency::Minutely => "MINUTELY",
-            ICalendarFrequency::Hourly => "HOURLY",
-            ICalendarFrequency::Daily => "DAILY",
-            ICalendarFrequency::Weekly => "WEEKLY",
-            ICalendarFrequency::Monthly => "MONTHLY",
-            ICalendarFrequency::Yearly => "YEARLY",
-        }
-    }
-}
-
-impl IanaParse for ICalendarSkip {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            b"OMIT" => ICalendarSkip::Omit,
-            b"BACKWARD" => ICalendarSkip::Backward,
-            b"FORWARD" => ICalendarSkip::Forward,
-        )
-    }
-}
-
-impl IanaString for ICalendarSkip {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarSkip::Omit => "OMIT",
-            ICalendarSkip::Backward => "BACKWARD",
-            ICalendarSkip::Forward => "FORWARD",
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
@@ -310,48 +220,6 @@ pub enum ICalendarWeekday {
     Thursday,
     Friday,
     Saturday,
-}
-
-impl IanaParse for ICalendarWeekday {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            b"SU" => ICalendarWeekday::Sunday,
-            b"MO" => ICalendarWeekday::Monday,
-            b"TU" => ICalendarWeekday::Tuesday,
-            b"WE" => ICalendarWeekday::Wednesday,
-            b"TH" => ICalendarWeekday::Thursday,
-            b"FR" => ICalendarWeekday::Friday,
-            b"SA" => ICalendarWeekday::Saturday,
-        )
-    }
-}
-
-impl From<ICalendarWeekday> for chrono::Weekday {
-    fn from(value: ICalendarWeekday) -> Self {
-        match value {
-            ICalendarWeekday::Sunday => chrono::Weekday::Sun,
-            ICalendarWeekday::Monday => chrono::Weekday::Mon,
-            ICalendarWeekday::Tuesday => chrono::Weekday::Tue,
-            ICalendarWeekday::Wednesday => chrono::Weekday::Wed,
-            ICalendarWeekday::Thursday => chrono::Weekday::Thu,
-            ICalendarWeekday::Friday => chrono::Weekday::Fri,
-            ICalendarWeekday::Saturday => chrono::Weekday::Sat,
-        }
-    }
-}
-
-impl ICalendarWeekday {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarWeekday::Sunday => "SU",
-            ICalendarWeekday::Monday => "MO",
-            ICalendarWeekday::Tuesday => "TU",
-            ICalendarWeekday::Wednesday => "WE",
-            ICalendarWeekday::Thursday => "TH",
-            ICalendarWeekday::Friday => "FR",
-            ICalendarWeekday::Saturday => "SA",
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -394,28 +262,6 @@ pub enum ICalendarAction {
     Procedure, // [RFC2445, Section 4.8.6.1]
 }
 
-impl IanaParse for ICalendarAction {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "AUDIO" => ICalendarAction::Audio,
-            "DISPLAY" => ICalendarAction::Display,
-            "EMAIL" => ICalendarAction::Email,
-            "PROCEDURE" => ICalendarAction::Procedure,
-        )
-    }
-}
-
-impl IanaString for ICalendarAction {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarAction::Audio => "AUDIO",
-            ICalendarAction::Display => "DISPLAY",
-            ICalendarAction::Email => "EMAIL",
-            ICalendarAction::Procedure => "PROCEDURE",
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
@@ -435,30 +281,6 @@ pub enum ICalendarUserTypes {
     Unknown,    // [RFC5545, Section 3.2.3]
 }
 
-impl IanaParse for ICalendarUserTypes {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "INDIVIDUAL" => ICalendarUserTypes::Individual,
-            "GROUP" => ICalendarUserTypes::Group,
-            "RESOURCE" => ICalendarUserTypes::Resource,
-            "ROOM" => ICalendarUserTypes::Room,
-            "UNKNOWN" => ICalendarUserTypes::Unknown,
-        )
-    }
-}
-
-impl IanaString for ICalendarUserTypes {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarUserTypes::Individual => "INDIVIDUAL",
-            ICalendarUserTypes::Group => "GROUP",
-            ICalendarUserTypes::Resource => "RESOURCE",
-            ICalendarUserTypes::Room => "ROOM",
-            ICalendarUserTypes::Unknown => "UNKNOWN",
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
@@ -474,26 +296,6 @@ pub enum ICalendarClassification {
     Public,       // [RFC5545, Section 3.8.1.3]
     Private,      // [RFC5545, Section 3.8.1.3]
     Confidential, // [RFC5545, Section 3.8.1.3]
-}
-
-impl IanaParse for ICalendarClassification {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "PUBLIC" => ICalendarClassification::Public,
-            "PRIVATE" => ICalendarClassification::Private,
-            "CONFIDENTIAL" => ICalendarClassification::Confidential,
-        )
-    }
-}
-
-impl IanaString for ICalendarClassification {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarClassification::Public => "PUBLIC",
-            ICalendarClassification::Private => "PRIVATE",
-            ICalendarClassification::Confidential => "CONFIDENTIAL",
-        }
-    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -525,71 +327,6 @@ pub enum ICalendarComponentType {
     VResource,     // [RFC9073, Section 7.3]
 }
 
-impl IanaParse for ICalendarComponentType {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "VCALENDAR" => ICalendarComponentType::VCalendar,
-            "VEVENT" => ICalendarComponentType::VEvent,
-            "VTODO" => ICalendarComponentType::VTodo,
-            "VJOURNAL" => ICalendarComponentType::VJournal,
-            "VFREEBUSY" => ICalendarComponentType::VFreebusy,
-            "VTIMEZONE" => ICalendarComponentType::VTimezone,
-            "VALARM" => ICalendarComponentType::VAlarm,
-            "STANDARD" => ICalendarComponentType::Standard,
-            "DAYLIGHT" => ICalendarComponentType::Daylight,
-            "VAVAILABILITY" => ICalendarComponentType::VAvailability,
-            "AVAILABLE" => ICalendarComponentType::Available,
-            "PARTICIPANT" => ICalendarComponentType::Participant,
-            "VLOCATION" => ICalendarComponentType::VLocation,
-            "VRESOURCE" => ICalendarComponentType::VResource,
-        )
-    }
-}
-
-impl ICalendarComponentType {
-    fn as_str(&self) -> &str {
-        match self {
-            ICalendarComponentType::VCalendar => "VCALENDAR",
-            ICalendarComponentType::VEvent => "VEVENT",
-            ICalendarComponentType::VTodo => "VTODO",
-            ICalendarComponentType::VJournal => "VJOURNAL",
-            ICalendarComponentType::VFreebusy => "VFREEBUSY",
-            ICalendarComponentType::VTimezone => "VTIMEZONE",
-            ICalendarComponentType::VAlarm => "VALARM",
-            ICalendarComponentType::Standard => "STANDARD",
-            ICalendarComponentType::Daylight => "DAYLIGHT",
-            ICalendarComponentType::VAvailability => "VAVAILABILITY",
-            ICalendarComponentType::Available => "AVAILABLE",
-            ICalendarComponentType::Participant => "PARTICIPANT",
-            ICalendarComponentType::VLocation => "VLOCATION",
-            ICalendarComponentType::VResource => "VRESOURCE",
-            ICalendarComponentType::Other(s) => s.as_str(),
-        }
-    }
-}
-
-impl ICalendarComponentType {
-    pub fn has_time_ranges(&self) -> bool {
-        matches!(
-            self,
-            ICalendarComponentType::VEvent
-                | ICalendarComponentType::VTodo
-                | ICalendarComponentType::VJournal
-                | ICalendarComponentType::VFreebusy
-        )
-    }
-
-    pub fn is_scheduling_object(&self) -> bool {
-        matches!(
-            self,
-            ICalendarComponentType::VEvent
-                | ICalendarComponentType::VTodo
-                | ICalendarComponentType::VJournal
-                | ICalendarComponentType::VFreebusy
-        )
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
@@ -606,28 +343,6 @@ pub enum ICalendarDisplayType {
     Graphic,   // [RFC7986, Section 6.1]
     Fullsize,  // [RFC7986, Section 6.1]
     Thumbnail, // [RFC7986, Section 6.1]
-}
-
-impl IanaParse for ICalendarDisplayType {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "BADGE" => ICalendarDisplayType::Badge,
-            "GRAPHIC" => ICalendarDisplayType::Graphic,
-            "FULLSIZE" => ICalendarDisplayType::Fullsize,
-            "THUMBNAIL" => ICalendarDisplayType::Thumbnail,
-        )
-    }
-}
-
-impl IanaString for ICalendarDisplayType {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarDisplayType::Badge => "BADGE",
-            ICalendarDisplayType::Graphic => "GRAPHIC",
-            ICalendarDisplayType::Fullsize => "FULLSIZE",
-            ICalendarDisplayType::Thumbnail => "THUMBNAIL",
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -651,34 +366,6 @@ pub enum ICalendarFeatureType {
     Video,     // [RFC7986, Section 6.3]
 }
 
-impl IanaParse for ICalendarFeatureType {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "AUDIO" => ICalendarFeatureType::Audio,
-            "CHAT" => ICalendarFeatureType::Chat,
-            "FEED" => ICalendarFeatureType::Feed,
-            "MODERATOR" => ICalendarFeatureType::Moderator,
-            "PHONE" => ICalendarFeatureType::Phone,
-            "SCREEN" => ICalendarFeatureType::Screen,
-            "VIDEO" => ICalendarFeatureType::Video,
-        )
-    }
-}
-
-impl IanaString for ICalendarFeatureType {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarFeatureType::Audio => "AUDIO",
-            ICalendarFeatureType::Chat => "CHAT",
-            ICalendarFeatureType::Feed => "FEED",
-            ICalendarFeatureType::Moderator => "MODERATOR",
-            ICalendarFeatureType::Phone => "PHONE",
-            ICalendarFeatureType::Screen => "SCREEN",
-            ICalendarFeatureType::Video => "VIDEO",
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde",
@@ -695,28 +382,6 @@ pub enum ICalendarFreeBusyType {
     Busy,            // [RFC5545, Section 3.2.9]
     BusyUnavailable, // [RFC5545, Section 3.2.9]
     BusyTentative,   // [RFC5545, Section 3.2.9]
-}
-
-impl IanaParse for ICalendarFreeBusyType {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "FREE" => ICalendarFreeBusyType::Free,
-            "BUSY" => ICalendarFreeBusyType::Busy,
-            "BUSY-UNAVAILABLE" => ICalendarFreeBusyType::BusyUnavailable,
-            "BUSY-TENTATIVE" => ICalendarFreeBusyType::BusyTentative,
-        )
-    }
-}
-
-impl IanaString for ICalendarFreeBusyType {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarFreeBusyType::Free => "FREE",
-            ICalendarFreeBusyType::Busy => "BUSY",
-            ICalendarFreeBusyType::BusyUnavailable => "BUSY-UNAVAILABLE",
-            ICalendarFreeBusyType::BusyTentative => "BUSY-TENTATIVE",
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -739,36 +404,6 @@ pub enum ICalendarMethod {
     Refresh,        // [RFC5546]
     Counter,        // [RFC5546]
     Declinecounter, // [RFC5546]
-}
-
-impl IanaParse for ICalendarMethod {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "PUBLISH" => ICalendarMethod::Publish,
-            "REQUEST" => ICalendarMethod::Request,
-            "REPLY" => ICalendarMethod::Reply,
-            "ADD" => ICalendarMethod::Add,
-            "CANCEL" => ICalendarMethod::Cancel,
-            "REFRESH" => ICalendarMethod::Refresh,
-            "COUNTER" => ICalendarMethod::Counter,
-            "DECLINECOUNTER" => ICalendarMethod::Declinecounter,
-        )
-    }
-}
-
-impl IanaString for ICalendarMethod {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarMethod::Publish => "PUBLISH",
-            ICalendarMethod::Request => "REQUEST",
-            ICalendarMethod::Reply => "REPLY",
-            ICalendarMethod::Add => "ADD",
-            ICalendarMethod::Cancel => "CANCEL",
-            ICalendarMethod::Refresh => "REFRESH",
-            ICalendarMethod::Counter => "COUNTER",
-            ICalendarMethod::Declinecounter => "DECLINECOUNTER",
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -918,24 +553,6 @@ pub enum Related {
     End,
 }
 
-impl IanaParse for Related {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "START" => Related::Start,
-            "END" => Related::End,
-        )
-    }
-}
-
-impl IanaString for Related {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Related::Start => "START",
-            Related::End => "END",
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
@@ -960,40 +577,6 @@ pub enum ICalendarParticipantType {
     Speaker,          // [RFC9073, Section 6.2]
 }
 
-impl IanaParse for ICalendarParticipantType {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "ACTIVE" => ICalendarParticipantType::Active,
-            "INACTIVE" => ICalendarParticipantType::Inactive,
-            "SPONSOR" => ICalendarParticipantType::Sponsor,
-            "CONTACT" => ICalendarParticipantType::Contact,
-            "BOOKING-CONTACT" => ICalendarParticipantType::BookingContact,
-            "EMERGENCY-CONTACT" => ICalendarParticipantType::EmergencyContact,
-            "PUBLICITY-CONTACT" => ICalendarParticipantType::PublicityContact,
-            "PLANNER-CONTACT" => ICalendarParticipantType::PlannerContact,
-            "PERFORMER" => ICalendarParticipantType::Performer,
-            "SPEAKER" => ICalendarParticipantType::Speaker,
-        )
-    }
-}
-
-impl IanaString for ICalendarParticipantType {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarParticipantType::Active => "ACTIVE",
-            ICalendarParticipantType::Inactive => "INACTIVE",
-            ICalendarParticipantType::Sponsor => "SPONSOR",
-            ICalendarParticipantType::Contact => "CONTACT",
-            ICalendarParticipantType::BookingContact => "BOOKING-CONTACT",
-            ICalendarParticipantType::EmergencyContact => "EMERGENCY-CONTACT",
-            ICalendarParticipantType::PublicityContact => "PUBLICITY-CONTACT",
-            ICalendarParticipantType::PlannerContact => "PLANNER-CONTACT",
-            ICalendarParticipantType::Performer => "PERFORMER",
-            ICalendarParticipantType::Speaker => "SPEAKER",
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
@@ -1010,28 +593,6 @@ pub enum ICalendarParticipationRole {
     ReqParticipant, // [RFC5545, Section 3.2.16]
     OptParticipant, // [RFC5545, Section 3.2.16]
     NonParticipant, // [RFC5545, Section 3.2.16]
-}
-
-impl IanaParse for ICalendarParticipationRole {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "CHAIR" => ICalendarParticipationRole::Chair,
-            "REQ-PARTICIPANT" => ICalendarParticipationRole::ReqParticipant,
-            "OPT-PARTICIPANT" => ICalendarParticipationRole::OptParticipant,
-            "NON-PARTICIPANT" => ICalendarParticipationRole::NonParticipant,
-        )
-    }
-}
-
-impl IanaString for ICalendarParticipationRole {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarParticipationRole::Chair => "CHAIR",
-            ICalendarParticipationRole::ReqParticipant => "REQ-PARTICIPANT",
-            ICalendarParticipationRole::OptParticipant => "OPT-PARTICIPANT",
-            ICalendarParticipationRole::NonParticipant => "NON-PARTICIPANT",
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1056,36 +617,6 @@ pub enum ICalendarStatus {
     Final,       // [RFC5545, Section 3.8.1]
 }
 
-impl IanaParse for ICalendarStatus {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "TENTATIVE" => ICalendarStatus::Tentative,
-            "CONFIRMED" => ICalendarStatus::Confirmed,
-            "CANCELLED" => ICalendarStatus::Cancelled,
-            "NEEDS-ACTION" => ICalendarStatus::NeedsAction,
-            "COMPLETED" => ICalendarStatus::Completed,
-            "IN-PROCESS" => ICalendarStatus::InProcess,
-            "DRAFT" => ICalendarStatus::Draft,
-            "FINAL" => ICalendarStatus::Final,
-        )
-    }
-}
-
-impl IanaString for ICalendarStatus {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarStatus::Tentative => "TENTATIVE",
-            ICalendarStatus::Confirmed => "CONFIRMED",
-            ICalendarStatus::Cancelled => "CANCELLED",
-            ICalendarStatus::NeedsAction => "NEEDS-ACTION",
-            ICalendarStatus::Completed => "COMPLETED",
-            ICalendarStatus::InProcess => "IN-PROCESS",
-            ICalendarStatus::Draft => "DRAFT",
-            ICalendarStatus::Final => "FINAL",
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
@@ -1105,34 +636,6 @@ pub enum ICalendarParticipationStatus {
     Delegated,   // [RFC5545, Section 3.2.12]
     Completed,   // [RFC5545, Section 3.2.12]
     InProcess,   // [RFC5545, Section 3.2.12]
-}
-
-impl IanaParse for ICalendarParticipationStatus {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "NEEDS-ACTION" => ICalendarParticipationStatus::NeedsAction,
-            "ACCEPTED" => ICalendarParticipationStatus::Accepted,
-            "DECLINED" => ICalendarParticipationStatus::Declined,
-            "TENTATIVE" => ICalendarParticipationStatus::Tentative,
-            "DELEGATED" => ICalendarParticipationStatus::Delegated,
-            "COMPLETED" => ICalendarParticipationStatus::Completed,
-            "IN-PROCESS" => ICalendarParticipationStatus::InProcess,
-        )
-    }
-}
-
-impl IanaString for ICalendarParticipationStatus {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarParticipationStatus::NeedsAction => "NEEDS-ACTION",
-            ICalendarParticipationStatus::Accepted => "ACCEPTED",
-            ICalendarParticipationStatus::Declined => "DECLINED",
-            ICalendarParticipationStatus::Tentative => "TENTATIVE",
-            ICalendarParticipationStatus::Delegated => "DELEGATED",
-            ICalendarParticipationStatus::Completed => "COMPLETED",
-            ICalendarParticipationStatus::InProcess => "IN-PROCESS",
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -1224,169 +727,6 @@ pub enum ICalendarProperty {
     End,
 }
 
-impl IanaParse for ICalendarProperty {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "CALSCALE" => ICalendarProperty::Calscale,
-            "METHOD" => ICalendarProperty::Method,
-            "PRODID" => ICalendarProperty::Prodid,
-            "VERSION" => ICalendarProperty::Version,
-            "ATTACH" => ICalendarProperty::Attach,
-            "CATEGORIES" => ICalendarProperty::Categories,
-            "CLASS" => ICalendarProperty::Class,
-            "COMMENT" => ICalendarProperty::Comment,
-            "DESCRIPTION" => ICalendarProperty::Description,
-            "GEO" => ICalendarProperty::Geo,
-            "LOCATION" => ICalendarProperty::Location,
-            "PERCENT-COMPLETE" => ICalendarProperty::PercentComplete,
-            "PRIORITY" => ICalendarProperty::Priority,
-            "RESOURCES" => ICalendarProperty::Resources,
-            "STATUS" => ICalendarProperty::Status,
-            "SUMMARY" => ICalendarProperty::Summary,
-            "COMPLETED" => ICalendarProperty::Completed,
-            "DTEND" => ICalendarProperty::Dtend,
-            "DUE" => ICalendarProperty::Due,
-            "DTSTART" => ICalendarProperty::Dtstart,
-            "DURATION" => ICalendarProperty::Duration,
-            "FREEBUSY" => ICalendarProperty::Freebusy,
-            "TRANSP" => ICalendarProperty::Transp,
-            "TZID" => ICalendarProperty::Tzid,
-            "TZNAME" => ICalendarProperty::Tzname,
-            "TZOFFSETFROM" => ICalendarProperty::Tzoffsetfrom,
-            "TZOFFSETTO" => ICalendarProperty::Tzoffsetto,
-            "TZURL" => ICalendarProperty::Tzurl,
-            "ATTENDEE" => ICalendarProperty::Attendee,
-            "CONTACT" => ICalendarProperty::Contact,
-            "ORGANIZER" => ICalendarProperty::Organizer,
-            "RECURRENCE-ID" => ICalendarProperty::RecurrenceId,
-            "RELATED-TO" => ICalendarProperty::RelatedTo,
-            "URL" => ICalendarProperty::Url,
-            "UID" => ICalendarProperty::Uid,
-            "EXDATE" => ICalendarProperty::Exdate,
-            "EXRULE" => ICalendarProperty::Exrule,
-            "RDATE" => ICalendarProperty::Rdate,
-            "RRULE" => ICalendarProperty::Rrule,
-            "ACTION" => ICalendarProperty::Action,
-            "REPEAT" => ICalendarProperty::Repeat,
-            "TRIGGER" => ICalendarProperty::Trigger,
-            "CREATED" => ICalendarProperty::Created,
-            "DTSTAMP" => ICalendarProperty::Dtstamp,
-            "LAST-MODIFIED" => ICalendarProperty::LastModified,
-            "SEQUENCE" => ICalendarProperty::Sequence,
-            "REQUEST-STATUS" => ICalendarProperty::RequestStatus,
-            "XML" => ICalendarProperty::Xml,
-            "TZUNTIL" => ICalendarProperty::Tzuntil,
-            "TZID-ALIAS-OF" => ICalendarProperty::TzidAliasOf,
-            "BUSYTYPE" => ICalendarProperty::Busytype,
-            "NAME" => ICalendarProperty::Name,
-            "REFRESH-INTERVAL" => ICalendarProperty::RefreshInterval,
-            "SOURCE" => ICalendarProperty::Source,
-            "COLOR" => ICalendarProperty::Color,
-            "IMAGE" => ICalendarProperty::Image,
-            "CONFERENCE" => ICalendarProperty::Conference,
-            "CALENDAR-ADDRESS" => ICalendarProperty::CalendarAddress,
-            "LOCATION-TYPE" => ICalendarProperty::LocationType,
-            "PARTICIPANT-TYPE" => ICalendarProperty::ParticipantType,
-            "RESOURCE-TYPE" => ICalendarProperty::ResourceType,
-            "STRUCTURED-DATA" => ICalendarProperty::StructuredData,
-            "STYLED-DESCRIPTION" => ICalendarProperty::StyledDescription,
-            "ACKNOWLEDGED" => ICalendarProperty::Acknowledged,
-            "PROXIMITY" => ICalendarProperty::Proximity,
-            "CONCEPT" => ICalendarProperty::Concept,
-            "LINK" => ICalendarProperty::Link,
-            "REFID" => ICalendarProperty::Refid,
-            "COORDINATES" => ICalendarProperty::Coordinates,
-            "SHOW-WITHOUT-TIME" => ICalendarProperty::ShowWithoutTime,
-            "JSID" => ICalendarProperty::Jsid,
-            "JSPROP" => ICalendarProperty::Jsprop,
-            "BEGIN" => ICalendarProperty::Begin,
-            "END" => ICalendarProperty::End,
-        )
-    }
-}
-
-impl ICalendarProperty {
-    fn as_str(&self) -> &str {
-        match self {
-            ICalendarProperty::Calscale => "CALSCALE",
-            ICalendarProperty::Method => "METHOD",
-            ICalendarProperty::Prodid => "PRODID",
-            ICalendarProperty::Version => "VERSION",
-            ICalendarProperty::Attach => "ATTACH",
-            ICalendarProperty::Categories => "CATEGORIES",
-            ICalendarProperty::Class => "CLASS",
-            ICalendarProperty::Comment => "COMMENT",
-            ICalendarProperty::Description => "DESCRIPTION",
-            ICalendarProperty::Geo => "GEO",
-            ICalendarProperty::Location => "LOCATION",
-            ICalendarProperty::PercentComplete => "PERCENT-COMPLETE",
-            ICalendarProperty::Priority => "PRIORITY",
-            ICalendarProperty::Resources => "RESOURCES",
-            ICalendarProperty::Status => "STATUS",
-            ICalendarProperty::Summary => "SUMMARY",
-            ICalendarProperty::Completed => "COMPLETED",
-            ICalendarProperty::Dtend => "DTEND",
-            ICalendarProperty::Due => "DUE",
-            ICalendarProperty::Dtstart => "DTSTART",
-            ICalendarProperty::Duration => "DURATION",
-            ICalendarProperty::Freebusy => "FREEBUSY",
-            ICalendarProperty::Transp => "TRANSP",
-            ICalendarProperty::Tzid => "TZID",
-            ICalendarProperty::Tzname => "TZNAME",
-            ICalendarProperty::Tzoffsetfrom => "TZOFFSETFROM",
-            ICalendarProperty::Tzoffsetto => "TZOFFSETTO",
-            ICalendarProperty::Tzurl => "TZURL",
-            ICalendarProperty::Attendee => "ATTENDEE",
-            ICalendarProperty::Contact => "CONTACT",
-            ICalendarProperty::Organizer => "ORGANIZER",
-            ICalendarProperty::RecurrenceId => "RECURRENCE-ID",
-            ICalendarProperty::RelatedTo => "RELATED-TO",
-            ICalendarProperty::Url => "URL",
-            ICalendarProperty::Uid => "UID",
-            ICalendarProperty::Exdate => "EXDATE",
-            ICalendarProperty::Exrule => "EXRULE",
-            ICalendarProperty::Rdate => "RDATE",
-            ICalendarProperty::Rrule => "RRULE",
-            ICalendarProperty::Action => "ACTION",
-            ICalendarProperty::Repeat => "REPEAT",
-            ICalendarProperty::Trigger => "TRIGGER",
-            ICalendarProperty::Created => "CREATED",
-            ICalendarProperty::Dtstamp => "DTSTAMP",
-            ICalendarProperty::LastModified => "LAST-MODIFIED",
-            ICalendarProperty::Sequence => "SEQUENCE",
-            ICalendarProperty::RequestStatus => "REQUEST-STATUS",
-            ICalendarProperty::Xml => "XML",
-            ICalendarProperty::Tzuntil => "TZUNTIL",
-            ICalendarProperty::TzidAliasOf => "TZID-ALIAS-OF",
-            ICalendarProperty::Busytype => "BUSYTYPE",
-            ICalendarProperty::Name => "NAME",
-            ICalendarProperty::RefreshInterval => "REFRESH-INTERVAL",
-            ICalendarProperty::Source => "SOURCE",
-            ICalendarProperty::Color => "COLOR",
-            ICalendarProperty::Image => "IMAGE",
-            ICalendarProperty::Conference => "CONFERENCE",
-            ICalendarProperty::CalendarAddress => "CALENDAR-ADDRESS",
-            ICalendarProperty::LocationType => "LOCATION-TYPE",
-            ICalendarProperty::ParticipantType => "PARTICIPANT-TYPE",
-            ICalendarProperty::ResourceType => "RESOURCE-TYPE",
-            ICalendarProperty::StructuredData => "STRUCTURED-DATA",
-            ICalendarProperty::StyledDescription => "STYLED-DESCRIPTION",
-            ICalendarProperty::Acknowledged => "ACKNOWLEDGED",
-            ICalendarProperty::Proximity => "PROXIMITY",
-            ICalendarProperty::Concept => "CONCEPT",
-            ICalendarProperty::Link => "LINK",
-            ICalendarProperty::Refid => "REFID",
-            ICalendarProperty::Begin => "BEGIN",
-            ICalendarProperty::End => "END",
-            ICalendarProperty::Coordinates => "COORDINATES",
-            ICalendarProperty::ShowWithoutTime => "SHOW-WITHOUT-TIME",
-            ICalendarProperty::Jsid => "JSID",
-            ICalendarProperty::Jsprop => "JSPROP",
-            ICalendarProperty::Other(s) => s.as_str(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
@@ -1403,28 +743,6 @@ pub enum ICalendarProximityValue {
     Depart,     // [RFC9074, Section 8.1]
     Connect,    // [RFC9074, Section 8.1]
     Disconnect, // [RFC9074, Section 8.1]
-}
-
-impl IanaParse for ICalendarProximityValue {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "ARRIVE" => ICalendarProximityValue::Arrive,
-            "DEPART" => ICalendarProximityValue::Depart,
-            "CONNECT" => ICalendarProximityValue::Connect,
-            "DISCONNECT" => ICalendarProximityValue::Disconnect,
-        )
-    }
-}
-
-impl IanaString for ICalendarProximityValue {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarProximityValue::Arrive => "ARRIVE",
-            ICalendarProximityValue::Depart => "DEPART",
-            ICalendarProximityValue::Connect => "CONNECT",
-            ICalendarProximityValue::Disconnect => "DISCONNECT",
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1454,46 +772,6 @@ pub enum ICalendarRelationshipType {
     Starttostart,   // [RFC9253, Section 4]
 }
 
-impl IanaParse for ICalendarRelationshipType {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "CHILD" => ICalendarRelationshipType::Child,
-            "PARENT" => ICalendarRelationshipType::Parent,
-            "SIBLING" => ICalendarRelationshipType::Sibling,
-            "SNOOZE" => ICalendarRelationshipType::Snooze,
-            "CONCEPT" => ICalendarRelationshipType::Concept,
-            "DEPENDS-ON" => ICalendarRelationshipType::DependsOn,
-            "FINISHTOFINISH" => ICalendarRelationshipType::Finishtofinish,
-            "FINISHTOSTART" => ICalendarRelationshipType::Finishtostart,
-            "FIRST" => ICalendarRelationshipType::First,
-            "NEXT" => ICalendarRelationshipType::Next,
-            "REFID" => ICalendarRelationshipType::Refid,
-            "STARTTOFINISH" => ICalendarRelationshipType::Starttofinish,
-            "STARTTOSTART" => ICalendarRelationshipType::Starttostart,
-        )
-    }
-}
-
-impl IanaString for ICalendarRelationshipType {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarRelationshipType::Child => "CHILD",
-            ICalendarRelationshipType::Parent => "PARENT",
-            ICalendarRelationshipType::Sibling => "SIBLING",
-            ICalendarRelationshipType::Snooze => "SNOOZE",
-            ICalendarRelationshipType::Concept => "CONCEPT",
-            ICalendarRelationshipType::DependsOn => "DEPENDS-ON",
-            ICalendarRelationshipType::Finishtofinish => "FINISHTOFINISH",
-            ICalendarRelationshipType::Finishtostart => "FINISHTOSTART",
-            ICalendarRelationshipType::First => "FIRST",
-            ICalendarRelationshipType::Next => "NEXT",
-            ICalendarRelationshipType::Refid => "REFID",
-            ICalendarRelationshipType::Starttofinish => "STARTTOFINISH",
-            ICalendarRelationshipType::Starttostart => "STARTTOSTART",
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
@@ -1510,28 +788,6 @@ pub enum ICalendarResourceType {
     Room,                  // [RFC9073, Section 6.3]
     RemoteConferenceAudio, // [RFC9073, Section 6.3]
     RemoteConferenceVideo, // [RFC9073, Section 6.3]
-}
-
-impl IanaParse for ICalendarResourceType {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "PROJECTOR" => ICalendarResourceType::Projector,
-            "ROOM" => ICalendarResourceType::Room,
-            "REMOTE-CONFERENCE-AUDIO" => ICalendarResourceType::RemoteConferenceAudio,
-            "REMOTE-CONFERENCE-VIDEO" => ICalendarResourceType::RemoteConferenceVideo,
-        )
-    }
-}
-
-impl IanaString for ICalendarResourceType {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarResourceType::Projector => "PROJECTOR",
-            ICalendarResourceType::Room => "ROOM",
-            ICalendarResourceType::RemoteConferenceAudio => "REMOTE-CONFERENCE-AUDIO",
-            ICalendarResourceType::RemoteConferenceVideo => "REMOTE-CONFERENCE-VIDEO",
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1551,26 +807,6 @@ pub enum ICalendarScheduleAgentValue {
     None,   // [RFC6638, Section 7.1]
 }
 
-impl IanaParse for ICalendarScheduleAgentValue {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "SERVER" => ICalendarScheduleAgentValue::Server,
-            "CLIENT" => ICalendarScheduleAgentValue::Client,
-            "NONE" => ICalendarScheduleAgentValue::None,
-        )
-    }
-}
-
-impl IanaString for ICalendarScheduleAgentValue {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarScheduleAgentValue::Server => "SERVER",
-            ICalendarScheduleAgentValue::Client => "CLIENT",
-            ICalendarScheduleAgentValue::None => "NONE",
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
@@ -1585,24 +821,6 @@ impl IanaString for ICalendarScheduleAgentValue {
 pub enum ICalendarScheduleForceSendValue {
     Request, // [RFC6638, Section 7.2]
     Reply,   // [RFC6638, Section 7.2]
-}
-
-impl IanaParse for ICalendarScheduleForceSendValue {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "REQUEST" => ICalendarScheduleForceSendValue::Request,
-            "REPLY" => ICalendarScheduleForceSendValue::Reply,
-        )
-    }
-}
-
-impl IanaString for ICalendarScheduleForceSendValue {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarScheduleForceSendValue::Request => "REQUEST",
-            ICalendarScheduleForceSendValue::Reply => "REPLY",
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1636,54 +854,6 @@ pub enum ICalendarValueType {
     Uid,          // [RFC9253, Section 7]
 }
 
-impl IanaParse for ICalendarValueType {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "BINARY" => ICalendarValueType::Binary,
-            "BOOLEAN" => ICalendarValueType::Boolean,
-            "CAL-ADDRESS" => ICalendarValueType::CalAddress,
-            "DATE" => ICalendarValueType::Date,
-            "DATE-TIME" => ICalendarValueType::DateTime,
-            "DURATION" => ICalendarValueType::Duration,
-            "FLOAT" => ICalendarValueType::Float,
-            "INTEGER" => ICalendarValueType::Integer,
-            "PERIOD" => ICalendarValueType::Period,
-            "RECUR" => ICalendarValueType::Recur,
-            "TEXT" => ICalendarValueType::Text,
-            "TIME" => ICalendarValueType::Time,
-            "UNKNOWN" => ICalendarValueType::Unknown,
-            "URI" => ICalendarValueType::Uri,
-            "UTC-OFFSET" => ICalendarValueType::UtcOffset,
-            "XML-REFERENCE" => ICalendarValueType::XmlReference,
-            "UID" => ICalendarValueType::Uid,
-        )
-    }
-}
-
-impl IanaString for ICalendarValueType {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarValueType::Binary => "BINARY",
-            ICalendarValueType::Boolean => "BOOLEAN",
-            ICalendarValueType::CalAddress => "CAL-ADDRESS",
-            ICalendarValueType::Date => "DATE",
-            ICalendarValueType::DateTime => "DATE-TIME",
-            ICalendarValueType::Duration => "DURATION",
-            ICalendarValueType::Float => "FLOAT",
-            ICalendarValueType::Integer => "INTEGER",
-            ICalendarValueType::Period => "PERIOD",
-            ICalendarValueType::Recur => "RECUR",
-            ICalendarValueType::Text => "TEXT",
-            ICalendarValueType::Time => "TIME",
-            ICalendarValueType::Unknown => "UNKNOWN",
-            ICalendarValueType::Uri => "URI",
-            ICalendarValueType::UtcOffset => "UTC-OFFSET",
-            ICalendarValueType::XmlReference => "XML-REFERENCE",
-            ICalendarValueType::Uid => "UID",
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
@@ -1698,24 +868,6 @@ impl IanaString for ICalendarValueType {
 pub enum ICalendarTransparency {
     Opaque,
     Transparent,
-}
-
-impl IanaParse for ICalendarTransparency {
-    fn parse(value: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(value,
-            "OPAQUE" => ICalendarTransparency::Opaque,
-            "TRANSPARENT" => ICalendarTransparency::Transparent,
-        )
-    }
-}
-
-impl IanaString for ICalendarTransparency {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ICalendarTransparency::Opaque => "OPAQUE",
-            ICalendarTransparency::Transparent => "TRANSPARENT",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1738,386 +890,4 @@ pub(crate) enum ValueType {
     ParticipantType,
     ResourceType,
     Proximity,
-}
-
-impl ICalendarProperty {
-    // Returns the default value type and whether the property is multi-valued.
-    pub(crate) fn default_types(&self) -> (ValueType, ValueSeparator) {
-        match self {
-            ICalendarProperty::Calscale => (ValueType::CalendarScale, ValueSeparator::None),
-            ICalendarProperty::Method => (ValueType::Method, ValueSeparator::None),
-            ICalendarProperty::Prodid => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Version => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Attach => (
-                ValueType::Ical(ICalendarValueType::Uri),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Categories => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::Comma,
-            ),
-            ICalendarProperty::Class => (ValueType::Classification, ValueSeparator::None),
-            ICalendarProperty::Comment => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Description => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Geo => (
-                ValueType::Ical(ICalendarValueType::Float),
-                ValueSeparator::Semicolon,
-            ),
-            ICalendarProperty::Location => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::PercentComplete => (
-                ValueType::Ical(ICalendarValueType::Integer),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Priority => (
-                ValueType::Ical(ICalendarValueType::Integer),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Resources => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::Comma,
-            ),
-            ICalendarProperty::Status => (ValueType::Status, ValueSeparator::None),
-            ICalendarProperty::Summary => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Completed => (
-                ValueType::Ical(ICalendarValueType::DateTime),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Dtend => (
-                ValueType::Ical(ICalendarValueType::DateTime),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Due => (
-                ValueType::Ical(ICalendarValueType::DateTime),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Dtstart => (
-                ValueType::Ical(ICalendarValueType::DateTime),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Duration => (
-                ValueType::Ical(ICalendarValueType::Duration),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Freebusy => (
-                ValueType::Ical(ICalendarValueType::Period),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Transp => (ValueType::Transparency, ValueSeparator::None),
-            ICalendarProperty::Tzid => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Tzname => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Tzoffsetfrom => (
-                ValueType::Ical(ICalendarValueType::UtcOffset),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Tzoffsetto => (
-                ValueType::Ical(ICalendarValueType::UtcOffset),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Tzurl => (
-                ValueType::Ical(ICalendarValueType::Uri),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Attendee => (
-                ValueType::Ical(ICalendarValueType::Uri),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Contact => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Organizer => (
-                ValueType::Ical(ICalendarValueType::Uri),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::RecurrenceId => (
-                ValueType::Ical(ICalendarValueType::DateTime),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::RelatedTo => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Url => (
-                ValueType::Ical(ICalendarValueType::Uri),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Uid => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Exdate => (
-                ValueType::Ical(ICalendarValueType::DateTime),
-                ValueSeparator::Comma,
-            ),
-            ICalendarProperty::Exrule => (
-                ValueType::Ical(ICalendarValueType::Recur),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Rdate => (
-                ValueType::Ical(ICalendarValueType::DateTime),
-                ValueSeparator::Comma,
-            ),
-            ICalendarProperty::Rrule => (
-                ValueType::Ical(ICalendarValueType::Recur),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Action => (ValueType::Action, ValueSeparator::None),
-            ICalendarProperty::Repeat => (
-                ValueType::Ical(ICalendarValueType::Integer),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Trigger => (
-                ValueType::Ical(ICalendarValueType::Duration),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Created => (
-                ValueType::Ical(ICalendarValueType::DateTime),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Dtstamp => (
-                ValueType::Ical(ICalendarValueType::DateTime),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::LastModified => (
-                ValueType::Ical(ICalendarValueType::DateTime),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Sequence => (
-                ValueType::Ical(ICalendarValueType::Integer),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::RequestStatus => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::Semicolon,
-            ),
-            ICalendarProperty::Xml => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Tzuntil => (
-                ValueType::Ical(ICalendarValueType::DateTime),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::TzidAliasOf => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Busytype => (ValueType::BusyType, ValueSeparator::None),
-            ICalendarProperty::Name => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::RefreshInterval => (
-                ValueType::Ical(ICalendarValueType::Duration),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Source => (
-                ValueType::Ical(ICalendarValueType::Uri),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Color => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Image => (
-                ValueType::Ical(ICalendarValueType::Uri),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Conference => (
-                ValueType::Ical(ICalendarValueType::Uri),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::CalendarAddress => (
-                ValueType::Ical(ICalendarValueType::Uri),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::LocationType => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::Comma,
-            ),
-            ICalendarProperty::ParticipantType => {
-                (ValueType::ParticipantType, ValueSeparator::None)
-            }
-            ICalendarProperty::ResourceType => (ValueType::ResourceType, ValueSeparator::None),
-            ICalendarProperty::StructuredData => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::StyledDescription => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Acknowledged => (
-                ValueType::Ical(ICalendarValueType::DateTime),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Proximity => (ValueType::Proximity, ValueSeparator::None),
-            ICalendarProperty::Concept => (
-                ValueType::Ical(ICalendarValueType::Uri),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Link => (
-                ValueType::Ical(ICalendarValueType::Uri),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Refid => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Begin => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::End => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Other(_) => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::Semicolon,
-            ),
-            ICalendarProperty::Coordinates => (
-                ValueType::Ical(ICalendarValueType::Uri),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::ShowWithoutTime => (
-                ValueType::Ical(ICalendarValueType::Boolean),
-                ValueSeparator::None,
-            ),
-            ICalendarProperty::Jsid | ICalendarProperty::Jsprop => (
-                ValueType::Ical(ICalendarValueType::Text),
-                ValueSeparator::None,
-            ),
-        }
-    }
-}
-
-impl ValueType {
-    pub fn unwrap_ical(self) -> ICalendarValueType {
-        match self {
-            ValueType::Ical(value) => value,
-            _ => ICalendarValueType::Text,
-        }
-    }
-}
-
-impl ICalendar {
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, Entry> {
-        let mut parser = Parser::new(value.as_ref());
-        match parser.entry() {
-            Entry::ICalendar(icalendar) => Ok(icalendar),
-            other => Err(other),
-        }
-    }
-}
-
-impl Hash for ICalendarValue {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        match self {
-            ICalendarValue::Binary(value) => {
-                state.write_u8(0);
-                value.hash(state);
-            }
-            ICalendarValue::Boolean(value) => {
-                state.write_u8(1);
-                value.hash(state);
-            }
-            ICalendarValue::Uri(value) => {
-                state.write_u8(2);
-                value.hash(state);
-            }
-            ICalendarValue::PartialDateTime(value) => {
-                state.write_u8(3);
-                value.hash(state);
-            }
-            ICalendarValue::Duration(value) => {
-                state.write_u8(4);
-                value.hash(state);
-            }
-            ICalendarValue::RecurrenceRule(value) => {
-                state.write_u8(5);
-                value.hash(state);
-            }
-            ICalendarValue::Period(value) => {
-                state.write_u8(6);
-                value.hash(state);
-            }
-            ICalendarValue::Float(value) => {
-                state.write_u8(7);
-                value.to_bits().hash(state);
-            }
-            ICalendarValue::Integer(value) => {
-                state.write_u8(8);
-                value.hash(state);
-            }
-            ICalendarValue::Text(value) => {
-                state.write_u8(9);
-                value.hash(state);
-            }
-            ICalendarValue::CalendarScale(value) => {
-                state.write_u8(10);
-                value.hash(state);
-            }
-            ICalendarValue::Method(value) => {
-                state.write_u8(11);
-                value.hash(state);
-            }
-            ICalendarValue::Classification(value) => {
-                state.write_u8(12);
-                value.hash(state);
-            }
-            ICalendarValue::Status(value) => {
-                state.write_u8(13);
-                value.hash(state);
-            }
-            ICalendarValue::Transparency(value) => {
-                state.write_u8(14);
-                value.hash(state);
-            }
-            ICalendarValue::Action(value) => {
-                state.write_u8(15);
-                value.hash(state);
-            }
-            ICalendarValue::BusyType(value) => {
-                state.write_u8(16);
-                value.hash(state);
-            }
-            ICalendarValue::ParticipantType(value) => {
-                state.write_u8(17);
-                value.hash(state);
-            }
-            ICalendarValue::ResourceType(value) => {
-                state.write_u8(18);
-                value.hash(state);
-            }
-            ICalendarValue::Proximity(value) => {
-                state.write_u8(19);
-                value.hash(state);
-            }
-        }
-    }
 }

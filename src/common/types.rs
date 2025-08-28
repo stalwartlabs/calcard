@@ -133,7 +133,7 @@ impl ArchivedPartialDateTime {
 
 impl IanaParse for LinkRelation {
     fn parse(s: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(s,
+        hashify::map_ignore_case!(s, LinkRelation,
             "about" => LinkRelation::About,
             "acl" => LinkRelation::Acl,
             "alternate" => LinkRelation::Alternate,
@@ -268,6 +268,7 @@ impl IanaParse for LinkRelation {
             "working-copy" => LinkRelation::WorkingCopy,
             "working-copy-of" => LinkRelation::WorkingCopyOf,
         )
+        .copied()
     }
 }
 

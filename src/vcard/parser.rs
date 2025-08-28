@@ -6,7 +6,7 @@
 
 use super::{
     PartialDateTime, VCard, VCardEntry, VCardParameter, VCardParameterName, VCardType, VCardValue,
-    VCardValueType, VCardVersion, ValueSeparator, ValueType,
+    VCardValueType, ValueSeparator, ValueType,
 };
 use crate::{
     Entry, Parser, Token,
@@ -584,121 +584,6 @@ impl Parser<'_> {
                 }
             }
         }
-    }
-}
-
-impl VCardParameterName {
-    pub fn try_parse(input: &[u8]) -> Option<Self> {
-        hashify::tiny_map_ignore_case!(input,
-            b"LANGUAGE" => VCardParameterName::Language,
-            b"VALUE" => VCardParameterName::Value,
-            b"PREF" => VCardParameterName::Pref,
-            b"ALTID" => VCardParameterName::Altid,
-            b"PID" => VCardParameterName::Pid,
-            b"TYPE" => VCardParameterName::Type,
-            b"MEDIATYPE" => VCardParameterName::Mediatype,
-            b"CALSCALE" => VCardParameterName::Calscale,
-            b"SORT-AS" => VCardParameterName::SortAs,
-            b"GEO" => VCardParameterName::Geo,
-            b"TZ" => VCardParameterName::Tz,
-            b"INDEX" => VCardParameterName::Index,
-            b"LEVEL" => VCardParameterName::Level,
-            b"GROUP" => VCardParameterName::Group,
-            b"CC" => VCardParameterName::Cc,
-            b"AUTHOR" => VCardParameterName::Author,
-            b"AUTHOR-NAME" => VCardParameterName::AuthorName,
-            b"CREATED" => VCardParameterName::Created,
-            b"DERIVED" => VCardParameterName::Derived,
-            b"LABEL" => VCardParameterName::Label,
-            b"PHONETIC" => VCardParameterName::Phonetic,
-            b"PROP-ID" => VCardParameterName::PropId,
-            b"SCRIPT" => VCardParameterName::Script,
-            b"SERVICE-TYPE" => VCardParameterName::ServiceType,
-            b"USERNAME" => VCardParameterName::Username,
-            b"JSPTR" => VCardParameterName::Jsptr,
-            b"JSCOMPS" => VCardParameterName::Jscomps,
-        )
-    }
-
-    pub fn parse(input: &str) -> Self {
-        Self::try_parse(input.as_bytes()).unwrap_or_else(|| VCardParameterName::Other(input.into()))
-    }
-
-    pub fn as_str(&self) -> &str {
-        match self {
-            VCardParameterName::Language => "LANGUAGE",
-            VCardParameterName::Value => "VALUE",
-            VCardParameterName::Pref => "PREF",
-            VCardParameterName::Altid => "ALTID",
-            VCardParameterName::Pid => "PID",
-            VCardParameterName::Type => "TYPE",
-            VCardParameterName::Mediatype => "MEDIATYPE",
-            VCardParameterName::Calscale => "CALSCALE",
-            VCardParameterName::SortAs => "SORT-AS",
-            VCardParameterName::Geo => "GEO",
-            VCardParameterName::Tz => "TZ",
-            VCardParameterName::Index => "INDEX",
-            VCardParameterName::Level => "LEVEL",
-            VCardParameterName::Group => "GROUP",
-            VCardParameterName::Cc => "CC",
-            VCardParameterName::Author => "AUTHOR",
-            VCardParameterName::AuthorName => "AUTHOR-NAME",
-            VCardParameterName::Created => "CREATED",
-            VCardParameterName::Derived => "DERIVED",
-            VCardParameterName::Label => "LABEL",
-            VCardParameterName::Phonetic => "PHONETIC",
-            VCardParameterName::PropId => "PROP-ID",
-            VCardParameterName::Script => "SCRIPT",
-            VCardParameterName::ServiceType => "SERVICE-TYPE",
-            VCardParameterName::Username => "USERNAME",
-            VCardParameterName::Jsptr => "JSPTR",
-            VCardParameterName::Jscomps => "JSCOMPS",
-            VCardParameterName::Other(name) => name,
-        }
-    }
-
-    pub fn into_string(self) -> Cow<'static, str> {
-        match self {
-            VCardParameterName::Language => "LANGUAGE".into(),
-            VCardParameterName::Value => "VALUE".into(),
-            VCardParameterName::Pref => "PREF".into(),
-            VCardParameterName::Altid => "ALTID".into(),
-            VCardParameterName::Pid => "PID".into(),
-            VCardParameterName::Type => "TYPE".into(),
-            VCardParameterName::Mediatype => "MEDIATYPE".into(),
-            VCardParameterName::Calscale => "CALSCALE".into(),
-            VCardParameterName::SortAs => "SORT-AS".into(),
-            VCardParameterName::Geo => "GEO".into(),
-            VCardParameterName::Tz => "TZ".into(),
-            VCardParameterName::Index => "INDEX".into(),
-            VCardParameterName::Level => "LEVEL".into(),
-            VCardParameterName::Group => "GROUP".into(),
-            VCardParameterName::Cc => "CC".into(),
-            VCardParameterName::Author => "AUTHOR".into(),
-            VCardParameterName::AuthorName => "AUTHOR-NAME".into(),
-            VCardParameterName::Created => "CREATED".into(),
-            VCardParameterName::Derived => "DERIVED".into(),
-            VCardParameterName::Label => "LABEL".into(),
-            VCardParameterName::Phonetic => "PHONETIC".into(),
-            VCardParameterName::PropId => "PROP-ID".into(),
-            VCardParameterName::Script => "SCRIPT".into(),
-            VCardParameterName::ServiceType => "SERVICE-TYPE".into(),
-            VCardParameterName::Username => "USERNAME".into(),
-            VCardParameterName::Jsptr => "JSPTR".into(),
-            VCardParameterName::Jscomps => "JSCOMPS".into(),
-            VCardParameterName::Other(name) => name.into(),
-        }
-    }
-}
-
-impl VCardVersion {
-    pub fn try_parse(input: &str) -> Option<Self> {
-        hashify::tiny_map!(input.as_bytes(),
-            b"4.0" => VCardVersion::V4_0,
-            b"3.0" => VCardVersion::V3_0,
-            b"2.1" => VCardVersion::V2_1,
-            b"2.0" => VCardVersion::V2_0,
-        )
     }
 }
 

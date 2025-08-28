@@ -5,12 +5,11 @@
  */
 
 use crate::{
-    common::PartialDateTime,
-    icalendar::{
-        ICalendar, ICalendarComponent, ICalendarComponentType, ICalendarEntry, ICalendarParameter,
-        ICalendarParameterName, ICalendarParameterValue, ICalendarProperty, ICalendarValue,
-        ICalendarValueType,
+    common::{
+        IanaType, PartialDateTime,
+        parser::{Boolean, Integer},
     },
+    icalendar::*,
 };
 use ahash::{AHashMap, AHashSet};
 
@@ -174,5 +173,389 @@ impl ICalendarEntry {
     pub fn is_type(&self, typ: &ICalendarValueType) -> bool {
         self.parameters(&ICalendarParameterName::Value)
             .any(|p| matches!(p, ICalendarParameterValue::Value(v) if v == typ))
+    }
+}
+
+impl ICalendarParameter {
+    pub fn new(name: ICalendarParameterName, value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name,
+            value: value.into(),
+        }
+    }
+
+    pub fn altrep(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Altrep,
+            value: value.into(),
+        }
+    }
+
+    pub fn cn(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Cn,
+            value: value.into(),
+        }
+    }
+
+    pub fn cutype(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Cutype,
+            value: value.into(),
+        }
+    }
+
+    pub fn delegated_from(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::DelegatedFrom,
+            value: value.into(),
+        }
+    }
+
+    pub fn delegated_to(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::DelegatedTo,
+            value: value.into(),
+        }
+    }
+
+    pub fn dir(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Dir,
+            value: value.into(),
+        }
+    }
+
+    pub fn fmttype(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Fmttype,
+            value: value.into(),
+        }
+    }
+
+    pub fn fbtype(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Fbtype,
+            value: value.into(),
+        }
+    }
+
+    pub fn language(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Language,
+            value: value.into(),
+        }
+    }
+
+    pub fn member(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Member,
+            value: value.into(),
+        }
+    }
+
+    pub fn partstat(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Partstat,
+            value: value.into(),
+        }
+    }
+
+    pub fn range(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Range,
+            value: value.into(),
+        }
+    }
+
+    pub fn related(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Related,
+            value: value.into(),
+        }
+    }
+
+    pub fn reltype(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Reltype,
+            value: value.into(),
+        }
+    }
+
+    pub fn role(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Role,
+            value: value.into(),
+        }
+    }
+
+    pub fn rsvp(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Rsvp,
+            value: value.into(),
+        }
+    }
+
+    pub fn schedule_agent(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::ScheduleAgent,
+            value: value.into(),
+        }
+    }
+
+    pub fn schedule_force_send(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::ScheduleForceSend,
+            value: value.into(),
+        }
+    }
+
+    pub fn schedule_status(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::ScheduleStatus,
+            value: value.into(),
+        }
+    }
+
+    pub fn sent_by(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::SentBy,
+            value: value.into(),
+        }
+    }
+
+    pub fn tzid(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Tzid,
+            value: value.into(),
+        }
+    }
+
+    pub fn value(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Value,
+            value: value.into(),
+        }
+    }
+
+    pub fn display(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Display,
+            value: value.into(),
+        }
+    }
+
+    pub fn email(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Email,
+            value: value.into(),
+        }
+    }
+
+    pub fn feature(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Feature,
+            value: value.into(),
+        }
+    }
+
+    pub fn label(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Label,
+            value: value.into(),
+        }
+    }
+
+    pub fn size(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Size,
+            value: value.into(),
+        }
+    }
+
+    pub fn filename(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Filename,
+            value: value.into(),
+        }
+    }
+
+    pub fn managed_id(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::ManagedId,
+            value: value.into(),
+        }
+    }
+
+    pub fn order(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Order,
+            value: value.into(),
+        }
+    }
+
+    pub fn schema(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Schema,
+            value: value.into(),
+        }
+    }
+
+    pub fn derived(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Derived,
+            value: value.into(),
+        }
+    }
+
+    pub fn gap(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Gap,
+            value: value.into(),
+        }
+    }
+
+    pub fn linkrel(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Linkrel,
+            value: value.into(),
+        }
+    }
+
+    pub fn jsptr(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Jsptr,
+            value: value.into(),
+        }
+    }
+
+    pub fn jsid(value: impl Into<ICalendarParameterValue>) -> Self {
+        ICalendarParameter {
+            name: ICalendarParameterName::Jsid,
+            value: value.into(),
+        }
+    }
+}
+
+impl From<String> for ICalendarParameterValue {
+    fn from(text: String) -> Self {
+        ICalendarParameterValue::Text(text)
+    }
+}
+
+impl From<u64> for ICalendarParameterValue {
+    fn from(integer: u64) -> Self {
+        ICalendarParameterValue::Integer(integer)
+    }
+}
+
+impl From<Integer> for ICalendarParameterValue {
+    fn from(integer: Integer) -> Self {
+        ICalendarParameterValue::Integer(integer.0.unsigned_abs())
+    }
+}
+
+impl From<Boolean> for ICalendarParameterValue {
+    fn from(boolean: Boolean) -> Self {
+        ICalendarParameterValue::Bool(boolean.0)
+    }
+}
+
+impl From<bool> for ICalendarParameterValue {
+    fn from(boolean: bool) -> Self {
+        ICalendarParameterValue::Bool(boolean)
+    }
+}
+
+impl From<Uri> for ICalendarParameterValue {
+    fn from(uri: Uri) -> Self {
+        ICalendarParameterValue::Uri(uri)
+    }
+}
+
+impl From<ICalendarUserTypes> for ICalendarParameterValue {
+    fn from(cutype: ICalendarUserTypes) -> Self {
+        ICalendarParameterValue::Cutype(cutype)
+    }
+}
+
+impl From<ICalendarFreeBusyType> for ICalendarParameterValue {
+    fn from(fbtype: ICalendarFreeBusyType) -> Self {
+        ICalendarParameterValue::Fbtype(fbtype)
+    }
+}
+
+impl From<ICalendarParticipationStatus> for ICalendarParameterValue {
+    fn from(partstat: ICalendarParticipationStatus) -> Self {
+        ICalendarParameterValue::Partstat(partstat)
+    }
+}
+
+impl From<Related> for ICalendarParameterValue {
+    fn from(related: Related) -> Self {
+        ICalendarParameterValue::Related(related)
+    }
+}
+
+impl From<ICalendarRelationshipType> for ICalendarParameterValue {
+    fn from(reltype: ICalendarRelationshipType) -> Self {
+        ICalendarParameterValue::Reltype(reltype)
+    }
+}
+
+impl From<ICalendarParticipationRole> for ICalendarParameterValue {
+    fn from(role: ICalendarParticipationRole) -> Self {
+        ICalendarParameterValue::Role(role)
+    }
+}
+
+impl From<ICalendarScheduleAgentValue> for ICalendarParameterValue {
+    fn from(schedule_agent: ICalendarScheduleAgentValue) -> Self {
+        ICalendarParameterValue::ScheduleAgent(schedule_agent)
+    }
+}
+
+impl From<ICalendarScheduleForceSendValue> for ICalendarParameterValue {
+    fn from(schedule_force_send: ICalendarScheduleForceSendValue) -> Self {
+        ICalendarParameterValue::ScheduleForceSend(schedule_force_send)
+    }
+}
+
+impl From<ICalendarValueType> for ICalendarParameterValue {
+    fn from(value: ICalendarValueType) -> Self {
+        ICalendarParameterValue::Value(value)
+    }
+}
+
+impl From<ICalendarDisplayType> for ICalendarParameterValue {
+    fn from(display: ICalendarDisplayType) -> Self {
+        ICalendarParameterValue::Display(display)
+    }
+}
+
+impl From<ICalendarFeatureType> for ICalendarParameterValue {
+    fn from(feature: ICalendarFeatureType) -> Self {
+        ICalendarParameterValue::Feature(feature)
+    }
+}
+
+impl From<ICalendarDuration> for ICalendarParameterValue {
+    fn from(duration: ICalendarDuration) -> Self {
+        ICalendarParameterValue::Duration(duration)
+    }
+}
+
+impl From<LinkRelation> for ICalendarParameterValue {
+    fn from(linkrel: LinkRelation) -> Self {
+        ICalendarParameterValue::Linkrel(linkrel)
+    }
+}
+
+impl<T: Into<ICalendarParameterValue>> From<IanaType<T, String>> for ICalendarParameterValue {
+    fn from(value: IanaType<T, String>) -> Self {
+        match value {
+            IanaType::Iana(v) => v.into(),
+            IanaType::Other(s) => s.into(),
+        }
     }
 }
