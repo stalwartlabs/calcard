@@ -236,6 +236,56 @@ impl ICalendarParameterValue {
     }
 }
 
+impl ICalendarComponentType {
+    pub fn has_time_ranges(&self) -> bool {
+        matches!(
+            self,
+            ICalendarComponentType::VEvent
+                | ICalendarComponentType::VTodo
+                | ICalendarComponentType::VJournal
+                | ICalendarComponentType::VFreebusy
+        )
+    }
+
+    pub fn is_scheduling_object(&self) -> bool {
+        matches!(
+            self,
+            ICalendarComponentType::VEvent
+                | ICalendarComponentType::VTodo
+                | ICalendarComponentType::VJournal
+                | ICalendarComponentType::VFreebusy
+        )
+    }
+
+    pub fn is_event(&self) -> bool {
+        matches!(self, ICalendarComponentType::VEvent)
+    }
+
+    pub fn is_todo(&self) -> bool {
+        matches!(self, ICalendarComponentType::VTodo)
+    }
+
+    pub fn is_journal(&self) -> bool {
+        matches!(self, ICalendarComponentType::VJournal)
+    }
+
+    pub fn is_freebusy(&self) -> bool {
+        matches!(self, ICalendarComponentType::VFreebusy)
+    }
+
+    pub fn is_location(&self) -> bool {
+        matches!(self, ICalendarComponentType::VLocation)
+    }
+
+    pub fn is_alarm(&self) -> bool {
+        matches!(self, ICalendarComponentType::VAlarm)
+    }
+
+    pub fn is_participant(&self) -> bool {
+        matches!(self, ICalendarComponentType::Participant)
+    }
+}
+
 impl Uri {
     pub fn as_str(&self) -> Option<&str> {
         match self {

@@ -5,24 +5,24 @@
  */
 
 use crate::{
-    icalendar::ICalendarComponent,
-    jscalendar::{JSCalendarProperty, JSCalendarType, JSCalendarValue},
+    icalendar::ICalendarComponentType,
+    jscalendar::{JSCalendarProperty, JSCalendarValue},
 };
 use jmap_tools::{Key, Value};
 
 pub mod convert;
 pub mod entry;
+pub mod params;
 pub mod props;
 
-#[derive(Default)]
 #[allow(clippy::type_complexity)]
-struct State<'x> {
-    pub(super) component: ICalendarComponent,
-    pub(super) js_props: Vec<(String, Value<'x, JSCalendarProperty, JSCalendarValue>)>,
+struct ConvertedComponent<'x> {
+    pub(super) name: ICalendarComponentType,
     pub(super) converted_props: Vec<(
         Vec<Key<'static, JSCalendarProperty>>,
         Value<'x, JSCalendarProperty, JSCalendarValue>,
     )>,
     pub(super) converted_props_count: usize,
-    pub(super) typ: JSCalendarType,
+    pub(super) properties: Vec<Value<'x, JSCalendarProperty, JSCalendarValue>>,
+    pub(super) components: Vec<Value<'x, JSCalendarProperty, JSCalendarValue>>,
 }

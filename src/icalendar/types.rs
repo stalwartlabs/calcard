@@ -676,6 +676,7 @@ impl IanaParse for ICalendarParticipationStatus {
             "DELEGATED" => ICalendarParticipationStatus::Delegated,
             "COMPLETED" => ICalendarParticipationStatus::Completed,
             "IN-PROCESS" => ICalendarParticipationStatus::InProcess,
+            "FAILED" => ICalendarParticipationStatus::Failed
         )
     }
 }
@@ -690,6 +691,7 @@ impl IanaString for ICalendarParticipationStatus {
             ICalendarParticipationStatus::Delegated => "DELEGATED",
             ICalendarParticipationStatus::Completed => "COMPLETED",
             ICalendarParticipationStatus::InProcess => "IN-PROCESS",
+            ICalendarParticipationStatus::Failed => "FAILED",
         }
     }
 }
@@ -1261,28 +1263,6 @@ impl Hash for ICalendarValue {
                 value.hash(state);
             }
         }
-    }
-}
-
-impl ICalendarComponentType {
-    pub fn has_time_ranges(&self) -> bool {
-        matches!(
-            self,
-            ICalendarComponentType::VEvent
-                | ICalendarComponentType::VTodo
-                | ICalendarComponentType::VJournal
-                | ICalendarComponentType::VFreebusy
-        )
-    }
-
-    pub fn is_scheduling_object(&self) -> bool {
-        matches!(
-            self,
-            ICalendarComponentType::VEvent
-                | ICalendarComponentType::VTodo
-                | ICalendarComponentType::VJournal
-                | ICalendarComponentType::VFreebusy
-        )
     }
 }
 

@@ -1202,15 +1202,13 @@ impl JSContact<'_> {
                     }
                     JSContactProperty::Members => {
                         let mut has_members = false;
-                        for (name, set) in value.into_expanded_boolean_set() {
-                            if set {
-                                has_members = true;
-                                state.insert_vcard(
-                                    &[JSContactProperty::Members],
-                                    VCardEntry::new(VCardProperty::Member)
-                                        .with_value(name.into_string()),
-                                );
-                            }
+                        for name in value.into_expanded_boolean_set() {
+                            has_members = true;
+                            state.insert_vcard(
+                                &[JSContactProperty::Members],
+                                VCardEntry::new(VCardProperty::Member)
+                                    .with_value(name.into_string()),
+                            );
                         }
 
                         if !has_members {
@@ -1222,10 +1220,8 @@ impl JSContact<'_> {
                     }
                     JSContactProperty::Keywords => {
                         let mut keywords = Vec::new();
-                        for (name, set) in value.into_expanded_boolean_set() {
-                            if set {
-                                keywords.push(VCardValue::Text(name.into_string()));
-                            }
+                        for name in value.into_expanded_boolean_set() {
+                            keywords.push(VCardValue::Text(name.into_string()));
                         }
 
                         state.insert_vcard(
@@ -1809,18 +1805,16 @@ impl JSContact<'_> {
 
                             for (sub_property, value) in value.into_expanded_object() {
                                 if let Key::Property(JSContactProperty::Relation) = sub_property {
-                                    for (typ, set) in value.into_expanded_boolean_set() {
-                                        if set {
-                                            let typ = typ.to_string();
-                                            match VCardType::parse(typ.as_ref().as_bytes()) {
-                                                Some(typ) => {
-                                                    entry.params.push(VCardParameter::typ(typ))
-                                                }
-                                                None => {
-                                                    entry.params.push(VCardParameter::typ(
-                                                        typ.into_owned(),
-                                                    ));
-                                                }
+                                    for typ in value.into_expanded_boolean_set() {
+                                        let typ = typ.to_string();
+                                        match VCardType::parse(typ.as_ref().as_bytes()) {
+                                            Some(typ) => {
+                                                entry.params.push(VCardParameter::typ(typ))
+                                            }
+                                            None => {
+                                                entry
+                                                    .params
+                                                    .push(VCardParameter::typ(typ.into_owned()));
                                             }
                                         }
                                     }

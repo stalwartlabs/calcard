@@ -5,7 +5,7 @@
  */
 
 use crate::{
-    common::IanaParse,
+    common::{IanaParse, IanaString, LinkRelation},
     icalendar::ICalendarDuration,
     jscalendar::{
         JSCalendar, JSCalendarAlertAction, JSCalendarDateTime, JSCalendarEventStatus,
@@ -92,7 +92,9 @@ impl Element for JSCalendarValue {
                 JSCalendarProperty::Status => JSCalendarEventStatus::from_str(value)
                     .ok()
                     .map(JSCalendarValue::EventStatus),
-
+                JSCalendarProperty::Rel => {
+                    LinkRelation::parse(value.as_bytes()).map(JSCalendarValue::LinkRelation)
+                }
                 _ => None,
             }
         } else {
@@ -114,6 +116,7 @@ impl Element for JSCalendarValue {
             JSCalendarValue::RelativeTo(v) => v.as_str().into(),
             JSCalendarValue::ScheduleAgent(v) => v.as_str().into(),
             JSCalendarValue::EventStatus(v) => v.as_str().into(),
+            JSCalendarValue::LinkRelation(v) => v.as_str().into(),
         }
     }
 }

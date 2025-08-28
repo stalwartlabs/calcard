@@ -142,7 +142,11 @@ impl<'x> State<'x> {
             JsonPointer::<JSContactProperty>::encode(path)
         };
 
-        self.js_props.push((path, value));
+        self.vcard.entries.push(
+            VCardEntry::new(VCardProperty::Jsprop)
+                .with_param(VCardParameter::jsptr(path))
+                .with_value(serde_json::to_string(&value).unwrap_or_default()),
+        );
     }
 
     pub(super) fn import_properties(
@@ -190,14 +194,7 @@ impl<'x> State<'x> {
         }
     }
 
-    pub(super) fn into_vcard(mut self) -> VCard {
-        for (ptr, value) in self.js_props {
-            self.vcard.entries.push(
-                VCardEntry::new(VCardProperty::Jsprop)
-                    .with_param(VCardParameter::jsptr(ptr))
-                    .with_value(serde_json::to_string(&value).unwrap_or_default()),
-            );
-        }
+    pub(super) fn into_vcard(self) -> VCard {
         self.vcard
     }
 }

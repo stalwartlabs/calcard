@@ -488,6 +488,7 @@ impl ArchivedICalendarParticipationStatus {
             ArchivedICalendarParticipationStatus::Delegated => "DELEGATED",
             ArchivedICalendarParticipationStatus::Completed => "COMPLETED",
             ArchivedICalendarParticipationStatus::InProcess => "IN-PROCESS",
+            ArchivedICalendarParticipationStatus::Failed => "FAILED",
         }
     }
 }

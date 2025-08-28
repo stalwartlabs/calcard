@@ -636,6 +636,7 @@ pub enum ICalendarParticipationStatus {
     Delegated,   // [RFC5545, Section 3.2.12]
     Completed,   // [RFC5545, Section 3.2.12]
     InProcess,   // [RFC5545, Section 3.2.12]
+    Failed,      // ical-tasks
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]

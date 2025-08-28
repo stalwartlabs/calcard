@@ -35,6 +35,7 @@ pub enum JSCalendarValue {
     RelativeTo(JSCalendarRelativeTo),
     ScheduleAgent(JSCalendarScheduleAgent),
     EventStatus(JSCalendarEventStatus),
+    LinkRelation(LinkRelation),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -869,7 +870,7 @@ pub enum JSCalendarParticipantRole {
     Optional,
     Informational,
     Chair,
-    Contact,
+    Required,
 }
 
 impl FromStr for JSCalendarParticipantRole {
@@ -882,7 +883,7 @@ impl FromStr for JSCalendarParticipantRole {
             "optional" => JSCalendarParticipantRole::Optional,
             "informational" => JSCalendarParticipantRole::Informational,
             "chair" => JSCalendarParticipantRole::Chair,
-            "contact" => JSCalendarParticipantRole::Contact
+            "required" => JSCalendarParticipantRole::Required,
         )
         .ok_or(())
     }
@@ -896,7 +897,7 @@ impl JSCalendarParticipantRole {
             JSCalendarParticipantRole::Optional => "optional",
             JSCalendarParticipantRole::Informational => "informational",
             JSCalendarParticipantRole::Chair => "chair",
-            JSCalendarParticipantRole::Contact => "contact",
+            JSCalendarParticipantRole::Required => "required",
         }
     }
 }

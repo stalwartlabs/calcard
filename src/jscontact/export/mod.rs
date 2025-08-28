@@ -19,7 +19,6 @@ pub mod props;
 #[allow(clippy::type_complexity)]
 struct State<'x> {
     pub(super) vcard: VCard,
-    pub(super) js_props: Vec<(String, Value<'x, JSContactProperty, JSContactValue>)>,
     pub(super) converted_props: Vec<(
         Vec<Key<'static, JSContactProperty>>,
         Value<'x, JSContactProperty, JSContactValue>,

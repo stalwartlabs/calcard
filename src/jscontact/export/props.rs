@@ -193,17 +193,15 @@ pub(super) fn convert_types(
     is_context: bool,
 ) -> Option<Vec<IanaType<VCardType, String>>> {
     let mut types = Vec::new();
-    for (typ, set) in value.into_expanded_boolean_set() {
-        if set {
-            let typ = typ.to_string();
-            match VCardType::parse(typ.as_ref().as_bytes()) {
-                Some(typ) => types.push(IanaType::Iana(typ)),
-                None => {
-                    if is_context && typ.eq_ignore_ascii_case("private") {
-                        types.push(IanaType::Iana(VCardType::Home));
-                    } else {
-                        types.push(IanaType::Other(typ.into_owned()));
-                    }
+    for typ in value.into_expanded_boolean_set() {
+        let typ = typ.to_string();
+        match VCardType::parse(typ.as_ref().as_bytes()) {
+            Some(typ) => types.push(IanaType::Iana(typ)),
+            None => {
+                if is_context && typ.eq_ignore_ascii_case("private") {
+                    types.push(IanaType::Iana(VCardType::Home));
+                } else {
+                    types.push(IanaType::Other(typ.into_owned()));
                 }
             }
         }

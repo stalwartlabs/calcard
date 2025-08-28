@@ -20,11 +20,7 @@ impl State {
         entry: &mut EntryState,
         extract: &[ICalendarParameterName],
         top_property_name: JSCalendarProperty,
-        value: (
-            Key<'static, JSCalendarProperty>,
-            Value<'static, JSCalendarProperty, JSCalendarValue>,
-        ),
-        extra_properties: impl IntoIterator<
+        values: impl IntoIterator<
             Item = (
                 Key<'static, JSCalendarProperty>,
                 Value<'static, JSCalendarProperty, JSCalendarValue>,

@@ -84,6 +84,14 @@ impl ICalendar {
 }
 
 impl ICalendarComponent {
+    pub fn new(component_type: ICalendarComponentType) -> Self {
+        Self {
+            component_type,
+            entries: Vec::new(),
+            component_ids: Vec::new(),
+        }
+    }
+
     pub fn add_dtstamp(&mut self, dt_stamp: PartialDateTime) {
         self.entries.push(ICalendarEntry {
             name: ICalendarProperty::Dtstamp,
@@ -557,5 +565,145 @@ impl<T: Into<ICalendarParameterValue>> From<IanaType<T, String>> for ICalendarPa
             IanaType::Iana(v) => v.into(),
             IanaType::Other(s) => s.into(),
         }
+    }
+}
+
+// From implementations for ICalendarValue enum
+
+impl From<Vec<u8>> for ICalendarValue {
+    fn from(value: Vec<u8>) -> Self {
+        ICalendarValue::Binary(value)
+    }
+}
+
+impl From<bool> for ICalendarValue {
+    fn from(value: bool) -> Self {
+        ICalendarValue::Boolean(value)
+    }
+}
+
+impl From<Uri> for ICalendarValue {
+    fn from(value: Uri) -> Self {
+        ICalendarValue::Uri(value)
+    }
+}
+
+impl From<PartialDateTime> for ICalendarValue {
+    fn from(value: PartialDateTime) -> Self {
+        ICalendarValue::PartialDateTime(Box::new(value))
+    }
+}
+
+impl From<Box<PartialDateTime>> for ICalendarValue {
+    fn from(value: Box<PartialDateTime>) -> Self {
+        ICalendarValue::PartialDateTime(value)
+    }
+}
+
+impl From<ICalendarDuration> for ICalendarValue {
+    fn from(value: ICalendarDuration) -> Self {
+        ICalendarValue::Duration(value)
+    }
+}
+
+impl From<ICalendarRecurrenceRule> for ICalendarValue {
+    fn from(value: ICalendarRecurrenceRule) -> Self {
+        ICalendarValue::RecurrenceRule(Box::new(value))
+    }
+}
+
+impl From<Box<ICalendarRecurrenceRule>> for ICalendarValue {
+    fn from(value: Box<ICalendarRecurrenceRule>) -> Self {
+        ICalendarValue::RecurrenceRule(value)
+    }
+}
+
+impl From<ICalendarPeriod> for ICalendarValue {
+    fn from(value: ICalendarPeriod) -> Self {
+        ICalendarValue::Period(value)
+    }
+}
+
+impl From<f64> for ICalendarValue {
+    fn from(value: f64) -> Self {
+        ICalendarValue::Float(value)
+    }
+}
+
+impl From<i64> for ICalendarValue {
+    fn from(value: i64) -> Self {
+        ICalendarValue::Integer(value)
+    }
+}
+
+impl From<String> for ICalendarValue {
+    fn from(value: String) -> Self {
+        ICalendarValue::Text(value)
+    }
+}
+
+impl From<&str> for ICalendarValue {
+    fn from(value: &str) -> Self {
+        ICalendarValue::Text(value.to_string())
+    }
+}
+
+impl From<CalendarScale> for ICalendarValue {
+    fn from(value: CalendarScale) -> Self {
+        ICalendarValue::CalendarScale(value)
+    }
+}
+
+impl From<ICalendarMethod> for ICalendarValue {
+    fn from(value: ICalendarMethod) -> Self {
+        ICalendarValue::Method(value)
+    }
+}
+
+impl From<ICalendarClassification> for ICalendarValue {
+    fn from(value: ICalendarClassification) -> Self {
+        ICalendarValue::Classification(value)
+    }
+}
+
+impl From<ICalendarStatus> for ICalendarValue {
+    fn from(value: ICalendarStatus) -> Self {
+        ICalendarValue::Status(value)
+    }
+}
+
+impl From<ICalendarTransparency> for ICalendarValue {
+    fn from(value: ICalendarTransparency) -> Self {
+        ICalendarValue::Transparency(value)
+    }
+}
+
+impl From<ICalendarAction> for ICalendarValue {
+    fn from(value: ICalendarAction) -> Self {
+        ICalendarValue::Action(value)
+    }
+}
+
+impl From<ICalendarFreeBusyType> for ICalendarValue {
+    fn from(value: ICalendarFreeBusyType) -> Self {
+        ICalendarValue::BusyType(value)
+    }
+}
+
+impl From<ICalendarParticipantType> for ICalendarValue {
+    fn from(value: ICalendarParticipantType) -> Self {
+        ICalendarValue::ParticipantType(value)
+    }
+}
+
+impl From<ICalendarResourceType> for ICalendarValue {
+    fn from(value: ICalendarResourceType) -> Self {
+        ICalendarValue::ResourceType(value)
+    }
+}
+
+impl From<ICalendarProximityValue> for ICalendarValue {
+    fn from(value: ICalendarProximityValue) -> Self {
+        ICalendarValue::Proximity(value)
     }
 }

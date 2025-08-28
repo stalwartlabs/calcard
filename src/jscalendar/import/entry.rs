@@ -7,15 +7,16 @@
 use crate::{
     icalendar::{
         ICalendarAction, ICalendarComponent, ICalendarComponentType, ICalendarParameter,
-        ICalendarParameterName, ICalendarParameterValue, ICalendarProperty, ICalendarValue,
+        ICalendarParameterName, ICalendarParameterValue, ICalendarParticipationRole,
+        ICalendarParticipationStatus, ICalendarProperty, ICalendarValue, Uri,
     },
     jscalendar::{
-        JSCalendar, JSCalendarAlertAction, JSCalendarDateTime, JSCalendarProperty, JSCalendarType,
-        JSCalendarValue,
+        JSCalendar, JSCalendarAlertAction, JSCalendarDateTime, JSCalendarParticipantRole,
+        JSCalendarProgress, JSCalendarProperty, JSCalendarType, JSCalendarValue,
         import::{EntryState, State},
     },
 };
-use jmap_tools::{JsonPointer, Key, Value};
+use jmap_tools::{JsonPointer, Key, Map, Value};
 
 impl ICalendarComponent {
     pub(crate) fn entries_to_jscalendar(&mut self) -> State {
@@ -76,16 +77,106 @@ impl ICalendarComponent {
                             ICalendarParameterName::Size,
                         ],
                         JSCalendarProperty::Links,
-                        (
-                            Key::Property(JSCalendarProperty::Href),
-                            Value::Str(uri.to_string().into()),
-                        ),
-                        [(
-                            Key::Property(JSCalendarProperty::Type),
-                            Value::Element(JSCalendarValue::Type(JSCalendarType::Link)),
-                        )],
+                        [
+                            (
+                                Key::Property(JSCalendarProperty::Type),
+                                Value::Element(JSCalendarValue::Type(JSCalendarType::Link)),
+                            ),
+                            (
+                                Key::Property(JSCalendarProperty::Href),
+                                Value::Str(uri.to_string().into()),
+                            ),
+                        ],
                     );
                     entry.set_map_name();
+                }
+                (
+                    ICalendarProperty::Attendee,
+                    Some(ICalendarValue::Text(uri)) | Some(ICalendarValue::Uri(Uri::Location(uri))),
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                ) => {
+                    let is_task = matches!(&self.component_type, ICalendarComponentType::VTodo);
+                    let mut has_role = false;
+                    let mut progress = None;
+
+                    for param in &mut entry.entry.params {
+                        match (&param.name, &mut param.value) {
+                            (ICalendarParameterName::Role, _) => {
+                                has_role = true;
+                            }
+                            /*
+
+                            COMPLETED 	[RFC5545], Section 3.2.12 	accepted 	completed
+                            IN-PROCESS 	[RFC5545], Section 3.2.12 	accepted 	in-process
+                            FAILED 	[ical-tasks], Section 11.1 	accepted 	failed
+
+                             */
+                            (
+                                ICalendarParameterName::Partstat,
+                                ICalendarParameterValue::Partstat(partstat),
+                            ) if is_task => {
+                                let status = match partstat {
+                                    ICalendarParticipationStatus::Completed => {
+                                        JSCalendarProgress::Completed
+                                    }
+                                    ICalendarParticipationStatus::InProcess => {
+                                        JSCalendarProgress::InProcess
+                                    }
+                                    ICalendarParticipationStatus::Failed => {
+                                        JSCalendarProgress::Failed
+                                    }
+                                    _ => {
+                                        continue;
+                                    }
+                                };
+                                *partstat = ICalendarParticipationStatus::Accepted;
+                                progress = Some((
+                                    Key::Property(JSCalendarProperty::Progress),
+                                    Value::Element(JSCalendarValue::Progress(status)),
+                                ));
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    state.map_named_entry(
+                        &mut entry,
+                        &[
+                            ICalendarParameterName::Cn,
+                            ICalendarParameterName::Cutype,
+                            ICalendarParameterName::DelegatedFrom,
+                            ICalendarParameterName::DelegatedTo,
+                            ICalendarParameterName::Email,
+                            ICalendarParameterName::Member,
+                            ICalendarParameterName::Partstat,
+                            ICalendarParameterName::Role,
+                            ICalendarParameterName::Rsvp,
+                            ICalendarParameterName::SentBy,
+                        ],
+                        JSCalendarProperty::Participants,
+                        [
+                            Some((
+                                Key::Property(JSCalendarProperty::Type),
+                                Value::Element(JSCalendarValue::Type(JSCalendarType::Participant)),
+                            )),
+                            progress,
+                            (!has_role).then_some((
+                                Key::Property(JSCalendarProperty::Roles),
+                                Value::Object(Map::from(vec![(
+                                    Key::Property(JSCalendarProperty::ParticipantRole(
+                                        JSCalendarParticipantRole::Attendee,
+                                    )),
+                                    Value::Bool(true),
+                                )])),
+                            )),
+                            Some((
+                                Key::Property(JSCalendarProperty::CalendarAddress),
+                                Value::Str(uri.to_string().into()),
+                            )),
+                        ]
+                        .into_iter()
+                        .flatten(),
+                    );
                 }
                 (
                     ICalendarProperty::Calscale,
@@ -223,11 +314,7 @@ impl ICalendarComponent {
                     Some(ICalendarValue::Text(value)),
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
                 ) => {}
-                (
-                    ICalendarProperty::Attendee,
-                    Some(ICalendarValue::Text(value)),
-                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
-                ) => {}
+
                 (
                     ICalendarProperty::Contact,
                     Some(ICalendarValue::Text(value)),
