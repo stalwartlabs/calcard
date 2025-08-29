@@ -34,7 +34,7 @@ impl Parser<'_> {
             component_type,
             ..Default::default()
         }];
-        let mut next_component_id: u16 = 1;
+        let mut next_component_id: u32 = 1;
         let mut ical_idx = 0;
         let mut ical = ical_components.last_mut().unwrap();
 
@@ -537,7 +537,7 @@ impl Parser<'_> {
                         ICalendarParameterName::Related => {
                             param_values.push(ICalendarParameter::new(
                                 param_name.clone(),
-                                IanaType::<Related, String>::from(token),
+                                IanaType::<ICalendarRelated, String>::from(token),
                             ));
                         }
                         ICalendarParameterName::Reltype => {

@@ -20,7 +20,7 @@ use std::{
 impl ArchivedICalendar {
     pub fn write_to(&self, out: &mut impl Write) -> std::fmt::Result {
         let _v = [0.into()];
-        let mut component_iter: Iter<'_, rkyv::rend::u16_le> = _v.iter();
+        let mut component_iter: Iter<'_, rkyv::rend::u32_le> = _v.iter();
         let mut component_stack = Vec::with_capacity(4);
 
         loop {

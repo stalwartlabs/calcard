@@ -984,3 +984,15 @@ impl JSCalendarDateTime {
         }
     }
 }
+
+// 7f1e1965-ae73-4454-b088-232c90730ce2
+static JSCAL_NAMESPACE: uuid::Uuid = uuid::Uuid::from_bytes([
+    127, 30, 25, 101, 174, 115, 68, 84, 176, 136, 35, 44, 144, 115, 12, 226,
+]);
+
+#[inline]
+pub(crate) fn uuid5(text: &str) -> String {
+    uuid::Uuid::new_v5(&JSCAL_NAMESPACE, text.as_bytes())
+        .hyphenated()
+        .to_string()
+}

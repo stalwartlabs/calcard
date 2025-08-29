@@ -14,9 +14,9 @@ use crate::{
 use ahash::{AHashMap, AHashSet};
 
 impl ICalendar {
-    pub fn remove_component_ids(&mut self, component_ids: &[u16]) {
+    pub fn remove_component_ids(&mut self, component_ids: &[u32]) {
         // Validate component IDs
-        let max_component_id = self.components.len() as u16;
+        let max_component_id = self.components.len() as u32;
         let mut remove_component_ids = AHashSet::from_iter(
             component_ids
                 .iter()
@@ -26,7 +26,7 @@ impl ICalendar {
 
         // Add sub-components to the set
         for (component_id, component) in self.components.iter().enumerate() {
-            if remove_component_ids.contains(&(component_id as u16)) {
+            if remove_component_ids.contains(&(component_id as u32)) {
                 remove_component_ids.extend(&component.component_ids);
             }
         }
@@ -35,7 +35,7 @@ impl ICalendar {
             let id_mappings = (0..max_component_id)
                 .filter(|i| !remove_component_ids.contains(i))
                 .enumerate()
-                .map(|(new_id, old_id)| (old_id, new_id as u16))
+                .map(|(new_id, old_id)| (old_id, new_id as u32))
                 .collect::<AHashMap<_, _>>();
 
             for (component_id, mut component) in
@@ -43,7 +43,7 @@ impl ICalendar {
                     .into_iter()
                     .enumerate()
             {
-                if !remove_component_ids.contains(&(component_id as u16)) {
+                if !remove_component_ids.contains(&(component_id as u32)) {
                     let component_ids = component
                         .component_ids
                         .iter()
@@ -62,14 +62,14 @@ impl ICalendar {
                 let tz_component_id = self.components.len();
                 self.components[0]
                     .component_ids
-                    .insert(1, tz_component_id as u16);
+                    .insert(1, tz_component_id as u32);
                 self.components.push(ICalendarComponent {
                     component_type: ICalendarComponentType::VTimezone,
                     entries: component.entries.clone(),
                     component_ids: vec![],
                 });
                 for component_id in &component.component_ids {
-                    let item_id = self.components.len() as u16;
+                    let item_id = self.components.len() as u32;
                     let item = &other.components[*component_id as usize];
                     self.components.push(ICalendarComponent {
                         component_type: item.component_type.clone(),
@@ -499,8 +499,8 @@ impl From<ICalendarParticipationStatus> for ICalendarParameterValue {
     }
 }
 
-impl From<Related> for ICalendarParameterValue {
-    fn from(related: Related) -> Self {
+impl From<ICalendarRelated> for ICalendarParameterValue {
+    fn from(related: ICalendarRelated) -> Self {
         ICalendarParameterValue::Related(related)
     }
 }

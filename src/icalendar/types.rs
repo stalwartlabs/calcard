@@ -562,20 +562,20 @@ impl IanaString for ICalendarMethod {
     }
 }
 
-impl IanaParse for Related {
+impl IanaParse for ICalendarRelated {
     fn parse(value: &[u8]) -> Option<Self> {
         hashify::tiny_map_ignore_case!(value,
-            "START" => Related::Start,
-            "END" => Related::End,
+            "START" => ICalendarRelated::Start,
+            "END" => ICalendarRelated::End,
         )
     }
 }
 
-impl IanaString for Related {
+impl IanaString for ICalendarRelated {
     fn as_str(&self) -> &'static str {
         match self {
-            Related::Start => "START",
-            Related::End => "END",
+            ICalendarRelated::Start => "START",
+            ICalendarRelated::End => "END",
         }
     }
 }

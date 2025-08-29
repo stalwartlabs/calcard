@@ -14,6 +14,7 @@ use crate::{
 
 pub mod convert;
 pub mod entry;
+pub mod params;
 pub mod props;
 
 #[derive(Default)]

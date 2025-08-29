@@ -1,13 +1,13 @@
 [package]
 name = "calcard"
-description = "iCalendar/vCard parser and generator"
+description = "iCalendar/vCard/JSCalendar/JSContact parser, generator and converter"
 version = "0.2.0"
 authors = [ "Stalwart Labs <hello@stalw.art>"]
 license = "Apache-2.0 OR MIT"
 edition = "2024"
 repository = "https://github.com/stalwartlabs/calcard"
 homepage = "https://github.com/stalwartlabs/calcard"
-keywords = ["icalendar", "vcard", "parser", "generator", "builder"]
+keywords = ["icalendar", "vcard", "jscalendar", "jscontact", "parser", "generator", "builder"]
 categories = ["date-and-time", "email", "parser-implementations"]
 readme = "README.md"
 resolver = "2"
@@ -20,6 +20,7 @@ chrono-tz = "0.10.3"
 hashify = "0.2.6"
 mail-builder = { version = "0.4" }
 mail-parser = "0.11"
+uuid = { version = "1.0", default-features = false, features = ["v5"], optional = true }
 rkyv = { version = "0.8", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 serde_json = { version = "1.0", optional = true }
@@ -28,7 +29,7 @@ serde_json = { version = "1.0", optional = true }
 default = ["jmap", "rkyv"]
 rkyv = ["dep:rkyv"]
 serde = ["dep:serde"]
-jmap = ["jmap-tools", "serde", "serde_json"]
+jmap = ["jmap-tools", "uuid", "serde", "serde_json"]
 
 [dev-dependencies]
 chrono = { version = "0.4", features = ["serde"] }

@@ -25,7 +25,7 @@ use std::{
 
 impl ICalendar {
     pub fn write_to(&self, out: &mut impl Write) -> std::fmt::Result {
-        let mut component_iter: Iter<'_, u16> = [0].iter();
+        let mut component_iter: Iter<'_, u32> = [0].iter();
         let mut component_stack = Vec::with_capacity(4);
 
         loop {

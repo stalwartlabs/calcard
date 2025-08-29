@@ -6,18 +6,8 @@
 
 use crate::{
     common::{IanaParse, PartialDateTime},
-    icalendar::{
-        ICalendarAction, ICalendarComponent, ICalendarComponentType, ICalendarDisplayType,
-        ICalendarEntry, ICalendarParameter, ICalendarParameterValue, ICalendarParticipationRole,
-        ICalendarParticipationStatus, ICalendarProperty, ICalendarRelationshipType,
-        ICalendarUserTypes, ICalendarValue, ICalendarValueType, Related, Uri,
-    },
-    jscalendar::{
-        JSCalendarAlertAction, JSCalendarLinkDisplay, JSCalendarParticipantKind,
-        JSCalendarParticipantRole, JSCalendarParticipationStatus, JSCalendarProgress,
-        JSCalendarProperty, JSCalendarRelation, JSCalendarRelativeTo, JSCalendarType,
-        JSCalendarValue, export::ConvertedComponent,
-    },
+    icalendar::*,
+    jscalendar::{export::ConvertedComponent, *},
 };
 use jmap_tools::{JsonPointer, JsonPointerItem, Key, Map, Value};
 
@@ -33,7 +23,22 @@ impl ICalendarComponent {
         mut entries: Map<'static, JSCalendarProperty, JSCalendarValue>,
         components: &mut Vec<ICalendarComponent>,
     ) {
-        let mut root_conversions = ConvertedComponent::build(&mut entries);
+        let mut root_conversions = None;
+        let mut locale = None;
+        let mut main_location_id = None;
+
+        for (key, value) in entries.as_mut_vec() {
+            match (key, value) {
+                (Key::Property(JSCalendarProperty::ICalComponent), Value::Object(obj)) => {
+                    root_conversions =
+                        ConvertedComponent::try_from_object(std::mem::take(obj.as_mut_vec()));
+                }
+                (Key::Property(JSCalendarProperty::MainLocationId), Value::Str(text)) => {
+                    main_location_id = Some(std::mem::take(text));
+                }
+                _ => (),
+            }
+        }
 
         for (key, value) in entries.into_vec() {
             let Key::Property(property) = key else {
@@ -76,13 +81,6 @@ impl ICalendarComponent {
 
                         for (sub_property, value) in value.into_vec() {
                             match (sub_property, value) {
-                                (
-                                    Key::Property(
-                                        JSCalendarProperty::Type
-                                        | JSCalendarProperty::ICalComponent,
-                                    ),
-                                    _,
-                                ) => {}
                                 (
                                     Key::Property(JSCalendarProperty::CalendarAddress),
                                     Value::Str(text),
@@ -222,7 +220,7 @@ impl ICalendarComponent {
                                     description_content_type = Some(text);
                                 }
                                 (Key::Property(JSCalendarProperty::Links), Value::Object(obj)) => {
-                                    component.import_links(obj, &mut root_conversions);
+                                    component.import_links(obj, &mut item_conversions);
                                 }
                                 (
                                     Key::Property(JSCalendarProperty::PercentComplete),
@@ -237,6 +235,13 @@ impl ICalendarComponent {
                                             ),
                                     );
                                 }
+                                (
+                                    Key::Property(
+                                        JSCalendarProperty::Type
+                                        | JSCalendarProperty::ICalComponent,
+                                    ),
+                                    _,
+                                ) => {}
                                 (sub_property, value) => {
                                     let todo = "add to component";
                                     self.insert_jsprop(
@@ -327,7 +332,9 @@ impl ICalendarComponent {
                             _ => {}
                         }
 
-                        let has_component = !component.entries.is_empty();
+                        let has_component =
+                            !component.entries.is_empty() || item_conversions.is_some();
+                        let has_entry = !entry.params.is_empty() || item_conversions.is_none();
 
                         if let Some(calendar_address) = calendar_address {
                             let calendar_address =
@@ -339,7 +346,9 @@ impl ICalendarComponent {
                                         .with_value(calendar_address.clone()),
                                 );
                             }
-                            entry.values.push(calendar_address);
+                            if has_entry {
+                                entry.values.push(calendar_address);
+                            }
                         }
 
                         if let Some(participant_name) = participant_name {
@@ -353,9 +362,11 @@ impl ICalendarComponent {
                                         ),
                                 );
                             }
-                            entry
-                                .params
-                                .push(ICalendarParameter::cn(participant_name.into_owned()));
+                            if has_entry {
+                                entry
+                                    .params
+                                    .push(ICalendarParameter::cn(participant_name.into_owned()));
+                            }
                         }
 
                         if has_component {
@@ -366,7 +377,7 @@ impl ICalendarComponent {
                             component.apply_conversions(item_conversions);
                             let comp_num = components.len();
                             components.push(component);
-                            self.component_ids.push(comp_num as u16);
+                            self.component_ids.push(comp_num as u32);
                         }
 
                         if !entry.values.is_empty() {
@@ -509,9 +520,11 @@ impl ICalendarComponent {
                                                 .with_param_opt(rel_to.map(|rel_to| {
                                                     ICalendarParameter::related(match rel_to {
                                                         JSCalendarRelativeTo::Start => {
-                                                            Related::Start
+                                                            ICalendarRelated::Start
                                                         }
-                                                        JSCalendarRelativeTo::End => Related::End,
+                                                        JSCalendarRelativeTo::End => {
+                                                            ICalendarRelated::End
+                                                        }
                                                     })
                                                 }))
                                                 .with_value(offset)
@@ -541,556 +554,362 @@ impl ICalendarComponent {
                             );
                             let comp_num = components.len();
                             components.push(component);
-                            self.component_ids.push(comp_num as u16);
+                            self.component_ids.push(comp_num as u32);
                         }
                     }
                 }
                 (
-                    JSCalendarProperty::BaseEventId,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
+                    JSCalendarProperty::Keywords,
+                    Value::Object(obj),
+                    JSCalendarType::Event | JSCalendarType::Task | JSCalendarType::Group,
+                ) => {
+                    self.entries.push(
+                        ICalendarEntry::new(ICalendarProperty::Categories)
+                            .with_values(
+                                obj.into_expanded_boolean_set()
+                                    .map(|v| ICalendarValue::Text(v.into_string()))
+                                    .collect(),
+                            )
+                            .import_converted(
+                                &[JSCalendarProperty::Keywords],
+                                &[&mut root_conversions],
+                            ),
+                    );
+                }
                 (
-                    JSCalendarProperty::ByDay,
-                    Value::Str(text),
+                    JSCalendarProperty::Privacy,
+                    Value::Element(JSCalendarValue::Privacy(value)),
                     JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::ByHour,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::ByMinute,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::ByMonth,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::ByMonthDay,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::BySecond,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::BySetPosition,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::ByWeekNo,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::ByYearDay,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::CalendarAddress,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::CalendarIds,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Categories,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
+                ) => {
+                    self.entries.push(
+                        ICalendarEntry::new(ICalendarProperty::Class)
+                            .with_value(match value {
+                                JSCalendarPrivacy::Public => ICalendarClassification::Public,
+                                JSCalendarPrivacy::Private => ICalendarClassification::Private,
+                                JSCalendarPrivacy::Secret => ICalendarClassification::Confidential,
+                            })
+                            .import_converted(
+                                &[JSCalendarProperty::Privacy],
+                                &[&mut root_conversions],
+                            ),
+                    );
+                }
                 (
                     JSCalendarProperty::Color,
                     Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
+                    JSCalendarType::Event | JSCalendarType::Task | JSCalendarType::Group,
+                ) => {
+                    self.entries.push(
+                        ICalendarEntry::new(ICalendarProperty::Color)
+                            .with_value(text.into_owned())
+                            .import_converted(
+                                &[JSCalendarProperty::Color],
+                                &[&mut root_conversions],
+                            ),
+                    );
+                }
                 (
-                    JSCalendarProperty::ContentType,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
+                    JSCalendarProperty::Categories,
+                    Value::Object(obj),
+                    JSCalendarType::Event | JSCalendarType::Task | JSCalendarType::Group,
+                ) => {
+                    self.entries.push(
+                        ICalendarEntry::new(ICalendarProperty::Concept)
+                            .with_values(
+                                obj.into_expanded_boolean_set()
+                                    .map(|v| ICalendarValue::Text(v.into_string()))
+                                    .collect(),
+                            )
+                            .import_converted(
+                                &[JSCalendarProperty::Categories],
+                                &[&mut root_conversions],
+                            ),
+                    );
+                }
                 (
-                    JSCalendarProperty::Coordinates,
-                    Value::Str(text),
+                    JSCalendarProperty::VirtualLocations,
+                    Value::Object(obj),
                     JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Count,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Created,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Day,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::DelegatedFrom,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::DelegatedTo,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Description,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::DescriptionContentType,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Display,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Due,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Duration,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Email,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Entries,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::EstimatedDuration,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Excluded,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::ExpectReply,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Features,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::FirstDayOfWeek,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::FreeBusyStatus,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Frequency,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::HideAttendees,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Href,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Id,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Interval,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::InvitedBy,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::IsDraft,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::IsOrigin,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Keywords,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Kind,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
+                ) => {
+                    for (name, value) in obj.into_vec() {
+                        let mut entry = ICalendarEntry::new(ICalendarProperty::Conference);
 
+                        for (sub_property, value) in value.into_expanded_object() {
+                            match (sub_property, value) {
+                                (
+                                    Key::Property(JSCalendarProperty::Features),
+                                    Value::Object(obj),
+                                ) => {
+                                    for key in obj.into_expanded_boolean_set() {
+                                        let value = match key {
+                                            Key::Property(
+                                                JSCalendarProperty::VirtualLocationFeature(feature),
+                                            ) => ICalendarParameterValue::Feature(match feature {
+                                                JSCalendarVirtualLocationFeature::Audio => {
+                                                    ICalendarFeatureType::Audio
+                                                }
+                                                JSCalendarVirtualLocationFeature::Chat => {
+                                                    ICalendarFeatureType::Chat
+                                                }
+                                                JSCalendarVirtualLocationFeature::Feed => {
+                                                    ICalendarFeatureType::Feed
+                                                }
+                                                JSCalendarVirtualLocationFeature::Moderator => {
+                                                    ICalendarFeatureType::Moderator
+                                                }
+                                                JSCalendarVirtualLocationFeature::Phone => {
+                                                    ICalendarFeatureType::Phone
+                                                }
+                                                JSCalendarVirtualLocationFeature::Screen => {
+                                                    ICalendarFeatureType::Screen
+                                                }
+                                                JSCalendarVirtualLocationFeature::Video => {
+                                                    ICalendarFeatureType::Video
+                                                }
+                                            }),
+                                            other => ICalendarParameterValue::Text(
+                                                other.to_string().into_owned(),
+                                            ),
+                                        };
+                                        entry.params.push(ICalendarParameter::feature(value));
+                                    }
+                                }
+                                (Key::Property(JSCalendarProperty::Name), Value::Str(text)) => {
+                                    entry
+                                        .params
+                                        .push(ICalendarParameter::label(text.into_owned()));
+                                }
+                                (Key::Property(JSCalendarProperty::Uri), Value::Str(text)) => {
+                                    entry
+                                        .values
+                                        .push(ICalendarValue::Uri(Uri::parse(text.into_owned())));
+                                }
+                                (sub_property, value) => {
+                                    self.insert_jsprop(
+                                        &[
+                                            JSCalendarProperty::VirtualLocations
+                                                .to_string()
+                                                .as_ref(),
+                                            name.to_string().as_ref(),
+                                            sub_property.to_string().as_ref(),
+                                        ],
+                                        value,
+                                    );
+                                }
+                            }
+                        }
+
+                        self.entries.push(
+                            entry
+                                .with_param(ICalendarParameter::jsid(name.into_string()))
+                                .import_converted(
+                                    &[JSCalendarProperty::VirtualLocations],
+                                    &[&mut root_conversions],
+                                ),
+                        );
+                    }
+                }
                 (
                     JSCalendarProperty::Locale,
                     Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Localizations,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Locations,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::LocationTypes,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::MayInviteOthers,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::MayInviteSelf,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::MemberOf,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Method,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Name,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::NthOfPeriod,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Offset,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-
-                (
-                    JSCalendarProperty::ParticipationComment,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::ParticipationStatus,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::PercentComplete,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Priority,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Privacy,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::ProdId,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Progress,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::RecurrenceId,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::RecurrenceIdTimeZone,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::RecurrenceOverrides,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Rel,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::RelatedTo,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Relation,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::RelativeTo,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::ReplyTo,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::RequestStatus,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Roles,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Rscale,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::SentBy,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::ScheduleAgent,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::ScheduleForceSend,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::ScheduleSequence,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::ScheduleStatus,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::ScheduleUpdated,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::SendTo,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Sequence,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::ShowWithoutTime,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Size,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Skip,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Source,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Start,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Status,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::TimeZone,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
+                    JSCalendarType::Event | JSCalendarType::Task | JSCalendarType::Group,
+                ) => {
+                    locale = Some(text);
+                }
                 (
                     JSCalendarProperty::Title,
                     Value::Str(text),
                     JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Trigger,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Uid,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Until,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Updated,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::Uri,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::UseDefaultAlerts,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::UtcEnd,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::UtcStart,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::VirtualLocations,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::When,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::EndTimeZone,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::MainLocationId,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::OrganizerCalendarAddress,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::RecurrenceRule,
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::DateTime(jscalendar_date_time),
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::LinkDisplay(jscalendar_link_display),
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::VirtualLocationFeature(jscalendar_virtual_location_feature),
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
                 ) => {
-                    todo!()
+                    self.entries.push(
+                        ICalendarEntry::new(ICalendarProperty::Summary)
+                            .with_value(text.into_owned())
+                            .import_converted(
+                                &[JSCalendarProperty::Title],
+                                &[&mut root_conversions],
+                            ),
+                    );
+                }
+                (JSCalendarProperty::Title, Value::Str(text), JSCalendarType::Group) => {
+                    self.entries.push(
+                        ICalendarEntry::new(ICalendarProperty::Name)
+                            .with_value(text.into_owned())
+                            .import_converted(
+                                &[JSCalendarProperty::Title],
+                                &[&mut root_conversions],
+                            ),
+                    );
                 }
                 (
-                    JSCalendarProperty::ParticipantRole(jscalendar_participant_role),
-                    Value::Str(text),
+                    JSCalendarProperty::Locations,
+                    Value::Object(obj),
                     JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
-                (
-                    JSCalendarProperty::RelationValue(jscalendar_relation),
-                    Value::Str(text),
-                    JSCalendarType::Event | JSCalendarType::Task,
-                ) => {}
+                ) => {
+                    let has_multi_location = obj.len() > 1;
+                    for (name, value) in obj.into_vec() {
+                        let Value::Object(mut value) = value else {
+                            continue;
+                        };
+                        let mut item_conversions = ConvertedComponent::build(&mut value);
+                        let mut component = (item_conversions
+                            .as_ref()
+                            .is_some_and(|v| v.name.is_location())
+                            || value.iter().any(|(k, v)| match (k, v) {
+                                (
+                                    Key::Property(
+                                        JSCalendarProperty::Links
+                                        | JSCalendarProperty::LocationTypes,
+                                    ),
+                                    _,
+                                ) => true,
+                                (
+                                    Key::Property(JSCalendarProperty::Coordinates),
+                                    Value::Str(uri),
+                                ) => uri.strip_prefix("geo:").is_none_or(|v| {
+                                    !v.as_bytes()
+                                        .iter()
+                                        .all(|b| matches!(b, b'0'..=b'9' | b'.' | b',' | b'-'))
+                                }),
+                                _ => false,
+                            })
+                            || (has_multi_location
+                                && main_location_id
+                                    .as_ref()
+                                    .is_none_or(|l| l != &name.to_string())))
+                        .then_some(ICalendarComponent::new(ICalendarComponentType::VLocation));
+
+                        for (sub_property, value) in value.into_vec() {
+                            match (sub_property, value) {
+                                (
+                                    Key::Property(JSCalendarProperty::LocationTypes),
+                                    Value::Object(obj),
+                                ) => {
+                                    if let Some(component) = &mut component {
+                                        component.entries.push(
+                                            ICalendarEntry::new(ICalendarProperty::LocationType)
+                                                .import_converted(
+                                                    &[JSCalendarProperty::LocationTypes],
+                                                    &[&mut item_conversions],
+                                                )
+                                                .with_values(
+                                                    obj.into_expanded_boolean_set()
+                                                        .map(|v| {
+                                                            ICalendarValue::Text(v.into_string())
+                                                        })
+                                                        .collect(),
+                                                ),
+                                        );
+                                    }
+                                }
+                                (Key::Property(JSCalendarProperty::Name), Value::Str(text)) => {
+                                    if let Some(component) = &mut component {
+                                        component.entries.push(
+                                            ICalendarEntry::new(ICalendarProperty::Location)
+                                                .import_converted(
+                                                    &[JSCalendarProperty::Name],
+                                                    &[&mut item_conversions],
+                                                )
+                                                .with_value(text.into_owned()),
+                                        );
+                                    } else {
+                                        self.entries.push(
+                                            ICalendarEntry::new(ICalendarProperty::Location)
+                                                .with_param(ICalendarParameter::jsid(
+                                                    name.clone().into_string(),
+                                                ))
+                                                .with_value(text.into_owned())
+                                                .import_converted(
+                                                    &[JSCalendarProperty::Locations],
+                                                    &[&mut root_conversions],
+                                                ),
+                                        );
+                                    }
+                                }
+                                (
+                                    Key::Property(JSCalendarProperty::Coordinates),
+                                    Value::Str(text),
+                                ) => {
+                                    if let Some(component) = &mut component {
+                                        component.entries.push(
+                                            ICalendarEntry::new(ICalendarProperty::Coordinates)
+                                                .import_converted(
+                                                    &[JSCalendarProperty::Coordinates],
+                                                    &[&mut item_conversions],
+                                                )
+                                                .with_value(Uri::parse(text.into_owned())),
+                                        );
+                                    } else {
+                                        let value = if let Some((a, b)) = text
+                                            .strip_prefix("geo:")
+                                            .and_then(|v| v.trim().split_once(','))
+                                            .and_then(|(a, b)| {
+                                                let a = a.parse::<f64>().ok()?;
+                                                let b = b.parse::<f64>().ok()?;
+                                                Some((a, b))
+                                            }) {
+                                            vec![ICalendarValue::Float(a), ICalendarValue::Float(b)]
+                                        } else {
+                                            vec![ICalendarValue::Text(text.into_owned())]
+                                        };
+                                        self.entries.push(
+                                            ICalendarEntry::new(ICalendarProperty::Geo)
+                                                .with_param(ICalendarParameter::jsid(
+                                                    name.clone().into_string(),
+                                                ))
+                                                .with_values(value)
+                                                .import_converted(
+                                                    &[JSCalendarProperty::Locations],
+                                                    &[&mut root_conversions],
+                                                ),
+                                        );
+                                    }
+                                }
+                                (Key::Property(JSCalendarProperty::Links), Value::Object(obj)) => {
+                                    if let Some(component) = &mut component {
+                                        component.import_links(obj, &mut item_conversions);
+                                    }
+                                }
+                                (
+                                    Key::Property(
+                                        JSCalendarProperty::Type
+                                        | JSCalendarProperty::ICalComponent,
+                                    ),
+                                    _,
+                                ) => {}
+                                (sub_property, value) => {
+                                    self.insert_jsprop(
+                                        &[
+                                            JSCalendarProperty::Locations.to_string().as_ref(),
+                                            name.to_string().as_ref(),
+                                            sub_property.to_string().as_ref(),
+                                        ],
+                                        value,
+                                    );
+                                }
+                            }
+                        }
+
+                        if let Some(mut component) = component {
+                            component.entries.push(
+                                ICalendarEntry::new(ICalendarProperty::Jsid)
+                                    .with_value(name.to_string().into_owned()),
+                            );
+                            component.apply_conversions(item_conversions);
+                            let comp_num = components.len();
+                            components.push(component);
+                            self.component_ids.push(comp_num as u32);
+                        }
+                    }
+                }
+
                 // Skip type and ICalComponent
-                (JSCalendarProperty::Type | JSCalendarProperty::ICalComponent, _, _) => {}
+                (
+                    JSCalendarProperty::Type
+                    | JSCalendarProperty::ICalComponent
+                    | JSCalendarProperty::MainLocationId,
+                    _,
+                    _,
+                ) => {}
                 (property, value, _) => {
                     self.insert_jsprop(&[property.to_string().as_ref()], value);
                 }
@@ -1274,94 +1093,95 @@ impl ICalendarComponent {
 }
 
 impl<'x> ConvertedComponent<'x> {
+    fn try_from_object(
+        obj: Vec<(
+            Key<'static, JSCalendarProperty>,
+            Value<'static, JSCalendarProperty, JSCalendarValue>,
+        )>,
+    ) -> Option<Self> {
+        let mut converted = ConvertedComponent {
+            name: ICalendarComponentType::Other(String::new()),
+            converted_props: Vec::new(),
+            converted_props_count: 0,
+            properties: Vec::new(),
+            components: Vec::new(),
+        };
+        let mut has_name = false;
+        for (sub_property, value) in obj {
+            match (sub_property, value) {
+                (Key::Property(JSCalendarProperty::ConvertedProperties), Value::Object(obj)) => {
+                    for (key, value) in obj.into_vec() {
+                        let ptr = match key {
+                            Key::Property(JSCalendarProperty::Pointer(ptr)) => ptr,
+                            _ => JsonPointer::parse(key.to_string().as_ref()),
+                        };
+
+                        let mut keys = Vec::with_capacity(2);
+                        for item in ptr.into_iter() {
+                            match item {
+                                JsonPointerItem::Key(key) => {
+                                    let key = match &key {
+                                        Key::Borrowed(v) if v.contains('/') => v,
+                                        Key::Owned(v) if v.contains('/') => v.as_str(),
+                                        _ => {
+                                            keys.push(key);
+                                            continue;
+                                        }
+                                    };
+                                    for item in JsonPointer::parse(key).into_iter() {
+                                        keys.push(match item {
+                                            JsonPointerItem::Key(k) => k,
+                                            JsonPointerItem::Number(n) => Key::Owned(n.to_string()),
+                                            JsonPointerItem::Root | JsonPointerItem::Wildcard => {
+                                                continue;
+                                            }
+                                        });
+                                    }
+                                }
+                                JsonPointerItem::Number(v) => {
+                                    keys.push(Key::Owned(v.to_string()));
+                                }
+                                JsonPointerItem::Root | JsonPointerItem::Wildcard => (),
+                            }
+                        }
+
+                        converted.converted_props.push((keys, value));
+                    }
+                }
+                (Key::Property(JSCalendarProperty::Properties), Value::Array(array)) => {
+                    converted.properties = array;
+                }
+                (Key::Property(JSCalendarProperty::Components), Value::Array(array)) => {
+                    converted.components = array;
+                }
+                (Key::Property(JSCalendarProperty::Name), Value::Str(text)) => {
+                    converted.name = ICalendarComponentType::parse(text.as_bytes())
+                        .unwrap_or_else(|| ICalendarComponentType::Other(text.into_owned()));
+                    has_name = true;
+                }
+                _ => {}
+            }
+        }
+
+        if !converted.converted_props.is_empty() {
+            converted
+                .converted_props
+                .sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        }
+
+        (!converted.properties.is_empty()
+            || !converted.components.is_empty()
+            || has_name
+            || !converted.converted_props.is_empty())
+        .then_some(converted)
+    }
+
     fn build(entries: &mut Map<'static, JSCalendarProperty, JSCalendarValue>) -> Option<Self> {
         for (property, value) in entries.as_mut_vec() {
             if let (Key::Property(JSCalendarProperty::ICalComponent), Value::Object(obj)) =
                 (property, value)
             {
-                let mut converted = ConvertedComponent {
-                    name: ICalendarComponentType::Other(String::new()),
-                    converted_props: Vec::new(),
-                    converted_props_count: 0,
-                    properties: Vec::new(),
-                    components: Vec::new(),
-                };
-                let mut has_name = false;
-                for (sub_property, value) in std::mem::take(obj.as_mut_vec()) {
-                    match (sub_property, value) {
-                        (
-                            Key::Property(JSCalendarProperty::ConvertedProperties),
-                            Value::Object(obj),
-                        ) => {
-                            for (key, value) in obj.into_vec() {
-                                let ptr = match key {
-                                    Key::Property(JSCalendarProperty::Pointer(ptr)) => ptr,
-                                    _ => JsonPointer::parse(key.to_string().as_ref()),
-                                };
-
-                                let mut keys = Vec::with_capacity(2);
-                                for item in ptr.into_iter() {
-                                    match item {
-                                        JsonPointerItem::Key(key) => {
-                                            let key = match &key {
-                                                Key::Borrowed(v) if v.contains('/') => v,
-                                                Key::Owned(v) if v.contains('/') => v.as_str(),
-                                                _ => {
-                                                    keys.push(key);
-                                                    continue;
-                                                }
-                                            };
-                                            for item in JsonPointer::parse(key).into_iter() {
-                                                keys.push(match item {
-                                                    JsonPointerItem::Key(k) => k,
-                                                    JsonPointerItem::Number(n) => {
-                                                        Key::Owned(n.to_string())
-                                                    }
-                                                    JsonPointerItem::Root
-                                                    | JsonPointerItem::Wildcard => continue,
-                                                });
-                                            }
-                                        }
-                                        JsonPointerItem::Number(v) => {
-                                            keys.push(Key::Owned(v.to_string()));
-                                        }
-                                        JsonPointerItem::Root | JsonPointerItem::Wildcard => (),
-                                    }
-                                }
-
-                                converted.converted_props.push((keys, value));
-                            }
-                        }
-                        (Key::Property(JSCalendarProperty::Properties), Value::Array(array)) => {
-                            converted.properties = array;
-                        }
-                        (Key::Property(JSCalendarProperty::Components), Value::Array(array)) => {
-                            converted.components = array;
-                        }
-                        (Key::Property(JSCalendarProperty::Name), Value::Str(text)) => {
-                            converted.name = ICalendarComponentType::parse(text.as_bytes())
-                                .unwrap_or_else(|| {
-                                    ICalendarComponentType::Other(text.into_owned())
-                                });
-                            has_name = true;
-                        }
-                        _ => {}
-                    }
-                }
-
-                if !converted.converted_props.is_empty() {
-                    converted
-                        .converted_props
-                        .sort_unstable_by(|a, b| a.0.cmp(&b.0));
-                }
-
-                if !converted.properties.is_empty()
-                    || !converted.components.is_empty()
-                    || has_name
-                    || !converted.converted_props.is_empty()
-                {
-                    return Some(converted);
-                }
+                return Self::try_from_object(std::mem::take(obj.as_mut_vec()));
             }
         }
 

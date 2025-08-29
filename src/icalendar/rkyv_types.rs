@@ -824,11 +824,11 @@ impl ArchivedLinkRelation {
     }
 }
 
-impl ArchivedRelated {
+impl ArchivedICalendarRelated {
     pub fn as_str(&self) -> &'static str {
         match self {
-            ArchivedRelated::Start => "START",
-            ArchivedRelated::End => "END",
+            ArchivedICalendarRelated::Start => "START",
+            ArchivedICalendarRelated::End => "END",
         }
     }
 }

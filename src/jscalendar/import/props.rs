@@ -7,7 +7,7 @@
 use jmap_tools::{JsonPointer, JsonPointerHandler, Key, Map, Value};
 
 use crate::{
-    icalendar::{ICalendarEntry, ICalendarParameterName},
+    icalendar::{ICalendarEntry, ICalendarParameterName, ICalendarValue},
     jscalendar::{
         JSCalendarProperty, JSCalendarValue,
         import::{EntryState, State},
@@ -27,11 +27,18 @@ impl State {
             ),
         >,
     ) {
+        let todo =
+            "for LOCATION and GEO use the same key and set main-location-id, otherwise use uuid5";
+
         todo!()
     }
 
     pub(super) fn add_conversion_props(&mut self, mut entry: EntryState) {
         let todo = "implement";
+    }
+
+    pub(super) fn main_location_id(&self) -> &str {
+        todo!()
     }
 
     pub(super) fn into_object(mut self) -> Value<'static, JSCalendarProperty, JSCalendarValue> {
@@ -105,5 +112,14 @@ impl EntryState {
 
     pub(super) fn set_map_name(&mut self) {
         self.map_name = true;
+    }
+}
+
+impl ICalendarValue {
+    pub(super) fn uri_to_string(self) -> Self {
+        match self {
+            ICalendarValue::Uri(uri) => ICalendarValue::Text(uri.to_string()),
+            other => other,
+        }
     }
 }

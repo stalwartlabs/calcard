@@ -53,7 +53,7 @@ pub struct ICalendar {
 pub struct ICalendarComponent {
     pub component_type: ICalendarComponentType,
     pub entries: Vec<ICalendarEntry>,
-    pub component_ids: Vec<u16>,
+    pub component_ids: Vec<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -440,7 +440,7 @@ pub enum ICalendarParameterValue {
     Cutype(ICalendarUserTypes),
     Fbtype(ICalendarFreeBusyType),
     Partstat(ICalendarParticipationStatus),
-    Related(Related),
+    Related(ICalendarRelated),
     Reltype(ICalendarRelationshipType),
     Role(ICalendarParticipationRole),
     ScheduleAgent(ICalendarScheduleAgentValue),
@@ -548,7 +548,7 @@ pub enum Uri {
     derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
 )]
 #[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
-pub enum Related {
+pub enum ICalendarRelated {
     Start,
     End,
 }

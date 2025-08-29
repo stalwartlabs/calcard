@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
+use std::borrow::Cow;
+
 use super::{
     ICalendar, ICalendarComponent, ICalendarComponentType, ICalendarDuration, ICalendarEntry,
     ICalendarParameterName, ICalendarProperty, ICalendarRecurrenceRule, ICalendarStatus,
@@ -28,11 +30,11 @@ impl ICalendar {
             .sum()
     }
 
-    pub fn component_by_id(&self, id: u16) -> Option<&ICalendarComponent> {
+    pub fn component_by_id(&self, id: u32) -> Option<&ICalendarComponent> {
         self.components.get(id as usize)
     }
 
-    pub fn alarms_for_id(&self, id: u16) -> impl Iterator<Item = &ICalendarComponent> {
+    pub fn alarms_for_id(&self, id: u32) -> impl Iterator<Item = &ICalendarComponent> {
         self.component_by_id(id)
             .map_or(&[][..], |c| c.component_ids.as_slice())
             .iter()
@@ -141,6 +143,31 @@ impl ICalendarValue {
         }
     }
 
+    pub fn into_text(self) -> Option<Cow<'static, str>> {
+        match self {
+            ICalendarValue::Text(s) => Some(Cow::Owned(s)),
+            ICalendarValue::Uri(v) => Some(Cow::Owned(v.to_string())),
+            ICalendarValue::CalendarScale(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarValue::Method(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarValue::Classification(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarValue::Status(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarValue::Transparency(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarValue::Action(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarValue::BusyType(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarValue::ParticipantType(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarValue::ResourceType(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarValue::Proximity(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarValue::Integer(i) => Some(Cow::Owned(i.to_string())),
+            ICalendarValue::Float(f) => Some(Cow::Owned(f.to_string())),
+            ICalendarValue::Boolean(b) => Some(Cow::Borrowed(if b { "TRUE" } else { "FALSE" })),
+            ICalendarValue::PartialDateTime(dt) => dt.to_rfc3339().map(Cow::Owned),
+            ICalendarValue::RecurrenceRule(rrule) => Some(Cow::Owned(rrule.to_string())),
+            ICalendarValue::Binary(value) => String::from_utf8(value).ok().map(Cow::Owned),
+            ICalendarValue::Duration(value) => Some(Cow::Owned(value.to_string())),
+            ICalendarValue::Period(value) => Some(Cow::Owned(value.to_string())),
+        }
+    }
+
     pub fn as_integer(&self) -> Option<i64> {
         match self {
             ICalendarValue::Integer(i) => Some(*i),
@@ -192,6 +219,11 @@ impl ICalendarEntry {
         })
     }
 
+    pub fn jsid(&self) -> Option<&str> {
+        self.parameters(&ICalendarParameterName::Jsid)
+            .find_map(|v| v.as_text())
+    }
+
     pub fn size(&self) -> usize {
         self.values.iter().map(|value| value.size()).sum::<usize>()
             + self
@@ -224,6 +256,46 @@ impl ICalendarParameterValue {
             ICalendarParameterValue::Duration(_)
             | ICalendarParameterValue::Integer(_)
             | ICalendarParameterValue::Null => None,
+        }
+    }
+
+    pub fn into_text(self) -> Option<Cow<'static, str>> {
+        match self {
+            ICalendarParameterValue::Text(v) => Some(Cow::Owned(v)),
+            ICalendarParameterValue::Bool(v) => {
+                Some(Cow::Borrowed(if v { "TRUE" } else { "FALSE" }))
+            }
+            ICalendarParameterValue::Uri(uri) => Some(Cow::Owned(uri.to_string())),
+            ICalendarParameterValue::Cutype(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarParameterValue::Fbtype(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarParameterValue::Partstat(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarParameterValue::Related(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarParameterValue::Reltype(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarParameterValue::Role(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarParameterValue::ScheduleAgent(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarParameterValue::ScheduleForceSend(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarParameterValue::Value(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarParameterValue::Display(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarParameterValue::Feature(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarParameterValue::Linkrel(v) => Some(Cow::Borrowed(v.as_str())),
+            ICalendarParameterValue::Duration(v) => Some(Cow::Owned(v.to_string())),
+            ICalendarParameterValue::Integer(v) => Some(Cow::Owned(v.to_string())),
+            ICalendarParameterValue::Null => None,
+        }
+    }
+
+    pub fn as_integer(&self) -> Option<u64> {
+        match self {
+            ICalendarParameterValue::Integer(v) => Some(*v),
+            ICalendarParameterValue::Text(v) => v.parse().ok(),
+            _ => None,
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            ICalendarParameterValue::Bool(v) => Some(*v),
+            _ => None,
         }
     }
 
