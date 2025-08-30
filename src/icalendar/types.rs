@@ -85,6 +85,10 @@ impl IanaParse for ICalendarProperty {
             "JSPROP" => ICalendarProperty::Jsprop,
             "BEGIN" => ICalendarProperty::Begin,
             "END" => ICalendarProperty::End,
+            "ESTIMATED-DURATION" => ICalendarProperty::EstimatedDuration,
+            "REASON" => ICalendarProperty::Reason,
+            "SUBSTATE" => ICalendarProperty::Substate,
+            "TASK-MODE" => ICalendarProperty::TaskMode,
         )
     }
 }
@@ -166,6 +170,10 @@ impl ICalendarProperty {
             ICalendarProperty::ShowWithoutTime => "SHOW-WITHOUT-TIME",
             ICalendarProperty::Jsid => "JSID",
             ICalendarProperty::Jsprop => "JSPROP",
+            ICalendarProperty::EstimatedDuration => "ESTIMATED-DURATION",
+            ICalendarProperty::Reason => "REASON",
+            ICalendarProperty::Substate => "SUBSTATE",
+            ICalendarProperty::TaskMode => "TASK-MODE",
             ICalendarProperty::Other(s) => s.as_str(),
         }
     }
@@ -434,6 +442,7 @@ impl IanaParse for ICalendarComponentType {
             "PARTICIPANT" => ICalendarComponentType::Participant,
             "VLOCATION" => ICalendarComponentType::VLocation,
             "VRESOURCE" => ICalendarComponentType::VResource,
+            "VSTATUS" => ICalendarComponentType::VStatus
         )
     }
 }
@@ -455,6 +464,7 @@ impl ICalendarComponentType {
             ICalendarComponentType::Participant => "PARTICIPANT",
             ICalendarComponentType::VLocation => "VLOCATION",
             ICalendarComponentType::VResource => "VRESOURCE",
+            ICalendarComponentType::VStatus => "VSTATUS",
             ICalendarComponentType::Other(s) => s.as_str(),
         }
     }
@@ -647,6 +657,8 @@ impl IanaParse for ICalendarStatus {
             "IN-PROCESS" => ICalendarStatus::InProcess,
             "DRAFT" => ICalendarStatus::Draft,
             "FINAL" => ICalendarStatus::Final,
+            "FAILED" => ICalendarStatus::Failed,
+            "PENDING" => ICalendarStatus::Pending
         )
     }
 }
@@ -662,6 +674,8 @@ impl IanaString for ICalendarStatus {
             ICalendarStatus::InProcess => "IN-PROCESS",
             ICalendarStatus::Draft => "DRAFT",
             ICalendarStatus::Final => "FINAL",
+            ICalendarStatus::Failed => "FAILED",
+            ICalendarStatus::Pending => "PENDING",
         }
     }
 }
@@ -1153,6 +1167,22 @@ impl ICalendarProperty {
                 ValueSeparator::None,
             ),
             ICalendarProperty::Jsid | ICalendarProperty::Jsprop => (
+                ValueType::Ical(ICalendarValueType::Text),
+                ValueSeparator::None,
+            ),
+            ICalendarProperty::EstimatedDuration => (
+                ValueType::Ical(ICalendarValueType::Duration),
+                ValueSeparator::None,
+            ),
+            ICalendarProperty::Reason => (
+                ValueType::Ical(ICalendarValueType::Uri),
+                ValueSeparator::None,
+            ),
+            ICalendarProperty::Substate => (
+                ValueType::Ical(ICalendarValueType::Text),
+                ValueSeparator::None,
+            ),
+            ICalendarProperty::TaskMode => (
                 ValueType::Ical(ICalendarValueType::Text),
                 ValueSeparator::None,
             ),

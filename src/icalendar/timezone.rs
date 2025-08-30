@@ -11,13 +11,23 @@ use super::{
 use crate::{common::timezone::Tz, icalendar::ICalendarParameterName};
 use std::{collections::HashMap, str::FromStr};
 
-pub struct TzResolver<'x> {
-    tzs: HashMap<&'x str, Tz>,
+pub struct TzResolver<T> {
+    tzs: HashMap<T, Tz>,
     default: Tz,
 }
 
-impl TzResolver<'_> {
-    pub fn resolve(&self, tz_name: Option<&str>) -> Tz {
+impl<T> TzResolver<T>
+where
+    T: std::borrow::Borrow<str> + std::hash::Hash + Eq,
+{
+    pub fn resolve(&self, tz_name: &str) -> Option<Tz> {
+        self.tzs
+            .get(tz_name)
+            .copied()
+            .or_else(|| Tz::from_str(tz_name).ok())
+    }
+
+    pub fn resolve_or_default(&self, tz_name: Option<&str>) -> Tz {
         tz_name
             .and_then(|tz_name| {
                 self.tzs
@@ -45,9 +55,20 @@ impl ICalendar {
         self.timezones().count() == 1
     }
 
-    pub fn build_tz_resolver(&self) -> TzResolver<'_> {
+    pub fn build_tz_resolver(&self) -> TzResolver<&'_ str> {
         TzResolver {
             tzs: self.timezones().filter_map(|tz| tz.timezone()).collect(),
+            default: Tz::Floating,
+        }
+    }
+
+    pub fn build_owned_tz_resolver(&self) -> TzResolver<String> {
+        TzResolver {
+            tzs: self
+                .timezones()
+                .filter_map(|tz| tz.timezone())
+                .map(|(name, tz)| (name.to_string(), tz))
+                .collect(),
             default: Tz::Floating,
         }
     }

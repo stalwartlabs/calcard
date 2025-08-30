@@ -5,7 +5,10 @@
  */
 
 use crate::{common::IanaString, icalendar::ICalendarFrequency};
-use std::fmt::{Display, Formatter};
+use std::{
+    borrow::Cow,
+    fmt::{Display, Formatter},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
@@ -48,9 +51,9 @@ pub enum ValidationError {
     UnableToGenerateTimeset,
     InvalidByRuleWithByEaster,
     DtStartUntilMismatchTimezone {
-        dt_start_tz: String,
-        until_tz: String,
-        expected: Vec<String>,
+        dt_start_tz: Cow<'static, str>,
+        until_tz: Cow<'static, str>,
+        expected: Vec<Cow<'static, str>>,
     },
 }
 

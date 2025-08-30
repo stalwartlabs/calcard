@@ -168,6 +168,13 @@ impl ICalendarValue {
         }
     }
 
+    pub fn into_partial_date_time(self) -> Option<Box<PartialDateTime>> {
+        match self {
+            ICalendarValue::PartialDateTime(dt) => Some(dt),
+            _ => None,
+        }
+    }
+
     pub fn as_integer(&self) -> Option<i64> {
         match self {
             ICalendarValue::Integer(i) => Some(*i),
@@ -222,6 +229,12 @@ impl ICalendarEntry {
     pub fn jsid(&self) -> Option<&str> {
         self.parameters(&ICalendarParameterName::Jsid)
             .find_map(|v| v.as_text())
+    }
+
+    pub fn is_derived(&self) -> bool {
+        self.parameters(&ICalendarParameterName::Derived)
+            .next()
+            .is_some_and(|v| matches!(v, ICalendarParameterValue::Bool(true)))
     }
 
     pub fn size(&self) -> usize {
@@ -377,6 +390,32 @@ impl Uri {
 }
 
 impl ICalendarDuration {
+    pub fn from_seconds(seconds: i64) -> Self {
+        let mut secs = seconds;
+        let neg = secs < 0;
+        if neg {
+            secs = -secs;
+        }
+        let weeks = (secs / 604800) as u32;
+        secs %= 604800;
+        let days = (secs / 86400) as u32;
+        secs %= 86400;
+        let hours = (secs / 3600) as u32;
+        secs %= 3600;
+        let minutes = (secs / 60) as u32;
+        secs %= 60;
+        let seconds = secs as u32;
+
+        Self {
+            weeks,
+            days,
+            hours,
+            minutes,
+            seconds,
+            neg,
+        }
+    }
+
     pub fn to_time_delta(&self) -> Option<chrono::TimeDelta> {
         chrono::TimeDelta::new(self.as_seconds(), 0)
     }
@@ -389,5 +428,13 @@ impl ICalendarDuration {
             + self.weeks as i64 * 604800;
 
         if self.neg { -secs } else { secs }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.weeks == 0
+            && self.days == 0
+            && self.hours == 0
+            && self.minutes == 0
+            && self.seconds == 0
     }
 }

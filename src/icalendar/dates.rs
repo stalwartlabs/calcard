@@ -28,7 +28,7 @@ pub struct CalendarExpand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct CalendarEvent<S, E> {
-    pub comp_id: u16,
+    pub comp_id: u32,
     pub start: S,
     pub end: E,
 }
@@ -47,7 +47,7 @@ pub enum TimeOrDelta<T, D> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct CalendarError {
-    pub comp_id: u16,
+    pub comp_id: u32,
     pub error: CalendarErrorType,
 }
 
@@ -70,12 +70,12 @@ impl ICalendar {
 
         for (comp_id, comp) in self.components.iter().enumerate() {
             if comp.component_type.has_time_ranges() {
-                match comp.build_calendar_date(comp_id as u16, &tz_resolver, &mut expand.events) {
+                match comp.build_calendar_date(comp_id as u32, &tz_resolver, &mut expand.events) {
                     Ok(Some(event)) => {
                         if event.rrule.is_some() {
-                            rrules.push((comp_id as u16, event));
+                            rrules.push((comp_id as u32, event));
                         } else if let Some(rid) = event.rid {
-                            overridden.insert((event.rrule_seq, rid), (comp_id as u16, event));
+                            overridden.insert((event.rrule_seq, rid), (comp_id as u32, event));
                         } else if let Some(cal_event) = event.event {
                             expand.events.push(cal_event);
                         }
@@ -83,7 +83,7 @@ impl ICalendar {
                     Ok(None) => {}
                     Err(error) => {
                         expand.errors.push(CalendarError {
-                            comp_id: comp_id as u16,
+                            comp_id: comp_id as u32,
                             error,
                         });
                     }
@@ -120,7 +120,9 @@ impl ICalendar {
                 .exdates
                 .into_iter()
                 .filter_map(|(tz_id, dt)| {
-                    dt.to_date_time_with_tz(tz_resolver.resolve(tz_id.or(event.dt_start_tzid)))
+                    dt.to_date_time_with_tz(
+                        tz_resolver.resolve_or_default(tz_id.or(event.dt_start_tzid)),
+                    )
                 })
                 .collect::<AHashSet<_>>();
             let mut override_offset = None;
@@ -194,8 +196,8 @@ impl ICalendarComponent {
     #[allow(clippy::type_complexity)]
     fn build_calendar_date(
         &self,
-        comp_id: u16,
-        tz_resolver: &TzResolver<'_>,
+        comp_id: u32,
+        tz_resolver: &TzResolver<&'_ str>,
         events: &mut Vec<CalendarEvent<DateTime<Tz>, TimeOrDelta<DateTime<Tz>, TimeDelta>>>,
     ) -> Result<Option<CalendarEventBuilder<'_>>, CalendarErrorType> {
         let mut dt_start = None;
@@ -369,13 +371,13 @@ impl ICalendarComponent {
             },
         };
         let mut event = None;
-        let start_tz = tz_resolver.resolve(dt_start_tzid);
+        let start_tz = tz_resolver.resolve_or_default(dt_start_tzid);
         let dt_start_tz = dt_start
             .to_date_time_with_tz(start_tz)
             .ok_or(CalendarErrorType::InvalidDtStart)?;
         let default_duration = if let Some(dt_end) = dt_end {
             let end = dt_end
-                .to_date_time_with_tz(tz_resolver.resolve(dt_end_tzid.or(dt_start_tzid)))
+                .to_date_time_with_tz(tz_resolver.resolve_or_default(dt_end_tzid.or(dt_start_tzid)))
                 .ok_or(CalendarErrorType::InvalidDtEnd)?;
 
             if rrule.is_none() {
@@ -410,7 +412,7 @@ impl ICalendarComponent {
             .next()
         {
             let end = due
-                .to_date_time_with_tz(tz_resolver.resolve(due_tzid.or(dt_start_tzid)))
+                .to_date_time_with_tz(tz_resolver.resolve_or_default(due_tzid.or(dt_start_tzid)))
                 .ok_or(CalendarErrorType::InvalidDtEnd)?;
 
             if rrule.is_none() {
@@ -454,7 +456,7 @@ impl ICalendarComponent {
             duration
         };
         let rid = if let Some(rid) = rid {
-            rid.to_date_time_with_tz(tz_resolver.resolve(rid_tzid.or(dt_start_tzid)))
+            rid.to_date_time_with_tz(tz_resolver.resolve_or_default(rid_tzid.or(dt_start_tzid)))
         } else {
             None
         };
@@ -462,7 +464,7 @@ impl ICalendarComponent {
         // Add rdates
         for (tz_id, rdate) in rdates {
             if let Some(date_start) =
-                rdate.to_date_time_with_tz(tz_resolver.resolve(tz_id.or(dt_start_tzid)))
+                rdate.to_date_time_with_tz(tz_resolver.resolve_or_default(tz_id.or(dt_start_tzid)))
             {
                 events.push(CalendarEvent {
                     start: date_start,
@@ -472,7 +474,7 @@ impl ICalendarComponent {
             }
         }
         for (tz_id, start, end) in rdates_periods {
-            let tz = tz_resolver.resolve(tz_id.or(dt_start_tzid));
+            let tz = tz_resolver.resolve_or_default(tz_id.or(dt_start_tzid));
             if let (Some(date_start), Some(date_end)) = (
                 start.to_date_time_with_tz(tz),
                 end.into_date_time_with_tz(tz),

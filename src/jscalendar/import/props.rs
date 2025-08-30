@@ -7,9 +7,10 @@
 use jmap_tools::{JsonPointer, JsonPointerHandler, Key, Map, Value};
 
 use crate::{
+    common::timezone::TzTimestamp,
     icalendar::{ICalendarEntry, ICalendarParameterName, ICalendarValue},
     jscalendar::{
-        JSCalendarProperty, JSCalendarValue,
+        JSCalendarDateTime, JSCalendarProperty, JSCalendarValue,
         import::{EntryState, State},
     },
 };
@@ -70,6 +71,55 @@ impl State {
                 Key::Property(JSCalendarProperty::ConvertedProperties),
                 Value::Object(converted_properties),
             );*/
+        }
+
+        if self.has_dates {
+            self.entries.insert(
+                Key::Property(JSCalendarProperty::TimeZone),
+                self.tz_start
+                    .and_then(|tz| tz.name())
+                    .map(Value::Str)
+                    .unwrap_or(Value::Null),
+            );
+
+            if self.tz_end.is_some() && self.tz_start.is_some() && self.tz_end != self.tz_start {
+                self.entries.insert(
+                    Key::Property(JSCalendarProperty::EndTimeZone),
+                    self.tz_end
+                        .and_then(|tz| tz.name())
+                        .map(Value::Str)
+                        .unwrap_or(Value::Null),
+                );
+            }
+
+            if let Some(recurrence_id) = self.recurrence_id {
+                self.entries.insert(
+                    Key::Property(JSCalendarProperty::RecurrenceId),
+                    Value::Element(JSCalendarValue::DateTime(JSCalendarDateTime::new(
+                        recurrence_id
+                            .with_timezone(&self.tz_start.unwrap_or_default())
+                            .to_naive_timestamp(),
+                        true,
+                    ))),
+                );
+                let rid_tz = recurrence_id.timezone().to_resolved();
+                if rid_tz.is_some() && self.tz_start.is_some() && rid_tz != self.tz_start {
+                    self.entries.insert(
+                        Key::Property(JSCalendarProperty::RecurrenceIdTimeZone),
+                        rid_tz
+                            .and_then(|tz| tz.name())
+                            .map(Value::Str)
+                            .unwrap_or(Value::Null),
+                    );
+                }
+            }
+        }
+
+        if let Some(uid) = self.uid {
+            self.entries.insert(
+                Key::Property(JSCalendarProperty::Uid),
+                Value::Str(uid.into()),
+            );
         }
 
         if !self.ical_properties.is_empty() {

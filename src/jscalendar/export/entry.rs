@@ -4,11 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
+use std::str::FromStr;
+
 use crate::{
-    common::{IanaParse, PartialDateTime},
+    common::{IanaParse, PartialDateTime, timezone::Tz},
+    datecalc::rrule,
     icalendar::*,
     jscalendar::{export::ConvertedComponent, *},
 };
+use chrono::TimeZone;
 use jmap_tools::{JsonPointer, JsonPointerItem, Key, Map, Value};
 
 enum Target {
@@ -26,6 +30,9 @@ impl ICalendarComponent {
         let mut root_conversions = None;
         let mut locale = None;
         let mut main_location_id = None;
+        let mut tz = None;
+        let mut tz_end = None;
+        let mut tz_rid = None;
 
         for (key, value) in entries.as_mut_vec() {
             match (key, value) {
@@ -35,6 +42,15 @@ impl ICalendarComponent {
                 }
                 (Key::Property(JSCalendarProperty::MainLocationId), Value::Str(text)) => {
                     main_location_id = Some(std::mem::take(text));
+                }
+                (Key::Property(JSCalendarProperty::TimeZone), Value::Str(text)) => {
+                    tz = Tz::from_str(text.as_ref()).ok();
+                }
+                (Key::Property(JSCalendarProperty::EndTimeZone), Value::Str(text)) => {
+                    tz_end = Tz::from_str(text.as_ref()).ok();
+                }
+                (Key::Property(JSCalendarProperty::RecurrenceIdTimeZone), Value::Str(text)) => {
+                    tz_rid = Tz::from_str(text.as_ref()).ok();
                 }
                 _ => (),
             }
@@ -901,15 +917,279 @@ impl ICalendarComponent {
                         }
                     }
                 }
+                (
+                    JSCalendarProperty::Created,
+                    Value::Element(JSCalendarValue::DateTime(dt)),
+                    JSCalendarType::Event | JSCalendarType::Task | JSCalendarType::Group,
+                ) => {
+                    self.entries.push(
+                        ICalendarEntry::new(ICalendarProperty::Created)
+                            .with_value(PartialDateTime::from_utc_timestamp(dt.timestamp))
+                            .import_converted(
+                                &[JSCalendarProperty::Created],
+                                &[&mut root_conversions],
+                            ),
+                    );
+                }
+                (
+                    JSCalendarProperty::Description,
+                    Value::Str(text),
+                    JSCalendarType::Event | JSCalendarType::Task | JSCalendarType::Group,
+                ) => {
+                    self.entries.push(
+                        ICalendarEntry::new(ICalendarProperty::Description)
+                            .with_value(text.into_owned())
+                            .import_converted(
+                                &[JSCalendarProperty::Description],
+                                &[&mut root_conversions],
+                            ),
+                    );
+                }
+                (
+                    JSCalendarProperty::RecurrenceRule,
+                    Value::Object(obj),
+                    JSCalendarType::Event | JSCalendarType::Task,
+                ) => {
+                    let mut rrule = ICalendarRecurrenceRule::default();
 
-                // Skip type and ICalComponent
+                    for (key, value) in obj.into_vec() {
+                        let Key::Property(key) = key else {
+                            continue;
+                        };
+                        match (key, value) {
+                            (
+                                JSCalendarProperty::Frequency,
+                                Value::Element(JSCalendarValue::Frequency(value)),
+                            ) => {
+                                rrule.freq = value;
+                            }
+                            (
+                                JSCalendarProperty::Until,
+                                Value::Element(JSCalendarValue::DateTime(value)),
+                            ) => {
+                                rrule.until = value
+                                    .to_naive_date_time()
+                                    .and_then(|dt| {
+                                        tz.unwrap_or_default().from_local_datetime(&dt).single()
+                                    })
+                                    .map(|dt| PartialDateTime::from_utc_timestamp(dt.timestamp()));
+                            }
+                            (JSCalendarProperty::Count, Value::Number(value)) => {
+                                rrule.count = Some(value.cast_to_u64() as u32);
+                            }
+                            (JSCalendarProperty::Interval, Value::Number(value)) => {
+                                rrule.interval = Some(value.cast_to_u64() as u16);
+                            }
+                            (JSCalendarProperty::BySecond, Value::Array(value)) => {
+                                rrule.bysecond = value
+                                    .into_iter()
+                                    .filter_map(|v| v.as_i64().and_then(|n| u8::try_from(n).ok()))
+                                    .collect();
+                            }
+                            (JSCalendarProperty::ByMinute, Value::Array(value)) => {
+                                rrule.byminute = value
+                                    .into_iter()
+                                    .filter_map(|v| v.as_i64().and_then(|n| u8::try_from(n).ok()))
+                                    .collect();
+                            }
+                            (JSCalendarProperty::ByHour, Value::Array(value)) => {
+                                rrule.byhour = value
+                                    .into_iter()
+                                    .filter_map(|v| v.as_i64().and_then(|n| u8::try_from(n).ok()))
+                                    .collect();
+                            }
+                            (JSCalendarProperty::ByDay, Value::Array(value)) => {
+                                for item in value {
+                                    let mut weekday = None;
+                                    let mut ordwk = None;
+
+                                    for (key, value) in item.into_expanded_object() {
+                                        match (key, value) {
+                                            (
+                                                Key::Property(JSCalendarProperty::Day),
+                                                Value::Element(JSCalendarValue::Weekday(value)),
+                                            ) => {
+                                                weekday = Some(value);
+                                            }
+                                            (
+                                                Key::Property(JSCalendarProperty::NthOfPeriod),
+                                                Value::Number(value),
+                                            ) => {
+                                                ordwk = i16::try_from(value.cast_to_i64()).ok();
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+
+                                    if let Some(weekday) = weekday {
+                                        rrule.byday.push(ICalendarDay { weekday, ordwk });
+                                    }
+                                }
+                            }
+                            (JSCalendarProperty::ByMonthDay, Value::Array(value)) => {
+                                rrule.bymonthday = value
+                                    .into_iter()
+                                    .filter_map(|v| v.as_i64().and_then(|n| i8::try_from(n).ok()))
+                                    .collect();
+                            }
+                            (JSCalendarProperty::ByYearDay, Value::Array(value)) => {
+                                rrule.byyearday = value
+                                    .into_iter()
+                                    .filter_map(|v| v.as_i64().and_then(|n| i16::try_from(n).ok()))
+                                    .collect();
+                            }
+                            (JSCalendarProperty::ByWeekNo, Value::Array(value)) => {
+                                rrule.byweekno = value
+                                    .into_iter()
+                                    .filter_map(|v| v.as_i64().and_then(|n| i8::try_from(n).ok()))
+                                    .collect();
+                            }
+                            (JSCalendarProperty::ByMonth, Value::Array(value)) => {
+                                rrule.bymonth = value
+                                    .into_iter()
+                                    .filter_map(|v| {
+                                        v.as_str().and_then(|v| ICalendarMonth::parse(v.as_bytes()))
+                                    })
+                                    .collect();
+                            }
+                            (JSCalendarProperty::BySetPosition, Value::Array(value)) => {
+                                rrule.bysetpos = value
+                                    .into_iter()
+                                    .filter_map(|v| v.as_i64().and_then(|n| i32::try_from(n).ok()))
+                                    .collect();
+                            }
+                            (
+                                JSCalendarProperty::FirstDayOfWeek,
+                                Value::Element(JSCalendarValue::Weekday(value)),
+                            ) => {
+                                rrule.wkst = Some(value);
+                            }
+                            (
+                                JSCalendarProperty::Rscale,
+                                Value::Element(JSCalendarValue::CalendarScale(value)),
+                            ) => {
+                                rrule.rscale = Some(value);
+                            }
+                            (
+                                JSCalendarProperty::Skip,
+                                Value::Element(JSCalendarValue::Skip(value)),
+                            ) => {
+                                rrule.skip = Some(value);
+                            }
+                            (key, value) => {
+                                self.insert_jsprop(
+                                    &[
+                                        JSCalendarProperty::RecurrenceRule.to_string().as_ref(),
+                                        key.to_string().as_ref(),
+                                    ],
+                                    value,
+                                );
+                            }
+                        }
+                    }
+
+                    self.entries.push(
+                        ICalendarEntry::new(ICalendarProperty::Rrule)
+                            .with_value(rrule)
+                            .import_converted(
+                                &[JSCalendarProperty::RecurrenceRule],
+                                &[&mut root_conversions],
+                            ),
+                    );
+                }
+                (
+                    JSCalendarProperty::Updated,
+                    Value::Element(JSCalendarValue::DateTime(dt)),
+                    JSCalendarType::Event | JSCalendarType::Task,
+                ) => {
+                    self.entries.push(
+                        ICalendarEntry::new(ICalendarProperty::Dtstamp)
+                            .with_value(PartialDateTime::from_utc_timestamp(dt.timestamp))
+                            .import_converted(
+                                &[JSCalendarProperty::Updated],
+                                &[&mut root_conversions],
+                            ),
+                    );
+                }
+                (
+                    JSCalendarProperty::Start,
+                    Value::Element(JSCalendarValue::DateTime(dt)),
+                    JSCalendarType::Event | JSCalendarType::Task,
+                ) => {
+                    if let Some(dt) = dt
+                        .to_naive_date_time()
+                        .and_then(|dt| tz.unwrap_or_default().from_local_datetime(&dt).single())
+                    {
+                        let todo = "true";
+                    }
+                }
+                (
+                    JSCalendarProperty::Due,
+                    Value::Element(JSCalendarValue::DateTime(dt)),
+                    JSCalendarType::Task,
+                ) => {
+                    if let Some(dt) = dt
+                        .to_naive_date_time()
+                        .and_then(|dt| tz.unwrap_or_default().from_local_datetime(&dt).single())
+                    {
+                        let todo = "true";
+                    }
+                }
+                (
+                    JSCalendarProperty::RecurrenceId,
+                    Value::Element(JSCalendarValue::DateTime(dt)),
+                    JSCalendarType::Event | JSCalendarType::Task,
+                ) => {
+                    if let Some(dt) = dt.to_naive_date_time().and_then(|dt| {
+                        tz.or(tz_rid)
+                            .unwrap_or_default()
+                            .from_local_datetime(&dt)
+                            .single()
+                    }) {
+                        let todo = "true";
+                    }
+                }
+                (
+                    JSCalendarProperty::Duration,
+                    Value::Element(JSCalendarValue::Duration(duration)),
+                    JSCalendarType::Event | JSCalendarType::Task,
+                ) => {
+                    let todo = "true";
+                }
+                (
+                    JSCalendarProperty::EstimatedDuration,
+                    Value::Element(JSCalendarValue::Duration(duration)),
+                    JSCalendarType::Event | JSCalendarType::Task,
+                ) => {
+                    self.entries.push(
+                        ICalendarEntry::new(ICalendarProperty::EstimatedDuration)
+                            .with_value(duration)
+                            .import_converted(
+                                &[JSCalendarProperty::EstimatedDuration],
+                                &[&mut root_conversions],
+                            ),
+                    );
+                }
+                (
+                    JSCalendarProperty::RecurrenceOverrides,
+                    Value::Object(obj),
+                    JSCalendarType::Event | JSCalendarType::Task,
+                ) => {
+                    let todo = "true";
+                }
+
+                // Skip previously processed properties
                 (
                     JSCalendarProperty::Type
                     | JSCalendarProperty::ICalComponent
-                    | JSCalendarProperty::MainLocationId,
+                    | JSCalendarProperty::MainLocationId
+                    | JSCalendarProperty::TimeZone
+                    | JSCalendarProperty::EndTimeZone
+                    | JSCalendarProperty::RecurrenceIdTimeZone,
                     _,
                     _,
-                ) => {}
+                )
+                | (_, Value::Null, _) => {}
                 (property, value, _) => {
                     self.insert_jsprop(&[property.to_string().as_ref()], value);
                 }

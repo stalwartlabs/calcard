@@ -5,9 +5,11 @@
  */
 
 use ahash::AHashMap;
+use chrono::DateTime;
 use jmap_tools::{JsonPointer, Key, Value};
 
 use crate::{
+    common::timezone::Tz,
     icalendar::{ICalendarEntry, ICalendarParameterName, ICalendarProperty},
     jscalendar::{JSCalendarProperty, JSCalendarValue},
 };
@@ -31,6 +33,11 @@ struct State {
         Value<'static, JSCalendarProperty, JSCalendarValue>,
     )>,
     jsid: Option<String>,
+    uid: Option<String>,
+    recurrence_id: Option<DateTime<Tz>>,
+    tz_start: Option<Tz>,
+    tz_end: Option<Tz>,
+    has_dates: bool,
 }
 
 #[derive(Debug, Default)]

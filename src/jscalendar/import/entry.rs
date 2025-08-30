@@ -5,7 +5,8 @@
  */
 
 use crate::{
-    icalendar::*,
+    common::timezone::TzTimestamp,
+    icalendar::{timezone::TzResolver, *},
     jscalendar::{
         import::{EntryState, State},
         *,
@@ -14,7 +15,7 @@ use crate::{
 use jmap_tools::{JsonPointer, Key, Map, Value};
 
 impl ICalendarComponent {
-    pub(crate) fn entries_to_jscalendar(&mut self) -> State {
+    pub(crate) fn entries_to_jscalendar(&mut self, tz_resolver: &TzResolver<String>) -> State {
         let mut state = State::default();
 
         let todo = "import sub components";
@@ -22,6 +23,14 @@ impl ICalendarComponent {
         let has_locations = state
             .entries
             .contains_key(&Key::Property(JSCalendarProperty::Locations));
+
+        self.entries.sort_by_key(|entry| match &entry.name {
+            ICalendarProperty::Dtstart => 0,
+            ICalendarProperty::RecurrenceId => 1,
+            ICalendarProperty::Dtend | ICalendarProperty::Due => 2,
+            _ => 3,
+        });
+        let mut start_date = None;
 
         for entry in std::mem::take(&mut self.entries) {
             let mut entry = EntryState::new(entry);
@@ -384,11 +393,7 @@ impl ICalendarComponent {
                     ICalendarProperty::Geo,
                     Some(ICalendarValue::Text(value)),
                     ICalendarComponentType::VLocation,
-                ) if !entry
-                    .entry
-                    .parameters(&ICalendarParameterName::Derived)
-                    .any(|v| matches!(v, ICalendarParameterValue::Bool(true))) =>
-                {
+                ) if !entry.entry.is_derived() => {
                     state.map_named_entry(
                         &mut entry,
                         &[ICalendarParameterName::Jsid],
@@ -410,11 +415,7 @@ impl ICalendarComponent {
                     ICalendarProperty::Geo,
                     Some(ICalendarValue::Float(coord1)),
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
-                ) if !entry
-                    .entry
-                    .parameters(&ICalendarParameterName::Derived)
-                    .any(|v| matches!(v, ICalendarParameterValue::Bool(true))) =>
-                {
+                ) if !entry.entry.is_derived() => {
                     let coord2 = values.next().and_then(|v| v.as_float()).unwrap_or_default();
 
                     state.map_named_entry(
@@ -478,12 +479,7 @@ impl ICalendarComponent {
                     Some(ICalendarValue::Text(value)),
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
                 ) => {
-                    let is_derived = !entry
-                        .entry
-                        .parameters(&ICalendarParameterName::Derived)
-                        .any(|v| matches!(v, ICalendarParameterValue::Bool(true)));
-
-                    if !is_derived {
+                    if !entry.entry.is_derived() {
                         let location_id = if has_locations {
                             entry.entry.jsid().map(|s| s.to_string())
                         } else {
@@ -557,6 +553,505 @@ impl ICalendarComponent {
                         }
                     }
                     entry.set_converted_to(&[JSCalendarProperty::LocationTypes
+                        .to_string()
+                        .as_ref()]);
+                }
+
+                (
+                    ICalendarProperty::Created,
+                    Some(ICalendarValue::PartialDateTime(value)),
+                    ICalendarComponentType::VEvent
+                    | ICalendarComponentType::VTodo
+                    | ICalendarComponentType::VCalendar,
+                ) if value.has_date_and_time() => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::Created),
+                        Value::Element(JSCalendarValue::DateTime(JSCalendarDateTime::new(
+                            value.to_timestamp().unwrap(),
+                            false,
+                        ))),
+                    );
+                    entry.set_converted_to(&[JSCalendarProperty::Created.to_string().as_ref()]);
+                }
+                (
+                    ICalendarProperty::Description,
+                    Some(ICalendarValue::Text(value)),
+                    ICalendarComponentType::VEvent
+                    | ICalendarComponentType::VTodo
+                    | ICalendarComponentType::Participant
+                    | ICalendarComponentType::VCalendar,
+                ) if !entry.entry.is_derived() => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::Description),
+                        Value::Str(value.into()),
+                    );
+                    entry.set_converted_to(&[JSCalendarProperty::Description.to_string().as_ref()]);
+                }
+                (
+                    ICalendarProperty::Dtstart,
+                    Some(ICalendarValue::PartialDateTime(value)),
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                ) if value.has_date() => {
+                    state.tz_start = entry.entry.tz_id().and_then(|v| tz_resolver.resolve(v));
+                    if let Some(dt) = value
+                        .to_date_time()
+                        .and_then(|dt| dt.to_date_time_with_tz(state.tz_start.unwrap_or_default()))
+                    {
+                        state.has_dates = true;
+                        state.entries.insert(
+                            Key::Property(JSCalendarProperty::Start),
+                            Value::Element(JSCalendarValue::DateTime(JSCalendarDateTime::new(
+                                dt.to_naive_timestamp(),
+                                true,
+                            ))),
+                        );
+
+                        if !value.has_time() {
+                            state.entries.insert(
+                                Key::Property(JSCalendarProperty::ShowWithoutTime),
+                                Value::Bool(true),
+                            );
+                        }
+                        entry.set_converted_to(&[JSCalendarProperty::Start.to_string().as_ref()]);
+                        start_date = Some(dt);
+
+                        if state.tz_start.is_none() {
+                            state.tz_start = dt.timezone().to_resolved();
+                        }
+                    } else {
+                        state.tz_start = None;
+                        entry.entry.values = [ICalendarValue::PartialDateTime(value)]
+                            .into_iter()
+                            .chain(values)
+                            .collect();
+                    }
+                }
+                (
+                    ICalendarProperty::Dtend,
+                    Some(ICalendarValue::PartialDateTime(value)),
+                    ICalendarComponentType::VEvent,
+                ) if value.has_date() && start_date.is_some() => {
+                    state.tz_end = entry
+                        .entry
+                        .tz_id()
+                        .and_then(|v| tz_resolver.resolve(v))
+                        .or(state.tz_start);
+                    if let Some((delta, tz)) = value
+                        .to_date_time()
+                        .and_then(|dt| dt.to_date_time_with_tz(state.tz_end.unwrap_or_default()))
+                        .and_then(|dt| {
+                            let delta = dt.signed_duration_since(start_date.unwrap()).num_seconds();
+                            (delta > 0).then_some((delta, dt.timezone()))
+                        })
+                    {
+                        state.has_dates = true;
+                        state.entries.insert(
+                            Key::Property(JSCalendarProperty::Duration),
+                            Value::Element(JSCalendarValue::Duration(
+                                ICalendarDuration::from_seconds(delta),
+                            )),
+                        );
+
+                        if !value.has_time() {
+                            state.entries.insert(
+                                Key::Property(JSCalendarProperty::ShowWithoutTime),
+                                Value::Bool(true),
+                            );
+                        }
+                        entry
+                            .set_converted_to(&[JSCalendarProperty::Duration.to_string().as_ref()]);
+                        entry.set_map_name();
+
+                        if state.tz_end.is_none() {
+                            state.tz_end = tz.to_resolved();
+                        }
+                        if state.tz_start.is_none() {
+                            state.tz_start = state.tz_end;
+                        }
+                    } else {
+                        state.tz_end = None;
+                        entry.entry.values = [ICalendarValue::PartialDateTime(value)]
+                            .into_iter()
+                            .chain(values)
+                            .collect();
+                    }
+                }
+                (
+                    ICalendarProperty::Due,
+                    Some(ICalendarValue::PartialDateTime(value)),
+                    ICalendarComponentType::VTodo,
+                ) if value.has_date() => {
+                    let due_tz = entry
+                        .entry
+                        .tz_id()
+                        .and_then(|v| tz_resolver.resolve(v))
+                        .or(state.tz_start);
+                    if let Some(dt) = value
+                        .to_date_time()
+                        .and_then(|dt| dt.to_date_time_with_tz(due_tz.unwrap_or_default()))
+                    {
+                        state.has_dates = true;
+                        if state.tz_start.is_none() {
+                            state.tz_start = dt.timezone().to_resolved();
+                        }
+
+                        state.entries.insert(
+                            Key::Property(JSCalendarProperty::Due),
+                            Value::Element(JSCalendarValue::DateTime(JSCalendarDateTime::new(
+                                dt.with_timezone(&state.tz_start.unwrap_or_default())
+                                    .to_naive_timestamp(),
+                                true,
+                            ))),
+                        );
+
+                        if !value.has_time() {
+                            state.entries.insert(
+                                Key::Property(JSCalendarProperty::ShowWithoutTime),
+                                Value::Bool(true),
+                            );
+                        }
+
+                        entry.set_converted_to(&[JSCalendarProperty::Due.to_string().as_ref()]);
+                    } else {
+                        entry.entry.values = [ICalendarValue::PartialDateTime(value)]
+                            .into_iter()
+                            .chain(values)
+                            .collect();
+                    }
+                }
+                (
+                    ICalendarProperty::Dtstamp,
+                    Some(ICalendarValue::PartialDateTime(value)),
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                ) if value.has_date_and_time() => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::Updated),
+                        Value::Element(JSCalendarValue::DateTime(JSCalendarDateTime::new(
+                            value.to_timestamp().unwrap_or_default(),
+                            false,
+                        ))),
+                    );
+
+                    entry.set_converted_to(&[JSCalendarProperty::Updated.to_string().as_ref()]);
+                }
+                (
+                    ICalendarProperty::Duration,
+                    Some(ICalendarValue::Duration(value)),
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                ) => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::Duration),
+                        Value::Element(JSCalendarValue::Duration(value)),
+                    );
+
+                    entry.set_converted_to(&[JSCalendarProperty::Duration.to_string().as_ref()]);
+                }
+                (
+                    ICalendarProperty::EstimatedDuration,
+                    Some(ICalendarValue::Duration(value)),
+                    ICalendarComponentType::VTodo,
+                ) => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::EstimatedDuration),
+                        Value::Element(JSCalendarValue::Duration(value)),
+                    );
+
+                    entry.set_converted_to(&[JSCalendarProperty::EstimatedDuration
+                        .to_string()
+                        .as_ref()]);
+                }
+                (
+                    ICalendarProperty::RecurrenceId,
+                    Some(ICalendarValue::PartialDateTime(value)),
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                ) if value.has_date_and_time() => {
+                    let rid_tz = entry
+                        .entry
+                        .tz_id()
+                        .and_then(|v| tz_resolver.resolve(v))
+                        .or(state.tz_start);
+
+                    if let Some(dt) = value
+                        .to_date_time()
+                        .and_then(|dt| dt.to_date_time_with_tz(rid_tz.unwrap_or_default()))
+                    {
+                        state.has_dates = true;
+                        state.recurrence_id = Some(dt);
+
+                        state.extract_params(&mut entry.entry, &[ICalendarParameterName::Range]);
+
+                        entry.set_converted_to(&[JSCalendarProperty::RecurrenceId
+                            .to_string()
+                            .as_ref()]);
+
+                        if state.tz_start.is_none() {
+                            state.tz_start = dt.timezone().to_resolved();
+                        }
+                    } else {
+                        entry.entry.values = [ICalendarValue::PartialDateTime(value)]
+                            .into_iter()
+                            .chain(values)
+                            .collect();
+                    }
+                }
+                (
+                    ICalendarProperty::Rdate | ICalendarProperty::Exdate,
+                    Some(ICalendarValue::PartialDateTime(value)),
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                ) if value.has_date() => {
+                    let tz_id = entry
+                        .entry
+                        .tz_id()
+                        .and_then(|v| tz_resolver.resolve(v))
+                        .or(state.tz_start);
+
+                    if let Some(dt) = value
+                        .to_date_time()
+                        .and_then(|dt| dt.to_date_time_with_tz(tz_id.unwrap_or_default()))
+                    {
+                        state.has_dates = true;
+
+                        if state.tz_start.is_none() {
+                            state.tz_start = dt.timezone().to_resolved();
+                        }
+
+                        let overrides = state
+                            .entries
+                            .entry(Key::Property(JSCalendarProperty::RecurrenceOverrides))
+                            .or_insert_with(Value::new_object)
+                            .as_object_mut()
+                            .unwrap();
+                        let value = Value::Object(Map::from(
+                            if matches!(entry.entry.name, ICalendarProperty::Exdate) {
+                                vec![(
+                                    Key::Property(JSCalendarProperty::Excluded),
+                                    Value::Bool(true),
+                                )]
+                            } else {
+                                vec![]
+                            },
+                        ));
+
+                        for (pos, dt) in [dt]
+                            .into_iter()
+                            .chain(values.filter_map(|v| {
+                                v.into_partial_date_time()
+                                    .and_then(|dt| dt.to_date_time())
+                                    .and_then(|dt| {
+                                        dt.to_date_time_with_tz(tz_id.unwrap_or_default())
+                                    })
+                            }))
+                            .enumerate()
+                        {
+                            let key = Key::Property(JSCalendarProperty::DateTime(
+                                JSCalendarDateTime::new(
+                                    dt.with_timezone(&state.tz_start.unwrap_or_default())
+                                        .to_naive_timestamp(),
+                                    true,
+                                ),
+                            ));
+
+                            if pos == 0 {
+                                entry.set_converted_to(&[
+                                    JSCalendarProperty::RecurrenceOverrides.to_string().as_ref(),
+                                    key.to_string().as_ref().to_string().as_ref(),
+                                ]);
+                            }
+
+                            overrides.insert(key, value.clone());
+                        }
+                    } else {
+                        entry.entry.values = [ICalendarValue::PartialDateTime(value)]
+                            .into_iter()
+                            .chain(values)
+                            .collect();
+                    }
+                }
+                (
+                    ICalendarProperty::Rrule,
+                    Some(ICalendarValue::RecurrenceRule(value)),
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                ) => {
+                    let mut rrule = Map::from(Vec::with_capacity(4));
+
+                    rrule.insert_unchecked(
+                        JSCalendarProperty::Frequency,
+                        Value::Element(JSCalendarValue::Frequency(value.freq)),
+                    );
+
+                    for (key, value) in [
+                        (
+                            JSCalendarProperty::Until,
+                            value
+                                .until
+                                .as_ref()
+                                .and_then(|v| {
+                                    v.to_date_time_with_tz(state.tz_start.unwrap_or_default())
+                                })
+                                .map(|dt| {
+                                    Value::Element(JSCalendarValue::DateTime(
+                                        JSCalendarDateTime::new(
+                                            dt.with_timezone(&state.tz_start.unwrap_or_default())
+                                                .to_naive_timestamp(),
+                                            true,
+                                        ),
+                                    ))
+                                }),
+                        ),
+                        (
+                            JSCalendarProperty::Count,
+                            value.count.map(|v| Value::Number((v as u64).into())),
+                        ),
+                        (
+                            JSCalendarProperty::Interval,
+                            value.interval.map(|v| Value::Number((v as u64).into())),
+                        ),
+                        (
+                            JSCalendarProperty::FirstDayOfWeek,
+                            value
+                                .wkst
+                                .map(|v| Value::Element(JSCalendarValue::Weekday(v))),
+                        ),
+                        (
+                            JSCalendarProperty::Rscale,
+                            value
+                                .rscale
+                                .map(|v| Value::Element(JSCalendarValue::CalendarScale(v))),
+                        ),
+                        (
+                            JSCalendarProperty::Skip,
+                            value.skip.map(|v| Value::Element(JSCalendarValue::Skip(v))),
+                        ),
+                    ] {
+                        if let Some(value) = value {
+                            rrule.insert_unchecked(key, value);
+                        }
+                    }
+
+                    for (key, values) in [
+                        (
+                            JSCalendarProperty::BySecond,
+                            (!value.bysecond.is_empty()).then(|| {
+                                value
+                                    .bysecond
+                                    .iter()
+                                    .map(|&v| Value::Number((v as u64).into()))
+                                    .collect::<Vec<_>>()
+                            }),
+                        ),
+                        (
+                            JSCalendarProperty::ByMinute,
+                            (!value.byminute.is_empty()).then(|| {
+                                value
+                                    .bysecond
+                                    .iter()
+                                    .map(|&v| Value::Number((v as u64).into()))
+                                    .collect::<Vec<_>>()
+                            }),
+                        ),
+                        (
+                            JSCalendarProperty::ByHour,
+                            (!value.byhour.is_empty()).then(|| {
+                                value
+                                    .byhour
+                                    .iter()
+                                    .map(|&v| Value::Number((v as u64).into()))
+                                    .collect::<Vec<_>>()
+                            }),
+                        ),
+                        (
+                            JSCalendarProperty::ByDay,
+                            (!value.byday.is_empty()).then(|| {
+                                value
+                                    .byday
+                                    .iter()
+                                    .map(|v| {
+                                        Value::Object(Map::from_iter(
+                                            [
+                                                Some((
+                                                    Key::Property(JSCalendarProperty::Day),
+                                                    Value::Element(JSCalendarValue::Weekday(
+                                                        v.weekday,
+                                                    )),
+                                                )),
+                                                v.ordwk.map(|v| {
+                                                    (
+                                                        Key::Property(
+                                                            JSCalendarProperty::NthOfPeriod,
+                                                        ),
+                                                        Value::Number((v as i64).into()),
+                                                    )
+                                                }),
+                                            ]
+                                            .into_iter()
+                                            .flatten(),
+                                        ))
+                                    })
+                                    .collect::<Vec<_>>()
+                            }),
+                        ),
+                        (
+                            JSCalendarProperty::ByMonthDay,
+                            (!value.bymonthday.is_empty()).then(|| {
+                                value
+                                    .bymonthday
+                                    .iter()
+                                    .map(|&v| Value::Number((v as i64).into()))
+                                    .collect::<Vec<_>>()
+                            }),
+                        ),
+                        (
+                            JSCalendarProperty::ByYearDay,
+                            (!value.byyearday.is_empty()).then(|| {
+                                value
+                                    .byyearday
+                                    .iter()
+                                    .map(|&v| Value::Number((v as i64).into()))
+                                    .collect::<Vec<_>>()
+                            }),
+                        ),
+                        (
+                            JSCalendarProperty::ByWeekNo,
+                            (!value.byweekno.is_empty()).then(|| {
+                                value
+                                    .byweekno
+                                    .iter()
+                                    .map(|&v| Value::Number((v as i64).into()))
+                                    .collect::<Vec<_>>()
+                            }),
+                        ),
+                        (
+                            JSCalendarProperty::ByMonth,
+                            (!value.bymonth.is_empty()).then(|| {
+                                value
+                                    .bymonth
+                                    .iter()
+                                    .map(|&v| Value::Element(JSCalendarValue::Month(v)))
+                                    .collect::<Vec<_>>()
+                            }),
+                        ),
+                        (
+                            JSCalendarProperty::BySetPosition,
+                            (!value.bysetpos.is_empty()).then(|| {
+                                value
+                                    .bysetpos
+                                    .iter()
+                                    .map(|&v| Value::Number((v as i64).into()))
+                                    .collect::<Vec<_>>()
+                            }),
+                        ),
+                    ] {
+                        if let Some(values) = values {
+                            rrule.insert_unchecked(key, Value::Array(values));
+                        }
+                    }
+
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::RecurrenceRule),
+                        Value::Object(rrule),
+                    );
+
+                    entry.set_converted_to(&[JSCalendarProperty::RecurrenceRule
                         .to_string()
                         .as_ref()]);
                 }

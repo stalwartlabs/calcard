@@ -6,7 +6,9 @@
 
 use crate::{
     common::{IanaParse, IanaString, LinkRelation},
-    icalendar::ICalendarDuration,
+    icalendar::{
+        ICalendarDuration, ICalendarMethod, ICalendarMonth, ICalendarSkip, ICalendarWeekday,
+    },
     jscalendar::{
         JSCalendar, JSCalendarAlertAction, JSCalendarDateTime, JSCalendarEventStatus,
         JSCalendarFreeBusyStatus, JSCalendarLinkDisplay, JSCalendarParticipantKind,
@@ -71,7 +73,6 @@ impl Element for JSCalendarValue {
                 JSCalendarProperty::Kind => JSCalendarParticipantKind::from_str(value)
                     .ok()
                     .map(JSCalendarValue::ParticipantKind),
-
                 JSCalendarProperty::ParticipationStatus => {
                     JSCalendarParticipationStatus::from_str(value)
                         .ok()
@@ -95,6 +96,18 @@ impl Element for JSCalendarValue {
                 JSCalendarProperty::Rel => {
                     LinkRelation::parse(value.as_bytes()).map(JSCalendarValue::LinkRelation)
                 }
+                JSCalendarProperty::FirstDayOfWeek | JSCalendarProperty::Day => {
+                    ICalendarWeekday::parse(value.as_bytes()).map(JSCalendarValue::Weekday)
+                }
+                JSCalendarProperty::Skip => {
+                    ICalendarSkip::parse(value.as_bytes()).map(JSCalendarValue::Skip)
+                }
+                JSCalendarProperty::ByMonth => {
+                    ICalendarMonth::parse(value.as_bytes()).map(JSCalendarValue::Month)
+                }
+                JSCalendarProperty::Method => {
+                    ICalendarMethod::parse(value.as_bytes()).map(JSCalendarValue::Method)
+                }
                 _ => None,
             }
         } else {
@@ -117,6 +130,12 @@ impl Element for JSCalendarValue {
             JSCalendarValue::ScheduleAgent(v) => v.as_str().into(),
             JSCalendarValue::EventStatus(v) => v.as_str().into(),
             JSCalendarValue::LinkRelation(v) => v.as_str().into(),
+            JSCalendarValue::Frequency(v) => v.as_js_str().into(),
+            JSCalendarValue::CalendarScale(v) => v.as_js_str().into(),
+            JSCalendarValue::Skip(v) => v.as_js_str().into(),
+            JSCalendarValue::Weekday(v) => v.as_js_str().into(),
+            JSCalendarValue::Month(v) => v.to_string().into(),
+            JSCalendarValue::Method(v) => v.as_js_str().into(),
         }
     }
 }

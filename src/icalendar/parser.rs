@@ -1059,16 +1059,6 @@ impl IanaParse for ICalendarDuration {
     }
 }
 
-impl ICalendarDuration {
-    pub fn is_empty(&self) -> bool {
-        self.weeks == 0
-            && self.days == 0
-            && self.hours == 0
-            && self.minutes == 0
-            && self.seconds == 0
-    }
-}
-
 impl From<Token<'_>> for Uri {
     fn from(token: Token<'_>) -> Self {
         token

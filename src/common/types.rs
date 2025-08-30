@@ -18,6 +18,19 @@ impl IanaString for CalendarScale {
     }
 }
 
+#[cfg(feature = "jmap")]
+impl CalendarScale {
+    pub fn as_js_str(&self) -> &'static str {
+        match self {
+            CalendarScale::Gregorian => "gregorian",
+            CalendarScale::Chinese => "chinese",
+            CalendarScale::IslamicCivil => "islamic-civil",
+            CalendarScale::Hebrew => "hebrew",
+            CalendarScale::Ethiopic => "ethiopic",
+        }
+    }
+}
+
 #[cfg(feature = "rkyv")]
 impl IanaString for ArchivedCalendarScale {
     fn as_str(&self) -> &'static str {
@@ -72,6 +85,20 @@ impl PartialDateTime {
             tz_hour: dt.tz_hour.into(),
             tz_minute: dt.tz_minute.into(),
             tz_minus: false,
+        }
+    }
+
+    pub fn from_naive_timestamp(value: i64) -> Self {
+        let dt = DateTime::from_timestamp(value);
+
+        PartialDateTime {
+            year: dt.year.into(),
+            month: dt.month.into(),
+            day: dt.day.into(),
+            hour: dt.hour.into(),
+            minute: dt.minute.into(),
+            second: dt.second.into(),
+            ..Default::default()
         }
     }
 

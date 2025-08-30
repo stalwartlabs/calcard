@@ -27,21 +27,6 @@ impl State {
     ) -> Option<String> {
         let mut jsid = None;
 
-        /*
-
-        CN 	[RFC5545], Section 3.2.2 	name
-        CUTYPE 	[RFC5545], Section 3.2.3 	kind
-        DELEGATED-FROM 	[RFC5545], Section 3.2.4 	delegatedFrom
-        DELEGATED-TO 	[RFC5545], Section 3.2.5 	delegatedTo
-        EMAIL 	[RFC7986], Section 6.2 	email
-        MEMBER 	[RFC5545], Section 3.2.11 	memberOf
-        PARTSTAT 	[RFC5545], Section 3.2.12 	participationStatus
-        ROLE 	[RFC5545], Section 3.2.16 	roles
-        RSVP 	[RFC5545], Section 3.2.17 	expectReply
-        SENT-BY 	[RFC5545], Section 3.2.18 	sentBy
-
-         */
-
         for param in std::mem::take(&mut entry.params) {
             if !extract.contains(&param.name) {
                 entry.params.push(param);
@@ -297,10 +282,15 @@ impl State {
                             .insert(Key::Property(JSCalendarProperty::Locale), Value::Str(text));
                     }
                 }
+                ICalendarParameterName::Range => {
+                    self.entries.insert(
+                        Key::Property(JSCalendarProperty::ThisAndFuture),
+                        Value::Bool(true),
+                    );
+                }
 
                 ICalendarParameterName::Dir => {}
                 ICalendarParameterName::Fbtype => {}
-                ICalendarParameterName::Range => {}
                 ICalendarParameterName::Reltype => {}
                 ICalendarParameterName::ScheduleAgent => {}
                 ICalendarParameterName::ScheduleForceSend => {}

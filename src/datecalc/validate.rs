@@ -9,7 +9,7 @@ use super::{
     rrule::{NWeekday, RRule},
 };
 use crate::{common::timezone::Tz, icalendar::ICalendarFrequency};
-use std::ops::RangeInclusive;
+use std::{borrow::Cow, ops::RangeInclusive};
 
 pub(crate) static MONTH_RANGE: RangeInclusive<u8> = 1..=12;
 pub(crate) static YEAR_RANGE: RangeInclusive<i32> = -10_000..=10_000;
@@ -55,8 +55,11 @@ fn validate_until(rrule: &RRule, dt_start: &chrono::DateTime<Tz>) -> Result<(), 
                 Tz::Tz(_) => {
                     if until.timezone() != Tz::UTC {
                         return Err(ValidationError::DtStartUntilMismatchTimezone {
-                            dt_start_tz: dt_start.timezone().name().into(),
-                            until_tz: until.timezone().name().into(),
+                            dt_start_tz: dt_start
+                                .timezone()
+                                .name()
+                                .unwrap_or(Cow::Borrowed("Floating")),
+                            until_tz: until.timezone().name().unwrap_or(Cow::Borrowed("Floating")),
                             expected: vec!["UTC".into()],
                         });
                     }
@@ -65,11 +68,14 @@ fn validate_until(rrule: &RRule, dt_start: &chrono::DateTime<Tz>) -> Result<(), 
                     let allowed_timezones = vec![v, Tz::UTC];
                     if !allowed_timezones.contains(&until.timezone()) {
                         return Err(ValidationError::DtStartUntilMismatchTimezone {
-                            dt_start_tz: dt_start.timezone().name().into(),
-                            until_tz: until.timezone().name().into(),
+                            dt_start_tz: dt_start
+                                .timezone()
+                                .name()
+                                .unwrap_or(Cow::Borrowed("Floating")),
+                            until_tz: until.timezone().name().unwrap_or(Cow::Borrowed("Floating")),
                             expected: allowed_timezones
                                 .into_iter()
-                                .map(|tz| tz.name().into())
+                                .map(|tz| tz.name().unwrap_or(Cow::Borrowed("Floating")))
                                 .collect(),
                         });
                     }

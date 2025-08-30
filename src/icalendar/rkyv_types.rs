@@ -292,6 +292,22 @@ impl ArchivedICalendarProperty {
                 ArchivedValueType::Ical(ArchivedICalendarValueType::Text),
                 ValueSeparator::None,
             ),
+            ArchivedICalendarProperty::EstimatedDuration => (
+                ArchivedValueType::Ical(ArchivedICalendarValueType::Duration),
+                ValueSeparator::None,
+            ),
+            ArchivedICalendarProperty::Reason => (
+                ArchivedValueType::Ical(ArchivedICalendarValueType::Uri),
+                ValueSeparator::None,
+            ),
+            ArchivedICalendarProperty::Substate => (
+                ArchivedValueType::Ical(ArchivedICalendarValueType::Text),
+                ValueSeparator::None,
+            ),
+            ArchivedICalendarProperty::TaskMode => (
+                ArchivedValueType::Ical(ArchivedICalendarValueType::Text),
+                ValueSeparator::None,
+            ),
         }
     }
 }
@@ -384,6 +400,7 @@ impl ArchivedICalendarComponentType {
             ArchivedICalendarComponentType::Participant => "PARTICIPANT",
             ArchivedICalendarComponentType::VLocation => "VLOCATION",
             ArchivedICalendarComponentType::VResource => "VRESOURCE",
+            ArchivedICalendarComponentType::VStatus => "VSTATUS",
             ArchivedICalendarComponentType::Other(name) => name.as_str(),
         }
     }
@@ -504,6 +521,8 @@ impl ArchivedICalendarStatus {
             ArchivedICalendarStatus::InProcess => "IN-PROCESS",
             ArchivedICalendarStatus::Draft => "DRAFT",
             ArchivedICalendarStatus::Final => "FINAL",
+            ArchivedICalendarStatus::Failed => "FAILED",
+            ArchivedICalendarStatus::Pending => "PENDING",
         }
     }
 }
@@ -585,6 +604,10 @@ impl ArchivedICalendarProperty {
             ArchivedICalendarProperty::ShowWithoutTime => "SHOW-WITHOUT-TIME",
             ArchivedICalendarProperty::Jsid => "JSID",
             ArchivedICalendarProperty::Jsprop => "JSPROP",
+            ArchivedICalendarProperty::EstimatedDuration => "ESTIMATED-DURATION",
+            ArchivedICalendarProperty::Reason => "REASON",
+            ArchivedICalendarProperty::Substate => "SUBSTATE",
+            ArchivedICalendarProperty::TaskMode => "TASK-MODE",
             ArchivedICalendarProperty::Other(value) => value.as_str(),
         }
     }

@@ -5,7 +5,7 @@
  */
 
 use crate::{
-    common::{CalendarScale, IanaParse, IanaString},
+    common::{CalendarScale, IanaParse},
     jscontact::{
         Context, Feature, JSContact, JSContactGrammaticalGender, JSContactKind, JSContactLevel,
         JSContactPhoneticSystem, JSContactProperty, JSContactRelation, JSContactType,
@@ -72,7 +72,7 @@ impl Element for JSContactValue {
             JSContactValue::Timestamp(v) => mail_parser::DateTime::from_timestamp(*v)
                 .to_rfc3339()
                 .into(),
-            JSContactValue::CalendarScale(v) => v.as_str().into(),
+            JSContactValue::CalendarScale(v) => v.as_js_str().into(),
         }
     }
 }

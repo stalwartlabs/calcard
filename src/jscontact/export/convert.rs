@@ -1029,7 +1029,7 @@ impl JSContact<'_> {
                                         VCardEntry::new(VCardProperty::Tz).with_value(
                                             Tz::from_str(&timezone)
                                                 .map(|tz| {
-                                                    VCardValue::PartialDateTime(tz.tz_offset())
+                                                    VCardValue::PartialDateTime(tz.offset_parts())
                                                 })
                                                 .unwrap_or_else(|_| VCardValue::Text(timezone)),
                                         ),
@@ -1838,7 +1838,9 @@ impl JSContact<'_> {
                     | JSContactProperty::Localizations
                     | JSContactProperty::VCard => (),
                     _ => {
-                        state.insert_jsprop(&[property.to_string().as_ref()], value);
+                        if !matches!(value, Value::Null) {
+                            state.insert_jsprop(&[property.to_string().as_ref()], value);
+                        }
                     }
                 }
             }

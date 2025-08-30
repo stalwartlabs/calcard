@@ -325,6 +325,7 @@ pub enum ICalendarComponentType {
     Participant,   // [RFC9073, Section 7.1]
     VLocation,     // [RFC9073, Section 7.2] [RFC Errata 7381]
     VResource,     // [RFC9073, Section 7.3]
+    VStatus,       // draft-ietf-calext-ical-tasks-14
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -615,6 +616,8 @@ pub enum ICalendarStatus {
     InProcess,   // [RFC5545, Section 3.8.1]
     Draft,       // [RFC5545, Section 3.8.1]
     Final,       // [RFC5545, Section 3.8.1]
+    Failed,      // draft-ietf-calext-ical-tasks
+    Pending,     // draft-ietf-calext-ical-tasks
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -636,7 +639,7 @@ pub enum ICalendarParticipationStatus {
     Delegated,   // [RFC5545, Section 3.2.12]
     Completed,   // [RFC5545, Section 3.2.12]
     InProcess,   // [RFC5545, Section 3.2.12]
-    Failed,      // ical-tasks
+    Failed,      // draft-ietf-calext-ical-tasks
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -651,6 +654,8 @@ pub enum ICalendarParticipationStatus {
 )]
 #[cfg_attr(feature = "rkyv", rkyv(compare(PartialEq), derive(Debug)))]
 pub enum ICalendarProperty {
+    Begin,
+    End,
     Other(String),
     Calscale,          // [RFC5545, Section 3.7.1]
     Method,            // [RFC5545, Section 3.7.2]
@@ -724,8 +729,10 @@ pub enum ICalendarProperty {
     ShowWithoutTime,   // draft-ietf-calext-icalendar-jscalendar-extensions
     Jsid,              // draft-ietf-calext-jscalendar-icalendar
     Jsprop,            // draft-ietf-calext-jscalendar-icalendar
-    Begin,
-    End,
+    EstimatedDuration, // draft-ietf-calext-ical-tasks
+    Reason,            // draft-ietf-calext-ical-tasks
+    Substate,          // draft-ietf-calext-ical-tasks
+    TaskMode,          // draft-ietf-calext-ical-tasks
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

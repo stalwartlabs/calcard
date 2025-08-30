@@ -6,9 +6,9 @@
 
 use super::DateTimeResult;
 use crate::common::PartialDateTime;
-use chrono::{DateTime, FixedOffset, Offset, TimeZone, Utc};
+use chrono::{DateTime, FixedOffset, NaiveDate, Offset, TimeZone, Utc};
 use hashify::tiny_map;
-use std::str::FromStr;
+use std::{borrow::Cow, str::FromStr};
 
 #[derive(Clone, Copy, Default)]
 pub enum Tz {
@@ -16,6 +16,10 @@ pub enum Tz {
     Floating,
     Fixed(FixedOffset),
     Tz(chrono_tz::Tz),
+}
+
+pub trait TzTimestamp {
+    fn to_naive_timestamp(&self) -> i64;
 }
 
 impl PartialDateTime {
@@ -26,6 +30,16 @@ impl PartialDateTime {
 }
 
 impl DateTimeResult {
+    pub fn tz(&self) -> Option<Tz> {
+        self.offset.map(|offset| {
+            if offset.local_minus_utc() == 0 {
+                Tz::UTC
+            } else {
+                Tz::Fixed(offset)
+            }
+        })
+    }
+
     pub fn to_date_time_with_tz(&self, tz: Tz) -> Option<DateTime<Tz>> {
         if let Some(offset) = self.offset {
             if offset.local_minus_utc() == 0 {
@@ -68,11 +82,29 @@ impl Tz {
         }
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> Option<Cow<'static, str>> {
         match self {
-            Self::Floating => "Floating",
-            Self::Tz(tz) => tz.name(),
-            Self::Fixed(_) => "Fixed",
+            Self::Tz(tz) => Some(Cow::Borrowed(tz.name())),
+            Self::Fixed(offset) => {
+                let hour = offset.local_minus_utc() / 3600;
+                Some(if hour != 0 {
+                    Cow::Owned(format!(
+                        "Etc/GMT{}{}",
+                        if hour < 0 { "+" } else { "-" },
+                        hour.abs()
+                    ))
+                } else {
+                    Cow::Borrowed("Etc/UTC")
+                })
+            }
+            Self::Floating => None,
+        }
+    }
+
+    pub fn to_resolved(&self) -> Option<Tz> {
+        match self {
+            Tz::Floating => None,
+            _ => Some(*self),
         }
     }
 
@@ -80,15 +112,16 @@ impl Tz {
         matches!(self, Self::Floating)
     }
 
-    pub fn tz_offset(&self) -> PartialDateTime {
-        let mut seconds = match self {
+    pub fn offset_from_utc_date(&self, utc: &NaiveDate) -> i32 {
+        match self {
             Tz::Floating => 0,
             Tz::Fixed(offset) => offset.local_minus_utc(),
-            Tz::Tz(tz) => tz
-                .offset_from_utc_date(&Utc::now().date_naive())
-                .fix()
-                .local_minus_utc(),
-        };
+            Tz::Tz(tz) => tz.offset_from_utc_date(utc).fix().local_minus_utc(),
+        }
+    }
+
+    pub fn offset_parts(&self) -> PartialDateTime {
+        let mut seconds = self.offset_from_utc_date(&Utc::now().date_naive());
 
         let tz_minus = if seconds < 0 {
             seconds = -seconds;
@@ -189,6 +222,12 @@ impl Tz {
     }
 }
 
+impl TzTimestamp for DateTime<Tz> {
+    fn to_naive_timestamp(&self) -> i64 {
+        self.naive_local().and_utc().timestamp()
+    }
+}
+
 impl FromStr for Tz {
     type Err = ();
 
@@ -235,7 +274,7 @@ impl FromStr for Tz {
             return Ok(Self::Tz(tz));
         }
 
-        // Map propietary timezones to chrono_tz::Tz
+        // Map proprietary timezones to chrono_tz::Tz
         let result = hashify::map!(s.as_bytes(), chrono_tz::Tz,
         "AUS Central Standard Time" => chrono_tz::Tz::Australia__Darwin,
         "AUS Central" => chrono_tz::Tz::Australia__Darwin,
