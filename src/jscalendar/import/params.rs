@@ -288,17 +288,15 @@ impl State {
                         Value::Bool(true),
                     );
                 }
-
+                ICalendarParameterName::Reltype => {}
                 ICalendarParameterName::Dir => {}
                 ICalendarParameterName::Fbtype => {}
-                ICalendarParameterName::Reltype => {}
                 ICalendarParameterName::ScheduleAgent => {}
                 ICalendarParameterName::ScheduleForceSend => {}
                 ICalendarParameterName::ScheduleStatus => {}
                 ICalendarParameterName::Tzid => {}
                 ICalendarParameterName::Value => {}
                 ICalendarParameterName::Display => {}
-
                 ICalendarParameterName::Filename => {}
                 ICalendarParameterName::ManagedId => {}
                 ICalendarParameterName::Order => {}

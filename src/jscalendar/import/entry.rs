@@ -173,14 +173,10 @@ impl ICalendarComponent {
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
                 ) => {
                     let is_task = matches!(&self.component_type, ICalendarComponentType::VTodo);
-                    let mut has_role = false;
                     let mut progress = None;
 
                     for param in &mut entry.entry.params {
                         match (&param.name, &mut param.value) {
-                            (ICalendarParameterName::Role, _) => {
-                                has_role = true;
-                            }
                             (
                                 ICalendarParameterName::Partstat,
                                 ICalendarParameterValue::Partstat(partstat),
@@ -231,7 +227,7 @@ impl ICalendarComponent {
                                 Value::Element(JSCalendarValue::Type(JSCalendarType::Participant)),
                             )),
                             progress,
-                            (!has_role).then_some((
+                            Some((
                                 Key::Property(JSCalendarProperty::Roles),
                                 Value::Object(Map::from(vec![(
                                     Key::Property(JSCalendarProperty::ParticipantRole(
@@ -247,6 +243,37 @@ impl ICalendarComponent {
                         ]
                         .into_iter()
                         .flatten(),
+                    );
+                }
+                (
+                    ICalendarProperty::Organizer,
+                    Some(ICalendarValue::Text(uri)),
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                ) => {
+                    let todo = "organizer calendar address";
+                    state.map_named_entry(
+                        &mut entry,
+                        &[ICalendarParameterName::Cn, ICalendarParameterName::Jsid],
+                        JSCalendarProperty::Participants,
+                        [
+                            (
+                                Key::Property(JSCalendarProperty::Type),
+                                Value::Element(JSCalendarValue::Type(JSCalendarType::Participant)),
+                            ),
+                            (
+                                Key::Property(JSCalendarProperty::Roles),
+                                Value::Object(Map::from(vec![(
+                                    Key::Property(JSCalendarProperty::ParticipantRole(
+                                        JSCalendarParticipantRole::Owner,
+                                    )),
+                                    Value::Bool(true),
+                                )])),
+                            ),
+                            (
+                                Key::Property(JSCalendarProperty::CalendarAddress),
+                                Value::Str(uri.to_string().into()),
+                            ),
+                        ],
                     );
                 }
                 (
@@ -557,6 +584,20 @@ impl ICalendarComponent {
                         .as_ref()]);
                 }
 
+                (
+                    ICalendarProperty::LastModified,
+                    Some(ICalendarValue::PartialDateTime(value)),
+                    ICalendarComponentType::VCalendar,
+                ) if value.has_date_and_time() => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::Updated),
+                        Value::Element(JSCalendarValue::DateTime(JSCalendarDateTime::new(
+                            value.to_timestamp().unwrap(),
+                            false,
+                        ))),
+                    );
+                    entry.set_converted_to(&[JSCalendarProperty::Updated.to_string().as_ref()]);
+                }
                 (
                     ICalendarProperty::Created,
                     Some(ICalendarValue::PartialDateTime(value)),
@@ -1054,6 +1095,305 @@ impl ICalendarComponent {
                     entry.set_converted_to(&[JSCalendarProperty::RecurrenceRule
                         .to_string()
                         .as_ref()]);
+                }
+                (
+                    ICalendarProperty::Method,
+                    Some(ICalendarValue::Method(value)),
+                    ICalendarComponentType::VCalendar,
+                ) => {
+                    state.method = Some(value);
+                }
+                (
+                    ICalendarProperty::PercentComplete,
+                    Some(ICalendarValue::Integer(value)),
+                    ICalendarComponentType::VTodo,
+                ) => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::PercentComplete),
+                        Value::Number(value.into()),
+                    );
+                    entry.set_converted_to(&[JSCalendarProperty::PercentComplete
+                        .to_string()
+                        .as_ref()]);
+                }
+                (
+                    ICalendarProperty::Priority,
+                    Some(ICalendarValue::Integer(value)),
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                ) => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::Priority),
+                        Value::Number(value.into()),
+                    );
+                    entry.set_converted_to(&[JSCalendarProperty::Priority.to_string().as_ref()]);
+                }
+                (
+                    ICalendarProperty::Sequence,
+                    Some(ICalendarValue::Integer(value)),
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                ) => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::Sequence),
+                        Value::Number(value.into()),
+                    );
+                    entry.set_converted_to(&[JSCalendarProperty::Sequence.to_string().as_ref()]);
+                }
+                (
+                    ICalendarProperty::Prodid,
+                    Some(ICalendarValue::Text(value)),
+                    ICalendarComponentType::VCalendar,
+                ) => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::ProdId),
+                        Value::Str(value.into()),
+                    );
+                    entry.set_converted_to(&[JSCalendarProperty::ProdId.to_string().as_ref()]);
+                }
+                (
+                    ICalendarProperty::RelatedTo,
+                    Some(ICalendarValue::Text(value)),
+                    ICalendarComponentType::VEvent
+                    | ICalendarComponentType::VTodo
+                    | ICalendarComponentType::VAlarm,
+                ) => {
+                    let mut rels: Map<'_, JSCalendarProperty, JSCalendarValue> = Map::from(vec![]);
+                    for param in std::mem::take(&mut entry.entry.params) {
+                        match (param.name, param.value) {
+                            (
+                                ICalendarParameterName::Reltype,
+                                ICalendarParameterValue::Reltype(value),
+                            ) => {
+                                rels.insert(
+                                    match value {
+                                        ICalendarRelationshipType::Child => {
+                                            Key::Property(JSCalendarProperty::RelationValue(
+                                                JSCalendarRelation::Child,
+                                            ))
+                                        }
+                                        ICalendarRelationshipType::Parent => {
+                                            Key::Property(JSCalendarProperty::RelationValue(
+                                                JSCalendarRelation::Parent,
+                                            ))
+                                        }
+                                        ICalendarRelationshipType::Snooze => {
+                                            Key::Property(JSCalendarProperty::RelationValue(
+                                                JSCalendarRelation::Snooze,
+                                            ))
+                                        }
+                                        ICalendarRelationshipType::First => {
+                                            Key::Property(JSCalendarProperty::RelationValue(
+                                                JSCalendarRelation::First,
+                                            ))
+                                        }
+                                        ICalendarRelationshipType::Next => {
+                                            Key::Property(JSCalendarProperty::RelationValue(
+                                                JSCalendarRelation::Next,
+                                            ))
+                                        }
+                                        other => Key::Borrowed(other.as_str()),
+                                    },
+                                    Value::Bool(true),
+                                );
+                            }
+                            (
+                                ICalendarParameterName::Reltype,
+                                ICalendarParameterValue::Text(value),
+                            ) => {
+                                rels.insert(Key::Owned(value), Value::Bool(true));
+                            }
+                            (name, value) => {
+                                entry.entry.params.push(ICalendarParameter { name, value });
+                            }
+                        }
+                    }
+
+                    state
+                        .entries
+                        .entry(Key::Property(JSCalendarProperty::RelatedTo))
+                        .or_insert_with(Value::new_object)
+                        .as_object_mut()
+                        .unwrap()
+                        .insert(
+                            Key::Owned(value),
+                            Value::Object(Map::from(vec![(
+                                Key::Property(JSCalendarProperty::Relation),
+                                Value::Object(rels),
+                            )])),
+                        );
+                    entry.set_converted_to(&[JSCalendarProperty::RelatedTo.to_string().as_ref()]);
+                }
+                (
+                    ICalendarProperty::ShowWithoutTime,
+                    Some(ICalendarValue::Boolean(value)),
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                ) => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::ShowWithoutTime),
+                        Value::Bool(value),
+                    );
+                    entry.set_converted_to(&[JSCalendarProperty::ShowWithoutTime
+                        .to_string()
+                        .as_ref()]);
+                }
+                (
+                    ICalendarProperty::Status,
+                    Some(ICalendarValue::Status(value)),
+                    ICalendarComponentType::VEvent,
+                ) => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::Status),
+                        match value {
+                            ICalendarStatus::Tentative => Value::Element(
+                                JSCalendarValue::EventStatus(JSCalendarEventStatus::Tentative),
+                            ),
+                            ICalendarStatus::Confirmed => Value::Element(
+                                JSCalendarValue::EventStatus(JSCalendarEventStatus::Confirmed),
+                            ),
+                            ICalendarStatus::Cancelled => Value::Element(
+                                JSCalendarValue::EventStatus(JSCalendarEventStatus::Cancelled),
+                            ),
+                            other => Value::Str(other.as_str().into()),
+                        },
+                    );
+                    entry.set_converted_to(&[JSCalendarProperty::Status.to_string().as_ref()]);
+                }
+                (
+                    ICalendarProperty::Status,
+                    Some(ICalendarValue::Status(value)),
+                    ICalendarComponentType::VTodo,
+                ) => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::Progress),
+                        match value {
+                            ICalendarStatus::Cancelled => Value::Element(
+                                JSCalendarValue::Progress(JSCalendarProgress::Cancelled),
+                            ),
+                            ICalendarStatus::NeedsAction => Value::Element(
+                                JSCalendarValue::Progress(JSCalendarProgress::NeedsAction),
+                            ),
+                            ICalendarStatus::Completed => Value::Element(
+                                JSCalendarValue::Progress(JSCalendarProgress::Completed),
+                            ),
+                            ICalendarStatus::InProcess => Value::Element(
+                                JSCalendarValue::Progress(JSCalendarProgress::InProcess),
+                            ),
+                            ICalendarStatus::Failed => Value::Element(JSCalendarValue::Progress(
+                                JSCalendarProgress::Failed,
+                            )),
+                            other => Value::Str(other.as_str().into()),
+                        },
+                    );
+                    entry.set_converted_to(&[JSCalendarProperty::Progress.to_string().as_ref()]);
+                }
+                (
+                    ICalendarProperty::Status,
+                    Some(ICalendarValue::Text(value)),
+                    ICalendarComponentType::VCalendar | ICalendarComponentType::VTodo,
+                ) => {
+                    let prop = if matches!(self.component_type, ICalendarComponentType::VTodo) {
+                        JSCalendarProperty::Progress
+                    } else {
+                        JSCalendarProperty::Status
+                    };
+
+                    entry.set_converted_to(&[prop.to_string().as_ref()]);
+                    state
+                        .entries
+                        .insert(Key::Property(prop), Value::Str(value.into()));
+                }
+                (
+                    ICalendarProperty::Source,
+                    Some(ICalendarValue::Text(value)),
+                    ICalendarComponentType::VCalendar,
+                ) => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::Source),
+                        Value::Str(value.into()),
+                    );
+                    entry.set_converted_to(&[JSCalendarProperty::Source.to_string().as_ref()]);
+                }
+                (
+                    ICalendarProperty::Transp,
+                    Some(ICalendarValue::Transparency(value)),
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                ) => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::FreeBusyStatus),
+                        Value::Element(JSCalendarValue::FreeBusyStatus(match value {
+                            ICalendarTransparency::Opaque => JSCalendarFreeBusyStatus::Busy,
+                            ICalendarTransparency::Transparent => JSCalendarFreeBusyStatus::Free,
+                        })),
+                    );
+                    entry.set_converted_to(&[JSCalendarProperty::FreeBusyStatus
+                        .to_string()
+                        .as_ref()]);
+                }
+                (
+                    ICalendarProperty::Trigger,
+                    Some(ICalendarValue::Duration(value)),
+                    ICalendarComponentType::VAlarm,
+                ) => {
+                    let mut obj = Map::from(vec![
+                        (
+                            Key::Property(JSCalendarProperty::Type),
+                            Value::Element(JSCalendarValue::Type(JSCalendarType::OffsetTrigger)),
+                        ),
+                        (
+                            Key::Property(JSCalendarProperty::Offset),
+                            Value::Element(JSCalendarValue::Duration(value)),
+                        ),
+                    ]);
+
+                    for param in std::mem::take(&mut entry.entry.params) {
+                        match (param.name, param.value) {
+                            (
+                                ICalendarParameterName::Related,
+                                ICalendarParameterValue::Related(value),
+                            ) => {
+                                obj.insert(
+                                    Key::Property(JSCalendarProperty::RelativeTo),
+                                    Value::Element(JSCalendarValue::RelativeTo(match value {
+                                        ICalendarRelated::Start => JSCalendarRelativeTo::Start,
+                                        ICalendarRelated::End => JSCalendarRelativeTo::End,
+                                    })),
+                                );
+                            }
+                            (name, value) => {
+                                entry.entry.params.push(ICalendarParameter { name, value });
+                            }
+                        }
+                    }
+
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::Trigger),
+                        Value::Object(obj),
+                    );
+                    entry.set_converted_to(&[JSCalendarProperty::Trigger.to_string().as_ref()]);
+                }
+                (
+                    ICalendarProperty::Trigger,
+                    Some(ICalendarValue::PartialDateTime(value)),
+                    ICalendarComponentType::VAlarm,
+                ) if value.has_date_and_time() => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::Trigger),
+                        Value::Object(Map::from(vec![
+                            (
+                                Key::Property(JSCalendarProperty::Type),
+                                Value::Element(JSCalendarValue::Type(
+                                    JSCalendarType::AbsoluteTrigger,
+                                )),
+                            ),
+                            (
+                                Key::Property(JSCalendarProperty::When),
+                                Value::Element(JSCalendarValue::DateTime(JSCalendarDateTime::new(
+                                    value.to_timestamp().unwrap_or_default(),
+                                    false,
+                                ))),
+                            ),
+                        ])),
+                    );
+                    entry.set_converted_to(&[JSCalendarProperty::Trigger.to_string().as_ref()]);
                 }
 
                 // Other props

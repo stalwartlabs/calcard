@@ -156,7 +156,8 @@ impl<'x> State<'x> {
         for prop in props.into_iter().flat_map(|prop| prop.into_array()) {
             let mut prop = prop.into_iter();
             let Some(name) = prop.next().and_then(|v| v.into_string()).map(|name| {
-                VCardProperty::parse(name.as_bytes()).unwrap_or(VCardProperty::Other(name))
+                VCardProperty::parse(name.as_bytes())
+                    .unwrap_or(VCardProperty::Other(name.into_owned()))
             }) else {
                 continue;
             };
@@ -166,7 +167,7 @@ impl<'x> State<'x> {
             let Some(value_type) = prop.next().and_then(|v| v.into_string()).map(|v| {
                 match VCardValueType::parse(v.as_bytes()) {
                     Some(v) => IanaType::Iana(v),
-                    None => IanaType::Other(v),
+                    None => IanaType::Other(v.into_owned()),
                 }
             }) else {
                 continue;

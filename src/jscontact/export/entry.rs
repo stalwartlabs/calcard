@@ -26,8 +26,8 @@ impl VCardEntry {
             match key {
                 Key::Property(JSContactProperty::Name) => {
                     if let Some(name) = value.into_string() {
-                        self.name = VCardProperty::parse(name.as_ref())
-                            .unwrap_or(VCardProperty::Other(name));
+                        self.name = VCardProperty::parse(name.as_bytes())
+                            .unwrap_or(VCardProperty::Other(name.into_owned()));
                     }
                 }
                 Key::Property(JSContactProperty::Parameters) => {

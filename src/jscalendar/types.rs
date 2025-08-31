@@ -126,7 +126,7 @@ impl FromStr for JSCalendarProperty {
             "convertedProperties" => JSCalendarProperty::ConvertedProperties,
             "parameters" => JSCalendarProperty::Parameters,
             "ICalComponent" => JSCalendarProperty::ICalComponent,
-            "thisAndFuture" => JSCalendarProperty::ThisAndFuture
+            "thisAndFuture" => JSCalendarProperty::ThisAndFuture,
         )
         .cloned()
         .ok_or(())
@@ -293,6 +293,8 @@ impl FromStr for JSCalendarType {
             "UTCDateTime" => JSCalendarType::UTCDateTime,
             "VirtualLocation" => JSCalendarType::VirtualLocation,
             "ICalComponent" => JSCalendarType::ICalComponent,
+            "AbsoluteTrigger" => JSCalendarType::AbsoluteTrigger,
+            "OffsetTrigger" => JSCalendarType::OffsetTrigger,
         )
         .ok_or(())
     }
@@ -327,6 +329,8 @@ impl JSCalendarType {
             JSCalendarType::UTCDateTime => "UTCDateTime",
             JSCalendarType::VirtualLocation => "VirtualLocation",
             JSCalendarType::ICalComponent => "ICalComponent",
+            JSCalendarType::OffsetTrigger => "OffsetTrigger",
+            JSCalendarType::AbsoluteTrigger => "AbsoluteTrigger",
         }
     }
 }

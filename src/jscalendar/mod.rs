@@ -209,6 +209,8 @@ pub enum JSCalendarType {
     UTCDateTime,
     VirtualLocation,
     ICalComponent,
+    OffsetTrigger,
+    AbsoluteTrigger,
 }
 
 // JSCalendar Enum Values for action (Context: Alert)

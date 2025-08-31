@@ -61,7 +61,7 @@ impl Element for JSContactValue {
         }
     }
 
-    fn to_cow(&self) -> Cow<'_, str> {
+    fn to_cow(&self) -> Cow<'static, str> {
         match self {
             JSContactValue::Type(v) => v.as_str().into(),
             JSContactValue::GrammaticalGender(v) => v.as_str().into(),

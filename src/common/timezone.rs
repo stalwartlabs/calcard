@@ -101,6 +101,7 @@ impl Tz {
         }
     }
 
+    #[inline]
     pub fn to_resolved(&self) -> Option<Tz> {
         match self {
             Tz::Floating => None,
@@ -108,8 +109,17 @@ impl Tz {
         }
     }
 
+    #[inline]
     pub fn is_floating(&self) -> bool {
         matches!(self, Self::Floating)
+    }
+
+    pub fn is_utc(&self) -> bool {
+        match self {
+            Self::Tz(tz) => tz == &chrono_tz::UTC,
+            Self::Fixed(offset) => offset.local_minus_utc() == 0,
+            _ => false,
+        }
     }
 
     pub fn offset_from_utc_date(&self, utc: &NaiveDate) -> i32 {

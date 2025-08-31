@@ -5,7 +5,6 @@
  */
 
 use crate::{
-    common::PartialDateTime,
     icalendar::ICalendarComponentType,
     jscalendar::{JSCalendarDateTime, JSCalendarProperty, JSCalendarValue},
 };
@@ -22,7 +21,7 @@ pub mod props;
 struct ConvertedComponent<'x> {
     pub(super) name: ICalendarComponentType,
     pub(super) converted_props: Vec<(
-        Vec<Key<'static, JSCalendarProperty>>,
+        Vec<Key<'x, JSCalendarProperty>>,
         Value<'x, JSCalendarProperty, JSCalendarValue>,
     )>,
     pub(super) converted_props_count: usize,

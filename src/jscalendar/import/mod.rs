@@ -10,7 +10,7 @@ use jmap_tools::{JsonPointer, Key, Value};
 
 use crate::{
     common::timezone::Tz,
-    icalendar::{ICalendarEntry, ICalendarParameterName, ICalendarProperty},
+    icalendar::{ICalendarEntry, ICalendarMethod, ICalendarParameterName, ICalendarProperty},
     jscalendar::{JSCalendarProperty, JSCalendarValue},
 };
 
@@ -38,6 +38,7 @@ struct State {
     tz_start: Option<Tz>,
     tz_end: Option<Tz>,
     has_dates: bool,
+    method: Option<ICalendarMethod>,
 }
 
 #[derive(Debug, Default)]

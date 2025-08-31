@@ -30,6 +30,7 @@ impl State {
     ) {
         let todo =
             "for LOCATION and GEO use the same key and set main-location-id, otherwise use uuid5";
+        let todo = "merge values by uuid5, for example when receiving ORGANIZER and ATTENDEE";
 
         todo!()
     }

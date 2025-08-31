@@ -56,6 +56,10 @@ impl ICalendarComponent {
         self.entries.iter().find(|entry| &entry.name == prop)
     }
 
+    pub fn has_property(&self, prop: &ICalendarProperty) -> bool {
+        self.entries.iter().any(|entry| &entry.name == prop)
+    }
+
     pub fn properties<'x, 'y: 'x>(
         &'x self,
         prop: &'y ICalendarProperty,

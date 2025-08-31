@@ -115,7 +115,7 @@ impl Element for JSCalendarValue {
         }
     }
 
-    fn to_cow(&self) -> Cow<'_, str> {
+    fn to_cow(&self) -> Cow<'static, str> {
         match self {
             JSCalendarValue::Type(v) => v.as_str().into(),
             JSCalendarValue::DateTime(v) => v.to_rfc3339().into(),
