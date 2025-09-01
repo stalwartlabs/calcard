@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use crate::{Entry, Parser};
-
 use super::*;
+use crate::{Entry, Parser};
+use std::borrow::Cow;
 
 impl IanaParse for ICalendarProperty {
     fn parse(value: &[u8]) -> Option<Self> {
@@ -177,6 +177,91 @@ impl ICalendarProperty {
             ICalendarProperty::Other(s) => s.as_str(),
         }
     }
+
+    pub fn into_string(self) -> Cow<'static, str> {
+        match self {
+            ICalendarProperty::Calscale => "CALSCALE",
+            ICalendarProperty::Method => "METHOD",
+            ICalendarProperty::Prodid => "PRODID",
+            ICalendarProperty::Version => "VERSION",
+            ICalendarProperty::Attach => "ATTACH",
+            ICalendarProperty::Categories => "CATEGORIES",
+            ICalendarProperty::Class => "CLASS",
+            ICalendarProperty::Comment => "COMMENT",
+            ICalendarProperty::Description => "DESCRIPTION",
+            ICalendarProperty::Geo => "GEO",
+            ICalendarProperty::Location => "LOCATION",
+            ICalendarProperty::PercentComplete => "PERCENT-COMPLETE",
+            ICalendarProperty::Priority => "PRIORITY",
+            ICalendarProperty::Resources => "RESOURCES",
+            ICalendarProperty::Status => "STATUS",
+            ICalendarProperty::Summary => "SUMMARY",
+            ICalendarProperty::Completed => "COMPLETED",
+            ICalendarProperty::Dtend => "DTEND",
+            ICalendarProperty::Due => "DUE",
+            ICalendarProperty::Dtstart => "DTSTART",
+            ICalendarProperty::Duration => "DURATION",
+            ICalendarProperty::Freebusy => "FREEBUSY",
+            ICalendarProperty::Transp => "TRANSP",
+            ICalendarProperty::Tzid => "TZID",
+            ICalendarProperty::Tzname => "TZNAME",
+            ICalendarProperty::Tzoffsetfrom => "TZOFFSETFROM",
+            ICalendarProperty::Tzoffsetto => "TZOFFSETTO",
+            ICalendarProperty::Tzurl => "TZURL",
+            ICalendarProperty::Attendee => "ATTENDEE",
+            ICalendarProperty::Contact => "CONTACT",
+            ICalendarProperty::Organizer => "ORGANIZER",
+            ICalendarProperty::RecurrenceId => "RECURRENCE-ID",
+            ICalendarProperty::RelatedTo => "RELATED-TO",
+            ICalendarProperty::Url => "URL",
+            ICalendarProperty::Uid => "UID",
+            ICalendarProperty::Exdate => "EXDATE",
+            ICalendarProperty::Exrule => "EXRULE",
+            ICalendarProperty::Rdate => "RDATE",
+            ICalendarProperty::Rrule => "RRULE",
+            ICalendarProperty::Action => "ACTION",
+            ICalendarProperty::Repeat => "REPEAT",
+            ICalendarProperty::Trigger => "TRIGGER",
+            ICalendarProperty::Created => "CREATED",
+            ICalendarProperty::Dtstamp => "DTSTAMP",
+            ICalendarProperty::LastModified => "LAST-MODIFIED",
+            ICalendarProperty::Sequence => "SEQUENCE",
+            ICalendarProperty::RequestStatus => "REQUEST-STATUS",
+            ICalendarProperty::Xml => "XML",
+            ICalendarProperty::Tzuntil => "TZUNTIL",
+            ICalendarProperty::TzidAliasOf => "TZID-ALIAS-OF",
+            ICalendarProperty::Busytype => "BUSYTYPE",
+            ICalendarProperty::Name => "NAME",
+            ICalendarProperty::RefreshInterval => "REFRESH-INTERVAL",
+            ICalendarProperty::Source => "SOURCE",
+            ICalendarProperty::Color => "COLOR",
+            ICalendarProperty::Image => "IMAGE",
+            ICalendarProperty::Conference => "CONFERENCE",
+            ICalendarProperty::CalendarAddress => "CALENDAR-ADDRESS",
+            ICalendarProperty::LocationType => "LOCATION-TYPE",
+            ICalendarProperty::ParticipantType => "PARTICIPANT-TYPE",
+            ICalendarProperty::ResourceType => "RESOURCE-TYPE",
+            ICalendarProperty::StructuredData => "STRUCTURED-DATA",
+            ICalendarProperty::StyledDescription => "STYLED-DESCRIPTION",
+            ICalendarProperty::Acknowledged => "ACKNOWLEDGED",
+            ICalendarProperty::Proximity => "PROXIMITY",
+            ICalendarProperty::Concept => "CONCEPT",
+            ICalendarProperty::Link => "LINK",
+            ICalendarProperty::Refid => "REFID",
+            ICalendarProperty::Begin => "BEGIN",
+            ICalendarProperty::End => "END",
+            ICalendarProperty::Coordinates => "COORDINATES",
+            ICalendarProperty::ShowWithoutTime => "SHOW-WITHOUT-TIME",
+            ICalendarProperty::Jsid => "JSID",
+            ICalendarProperty::Jsprop => "JSPROP",
+            ICalendarProperty::EstimatedDuration => "ESTIMATED-DURATION",
+            ICalendarProperty::Reason => "REASON",
+            ICalendarProperty::Substate => "SUBSTATE",
+            ICalendarProperty::TaskMode => "TASK-MODE",
+            ICalendarProperty::Other(s) => return Cow::Owned(s),
+        }
+        .into()
+    }
 }
 
 impl ICalendarParameterName {
@@ -261,6 +346,49 @@ impl ICalendarParameterName {
             ICalendarParameterName::Jsid => "JSID",
             ICalendarParameterName::Other(name) => name.as_str(),
         }
+    }
+
+    pub fn into_string(self) -> Cow<'static, str> {
+        match self {
+            ICalendarParameterName::Altrep => "ALTREP",
+            ICalendarParameterName::Cn => "CN",
+            ICalendarParameterName::Cutype => "CUTYPE",
+            ICalendarParameterName::DelegatedFrom => "DELEGATED-FROM",
+            ICalendarParameterName::DelegatedTo => "DELEGATED-TO",
+            ICalendarParameterName::Dir => "DIR",
+            ICalendarParameterName::Fmttype => "FMTTYPE",
+            ICalendarParameterName::Fbtype => "FBTYPE",
+            ICalendarParameterName::Language => "LANGUAGE",
+            ICalendarParameterName::Member => "MEMBER",
+            ICalendarParameterName::Partstat => "PARTSTAT",
+            ICalendarParameterName::Range => "RANGE",
+            ICalendarParameterName::Related => "RELATED",
+            ICalendarParameterName::Reltype => "RELTYPE",
+            ICalendarParameterName::Role => "ROLE",
+            ICalendarParameterName::Rsvp => "RSVP",
+            ICalendarParameterName::ScheduleAgent => "SCHEDULE-AGENT",
+            ICalendarParameterName::ScheduleForceSend => "SCHEDULE-FORCE-SEND",
+            ICalendarParameterName::ScheduleStatus => "SCHEDULE-STATUS",
+            ICalendarParameterName::SentBy => "SENT-BY",
+            ICalendarParameterName::Tzid => "TZID",
+            ICalendarParameterName::Value => "VALUE",
+            ICalendarParameterName::Display => "DISPLAY",
+            ICalendarParameterName::Email => "EMAIL",
+            ICalendarParameterName::Feature => "FEATURE",
+            ICalendarParameterName::Label => "LABEL",
+            ICalendarParameterName::Size => "SIZE",
+            ICalendarParameterName::Filename => "FILENAME",
+            ICalendarParameterName::ManagedId => "MANAGED-ID",
+            ICalendarParameterName::Order => "ORDER",
+            ICalendarParameterName::Schema => "SCHEMA",
+            ICalendarParameterName::Derived => "DERIVED",
+            ICalendarParameterName::Gap => "GAP",
+            ICalendarParameterName::Linkrel => "LINKREL",
+            ICalendarParameterName::Jsptr => "JSPTR",
+            ICalendarParameterName::Jsid => "JSID",
+            ICalendarParameterName::Other(name) => return Cow::Owned(name),
+        }
+        .into()
     }
 
     pub fn parse(input: &str) -> Self {

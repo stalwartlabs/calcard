@@ -223,10 +223,7 @@ impl State {
             }
 
             let mut obj = vec![(Key::Property(value_property_name.clone()), value)];
-            for (key, value) in extra_properties {
-                obj.push((key, value));
-            }
-
+            obj.extend(extra_properties);
             obj.extend(params.into_iter(&entry.entry.name));
             let prop_id = entries.insert_named(prop_id, Value::Object(Map::from(obj)));
 

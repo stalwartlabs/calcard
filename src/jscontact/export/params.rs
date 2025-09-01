@@ -200,14 +200,14 @@ impl<'x> State<'x> {
     }
 }
 
-pub(super) enum ParamValue<'x> {
+pub(crate) enum ParamValue<'x> {
     Text(Cow<'x, str>),
     Number(i64),
     Bool(bool),
 }
 
 impl<'x> ParamValue<'x> {
-    pub(super) fn try_from_value<P: Property, E: Element>(value: Value<'x, P, E>) -> Option<Self> {
+    pub(crate) fn try_from_value<P: Property, E: Element>(value: Value<'x, P, E>) -> Option<Self> {
         match value {
             Value::Str(s) => Some(Self::Text(s)),
             Value::Number(n) => Some(Self::Number(n.cast_to_i64())),
@@ -217,7 +217,7 @@ impl<'x> ParamValue<'x> {
         }
     }
 
-    pub(super) fn into_string(self) -> Cow<'x, str> {
+    pub(crate) fn into_string(self) -> Cow<'x, str> {
         match self {
             Self::Text(s) => s,
             Self::Number(n) => n.to_string().into(),
@@ -225,7 +225,7 @@ impl<'x> ParamValue<'x> {
         }
     }
 
-    pub(super) fn into_number(self) -> Result<i64, Self> {
+    pub(crate) fn into_number(self) -> Result<i64, Self> {
         match self {
             Self::Number(n) => Ok(n),
             Self::Text(s) => s.parse().map_err(|_| Self::Text(s)),

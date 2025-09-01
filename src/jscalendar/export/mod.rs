@@ -5,17 +5,32 @@
  */
 
 use crate::{
-    icalendar::ICalendarComponentType,
+    common::timezone::Tz,
+    icalendar::{ICalendarComponent, ICalendarComponentType, ICalendarMethod},
     jscalendar::{JSCalendarDateTime, JSCalendarProperty, JSCalendarValue},
 };
 use chrono::{DateTime, NaiveDateTime, TimeZone};
-use chrono_tz::Tz;
 use jmap_tools::{Key, Value};
 
 pub mod convert;
 pub mod entry;
 pub mod params;
 pub mod props;
+
+struct State<'x> {
+    tz: Option<Tz>,
+    tz_end: Option<Tz>,
+    tz_rid: Option<Tz>,
+    start: Option<DateTime<Tz>>,
+    recurrence_id: Option<DateTime<Tz>>,
+    components: &'x mut Vec<ICalendarComponent>,
+}
+
+#[derive(Default)]
+struct ParentEntries {
+    components: Vec<u32>,
+    method: Option<ICalendarMethod>,
+}
 
 #[allow(clippy::type_complexity)]
 struct ConvertedComponent<'x> {

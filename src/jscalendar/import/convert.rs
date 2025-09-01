@@ -7,7 +7,15 @@
 use crate::{icalendar::ICalendar, jscalendar::JSCalendar};
 
 impl ICalendar {
-    pub fn into_jscalendar(mut self) -> JSCalendar<'static> {
+    pub fn into_jscalendar(self) -> JSCalendar<'static> {
+        let resolver = self.build_owned_tz_resolver();
+        self.components
+            .into_iter()
+            .next()
+            .unwrap()
+            .entries_to_jscalendar(&resolver)
+            .into_object(crate::icalendar::ICalendarComponentType::Available);
+
         todo!()
     }
 }

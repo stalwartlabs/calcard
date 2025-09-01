@@ -5,16 +5,18 @@
  */
 
 use crate::{
-    common::IanaString,
+    common::{Data, IanaString, IanaType},
     icalendar::{
         ICalendarEntry, ICalendarFeatureType, ICalendarParameter, ICalendarParameterName,
         ICalendarParameterValue, ICalendarParticipationRole, ICalendarParticipationStatus,
-        ICalendarProperty, ICalendarRelated, ICalendarUserTypes,
+        ICalendarProperty, ICalendarRelated, ICalendarUserTypes, ICalendarValue,
+        ICalendarValueType, Uri,
     },
     jscalendar::{
         JSCalendarParticipantKind, JSCalendarParticipantRole, JSCalendarParticipationStatus,
         JSCalendarProperty, JSCalendarRelativeTo, JSCalendarValue,
-        JSCalendarVirtualLocationFeature, import::State,
+        JSCalendarVirtualLocationFeature,
+        import::{ICalendarParams, State},
     },
 };
 use jmap_tools::{Key, Map, Value};
@@ -282,37 +284,105 @@ impl State {
                             .insert(Key::Property(JSCalendarProperty::Locale), Value::Str(text));
                     }
                 }
-                ICalendarParameterName::Range => {
-                    self.entries.insert(
-                        Key::Property(JSCalendarProperty::ThisAndFuture),
-                        Value::Bool(true),
-                    );
-                }
-                ICalendarParameterName::Reltype => {}
-                ICalendarParameterName::Dir => {}
-                ICalendarParameterName::Fbtype => {}
-                ICalendarParameterName::ScheduleAgent => {}
-                ICalendarParameterName::ScheduleForceSend => {}
-                ICalendarParameterName::ScheduleStatus => {}
-                ICalendarParameterName::Tzid => {}
-                ICalendarParameterName::Value => {}
-                ICalendarParameterName::Display => {}
-                ICalendarParameterName::Filename => {}
-                ICalendarParameterName::ManagedId => {}
-                ICalendarParameterName::Order => {}
-                ICalendarParameterName::Schema => {}
-                ICalendarParameterName::Derived => {}
-                ICalendarParameterName::Gap => {}
-                ICalendarParameterName::Jsptr => {}
-                ICalendarParameterName::Other(_) => {}
-                ICalendarParameterName::Altrep => {}
                 ICalendarParameterName::Jsid => {
-                    let todo = "remove todos";
                     jsid = param.value.into_text().map(|v| v.into_owned());
                 }
+                ICalendarParameterName::Range
+                | ICalendarParameterName::Reltype
+                | ICalendarParameterName::Dir
+                | ICalendarParameterName::Fbtype
+                | ICalendarParameterName::ScheduleAgent
+                | ICalendarParameterName::ScheduleForceSend
+                | ICalendarParameterName::ScheduleStatus
+                | ICalendarParameterName::Tzid
+                | ICalendarParameterName::Value
+                | ICalendarParameterName::Display
+                | ICalendarParameterName::Filename
+                | ICalendarParameterName::ManagedId
+                | ICalendarParameterName::Order
+                | ICalendarParameterName::Schema
+                | ICalendarParameterName::Derived
+                | ICalendarParameterName::Gap
+                | ICalendarParameterName::Jsptr
+                | ICalendarParameterName::Other(_)
+                | ICalendarParameterName::Altrep => {}
             }
         }
 
         jsid
+    }
+}
+
+impl ICalendarParams {
+    pub(super) fn into_jscalendar_value(
+        self,
+    ) -> Option<Map<'static, JSCalendarProperty, JSCalendarValue>> {
+        if !self.0.is_empty() {
+            let mut obj = Map::from(Vec::with_capacity(self.0.len()));
+
+            for (param, value) in self.0 {
+                let value = if value.len() > 1 {
+                    Value::Array(value)
+                } else {
+                    value.into_iter().next().unwrap()
+                };
+                obj.insert_unchecked(Key::from(param.into_string()), value);
+            }
+            Some(obj)
+        } else {
+            None
+        }
+    }
+}
+
+impl ICalendarValue {
+    pub(super) fn into_jscalendar_value(
+        self,
+        value_type: Option<&IanaType<ICalendarValueType, String>>,
+    ) -> Value<'static, JSCalendarProperty, JSCalendarValue> {
+        match self {
+            ICalendarValue::Text(v) => Value::Str(v.into()),
+            ICalendarValue::Integer(v) => Value::Number(v.into()),
+            ICalendarValue::Float(v) => Value::Number(v.into()),
+            ICalendarValue::Boolean(v) => Value::Bool(v),
+            ICalendarValue::PartialDateTime(v) => {
+                let mut out = String::new();
+                let _ = v.format_as_ical(
+                    &mut out,
+                    value_type.and_then(|v| v.iana()).unwrap_or(
+                        match (v.has_date(), v.has_time(), v.has_zone()) {
+                            (true, true, _) => &ICalendarValueType::DateTime,
+                            (true, _, _) => &ICalendarValueType::Date,
+                            (_, true, _) => &ICalendarValueType::Time,
+                            (_, _, true) => &ICalendarValueType::UtcOffset,
+                            _ => &ICalendarValueType::Text,
+                        },
+                    ),
+                );
+                Value::Str(out.into())
+            }
+            ICalendarValue::Binary(v) => Value::Str(
+                Uri::Data(Data {
+                    content_type: None,
+                    data: v,
+                })
+                .to_string()
+                .into(),
+            ),
+            ICalendarValue::Uri(v) => Value::Str(v.to_string().into()),
+            ICalendarValue::Duration(v) => Value::Str(v.to_string().into()),
+            ICalendarValue::RecurrenceRule(v) => Value::Str(v.to_string().into()),
+            ICalendarValue::Period(v) => Value::Str(v.to_string().into()),
+            ICalendarValue::CalendarScale(v) => Value::Str(v.as_str().into()),
+            ICalendarValue::Method(v) => Value::Str(v.as_str().into()),
+            ICalendarValue::Classification(v) => Value::Str(v.as_str().into()),
+            ICalendarValue::Status(v) => Value::Str(v.as_str().into()),
+            ICalendarValue::Transparency(v) => Value::Str(v.as_str().into()),
+            ICalendarValue::Action(v) => Value::Str(v.as_str().into()),
+            ICalendarValue::BusyType(v) => Value::Str(v.as_str().into()),
+            ICalendarValue::ParticipantType(v) => Value::Str(v.as_str().into()),
+            ICalendarValue::ResourceType(v) => Value::Str(v.as_str().into()),
+            ICalendarValue::Proximity(v) => Value::Str(v.as_str().into()),
+        }
     }
 }

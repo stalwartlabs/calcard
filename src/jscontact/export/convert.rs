@@ -692,11 +692,11 @@ impl JSContact<'_> {
                                         {
                                             match pronoun_property {
                                                 Key::Property(JSContactProperty::Pronouns) => {
-                                                    if let Ok(pronoun_type) = convert_value(
-                                                        value,
-                                                        &ValueType::Vcard(VCardValueType::Text),
-                                                    ) {
-                                                        entry.values = vec![pronoun_type];
+                                                    if let Some(value) = value
+                                                        .into_owned_string()
+                                                        .map(VCardValue::Text)
+                                                    {
+                                                        entry.values = vec![value];
                                                     }
                                                 }
                                                 Key::Property(JSContactProperty::Pref) => {
@@ -750,10 +750,9 @@ impl JSContact<'_> {
                             for (sub_property, value) in value.into_expanded_object() {
                                 match sub_property {
                                     Key::Property(JSContactProperty::Name) => {
-                                        if let Ok(name) = convert_value(
-                                            value,
-                                            &ValueType::Vcard(VCardValueType::Text),
-                                        ) {
+                                        if let Some(name) =
+                                            value.into_owned_string().map(VCardValue::Text)
+                                        {
                                             entry.values = vec![name];
                                         }
                                     }
@@ -1141,14 +1140,13 @@ impl JSContact<'_> {
                             for (sub_property, value) in value.into_expanded_object() {
                                 match sub_property {
                                     Key::Property(JSContactProperty::Name) => {
-                                        if let Ok(name) = convert_value(
-                                            value,
-                                            &ValueType::Vcard(VCardValueType::Text),
-                                        ) {
+                                        if let Some(value) =
+                                            value.into_owned_string().map(VCardValue::Text)
+                                        {
                                             if entry.values.is_empty() {
-                                                entry.values = vec![name];
+                                                entry.values = vec![value];
                                             } else {
-                                                entry.values.insert(0, name);
+                                                entry.values.insert(0, value);
                                             }
                                         }
                                     }
@@ -1162,11 +1160,11 @@ impl JSContact<'_> {
                                             for (key, value) in item.into_expanded_object() {
                                                 match key {
                                                     Key::Property(JSContactProperty::Name) => {
-                                                        if let Ok(name) = convert_value(
-                                                            value,
-                                                            &ValueType::Vcard(VCardValueType::Text),
-                                                        ) {
-                                                            entry.values.push(name);
+                                                        if let Some(value) = value
+                                                            .into_owned_string()
+                                                            .map(VCardValue::Text)
+                                                        {
+                                                            entry.values.push(value);
                                                         }
                                                     }
                                                     _ => {
@@ -1263,11 +1261,10 @@ impl JSContact<'_> {
                             for (sub_property, value) in value.into_expanded_object() {
                                 match sub_property {
                                     Key::Property(JSContactProperty::Name) => {
-                                        if let Ok(name) = convert_value(
-                                            value,
-                                            &ValueType::Vcard(VCardValueType::Text),
-                                        ) {
-                                            entry.values = vec![name];
+                                        if let Some(value) =
+                                            value.into_owned_string().map(VCardValue::Text)
+                                        {
+                                            entry.values = vec![value];
                                         }
                                     }
                                     Key::Property(JSContactProperty::Pref) => {
@@ -1550,11 +1547,10 @@ impl JSContact<'_> {
                                 for (sub_property, value) in value.into_expanded_object() {
                                     match sub_property {
                                         Key::Property(JSContactProperty::Uri) => {
-                                            if let Ok(name) = convert_value(
-                                                value,
-                                                &ValueType::Vcard(VCardValueType::Text),
-                                            ) {
-                                                entry.values = vec![name];
+                                            if let Some(value) =
+                                                value.into_owned_string().map(VCardValue::Text)
+                                            {
+                                                entry.values = vec![value];
                                             }
                                         }
                                         Key::Property(JSContactProperty::MediaType) => {
@@ -1625,11 +1621,10 @@ impl JSContact<'_> {
                             for (sub_property, value) in value.into_expanded_object() {
                                 match sub_property {
                                     Key::Property(JSContactProperty::Uri) => {
-                                        if let Ok(name) = convert_value(
-                                            value,
-                                            &ValueType::Vcard(VCardValueType::Text),
-                                        ) {
-                                            entry.values = vec![name];
+                                        if let Some(value) =
+                                            value.into_owned_string().map(VCardValue::Text)
+                                        {
+                                            entry.values = vec![value];
                                         }
                                     }
                                     Key::Property(JSContactProperty::MediaType) => {
@@ -1775,11 +1770,10 @@ impl JSContact<'_> {
                                 for (sub_property, value) in value.into_expanded_object() {
                                     match sub_property {
                                         Key::Property(JSContactProperty::Value) => {
-                                            if let Ok(name) = convert_value(
-                                                value,
-                                                &ValueType::Vcard(VCardValueType::Text),
-                                            ) {
-                                                entry.values = vec![name];
+                                            if let Some(value) =
+                                                value.into_owned_string().map(VCardValue::Text)
+                                            {
+                                                entry.values = vec![value];
                                             }
                                         }
                                         Key::Property(JSContactProperty::Label) => {

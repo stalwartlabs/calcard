@@ -126,7 +126,6 @@ impl FromStr for JSCalendarProperty {
             "convertedProperties" => JSCalendarProperty::ConvertedProperties,
             "parameters" => JSCalendarProperty::Parameters,
             "ICalComponent" => JSCalendarProperty::ICalComponent,
-            "thisAndFuture" => JSCalendarProperty::ThisAndFuture,
         )
         .cloned()
         .ok_or(())
@@ -250,7 +249,6 @@ impl JSCalendarProperty {
             JSCalendarProperty::ConvertedProperties => "convertedProperties",
             JSCalendarProperty::Parameters => "parameters",
             JSCalendarProperty::ICalComponent => "ICalComponent",
-            JSCalendarProperty::ThisAndFuture => "thisAndFuture",
             JSCalendarProperty::LinkDisplay(v) => v.as_str(),
             JSCalendarProperty::VirtualLocationFeature(v) => v.as_str(),
             JSCalendarProperty::ParticipantRole(v) => v.as_str(),

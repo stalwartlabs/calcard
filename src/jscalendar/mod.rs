@@ -126,7 +126,6 @@ pub enum JSCalendarProperty {
     RecurrenceId,
     RecurrenceIdTimeZone,
     RecurrenceOverrides,
-    ThisAndFuture,
     Rel,
     RelatedTo,
     Relation,

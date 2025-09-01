@@ -15,19 +15,20 @@ use crate::{
 use jmap_tools::{JsonPointer, Key, Map, Value};
 
 impl ICalendarComponent {
-    pub(crate) fn entries_to_jscalendar(&mut self, tz_resolver: &TzResolver<String>) -> State {
+    pub(super) fn entries_to_jscalendar(&mut self, tz_resolver: &TzResolver<String>) -> State {
         let mut state = State::default();
 
-        let todo = "import sub components";
+        let todo = "import sub components + converted props components";
 
         let has_locations = state
             .entries
             .contains_key(&Key::Property(JSCalendarProperty::Locations));
+        let mut main_location_id = None;
 
         self.entries.sort_by_key(|entry| match &entry.name {
             ICalendarProperty::Dtstart => 0,
             ICalendarProperty::RecurrenceId => 1,
-            ICalendarProperty::Dtend | ICalendarProperty::Due => 2,
+            ICalendarProperty::Dtend | ICalendarProperty::Due | ICalendarProperty::Location => 2,
             _ => 3,
         });
         let mut start_date = None;
@@ -93,12 +94,12 @@ impl ICalendarComponent {
                         JSCalendarProperty::Links,
                         [
                             (
-                                Key::Property(JSCalendarProperty::Type),
-                                Value::Element(JSCalendarValue::Type(JSCalendarType::Link)),
-                            ),
-                            (
                                 Key::Property(JSCalendarProperty::Href),
                                 Value::Str(uri.into()),
+                            ),
+                            (
+                                Key::Property(JSCalendarProperty::Type),
+                                Value::Element(JSCalendarValue::Type(JSCalendarType::Link)),
                             ),
                         ],
                     );
@@ -125,12 +126,12 @@ impl ICalendarComponent {
                         JSCalendarProperty::Links,
                         [
                             (
-                                Key::Property(JSCalendarProperty::Type),
-                                Value::Element(JSCalendarValue::Type(JSCalendarType::Link)),
-                            ),
-                            (
                                 Key::Property(JSCalendarProperty::Href),
                                 Value::Str(uri.into()),
+                            ),
+                            (
+                                Key::Property(JSCalendarProperty::Type),
+                                Value::Element(JSCalendarValue::Type(JSCalendarType::Link)),
                             ),
                         ],
                     );
@@ -156,12 +157,12 @@ impl ICalendarComponent {
                         JSCalendarProperty::Links,
                         [
                             (
-                                Key::Property(JSCalendarProperty::Type),
-                                Value::Element(JSCalendarValue::Type(JSCalendarType::Link)),
-                            ),
-                            (
                                 Key::Property(JSCalendarProperty::Href),
                                 Value::Str(uri.into()),
+                            ),
+                            (
+                                Key::Property(JSCalendarProperty::Type),
+                                Value::Element(JSCalendarValue::Type(JSCalendarType::Link)),
                             ),
                         ],
                     );
@@ -223,6 +224,10 @@ impl ICalendarComponent {
                         JSCalendarProperty::Participants,
                         [
                             Some((
+                                Key::Property(JSCalendarProperty::CalendarAddress),
+                                Value::Str(uri.to_string().into()),
+                            )),
+                            Some((
                                 Key::Property(JSCalendarProperty::Type),
                                 Value::Element(JSCalendarValue::Type(JSCalendarType::Participant)),
                             )),
@@ -236,10 +241,6 @@ impl ICalendarComponent {
                                     Value::Bool(true),
                                 )])),
                             )),
-                            Some((
-                                Key::Property(JSCalendarProperty::CalendarAddress),
-                                Value::Str(uri.to_string().into()),
-                            )),
                         ]
                         .into_iter()
                         .flatten(),
@@ -250,12 +251,19 @@ impl ICalendarComponent {
                     Some(ICalendarValue::Text(uri)),
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
                 ) => {
-                    let todo = "organizer calendar address";
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::OrganizerCalendarAddress),
+                        Value::Str(uri.clone().into()),
+                    );
                     state.map_named_entry(
                         &mut entry,
                         &[ICalendarParameterName::Cn, ICalendarParameterName::Jsid],
                         JSCalendarProperty::Participants,
                         [
+                            (
+                                Key::Property(JSCalendarProperty::CalendarAddress),
+                                Value::Str(uri.to_string().into()),
+                            ),
                             (
                                 Key::Property(JSCalendarProperty::Type),
                                 Value::Element(JSCalendarValue::Type(JSCalendarType::Participant)),
@@ -268,10 +276,6 @@ impl ICalendarComponent {
                                     )),
                                     Value::Bool(true),
                                 )])),
-                            ),
-                            (
-                                Key::Property(JSCalendarProperty::CalendarAddress),
-                                Value::Str(uri.to_string().into()),
                             ),
                         ],
                     );
@@ -287,12 +291,12 @@ impl ICalendarComponent {
                         JSCalendarProperty::Participants,
                         [
                             (
-                                Key::Property(JSCalendarProperty::Type),
-                                Value::Element(JSCalendarValue::Type(JSCalendarType::Participant)),
-                            ),
-                            (
                                 Key::Property(JSCalendarProperty::CalendarAddress),
                                 Value::Str(value.into()),
+                            ),
+                            (
+                                Key::Property(JSCalendarProperty::Type),
+                                Value::Element(JSCalendarValue::Type(JSCalendarType::Participant)),
                             ),
                         ],
                     );
@@ -383,14 +387,14 @@ impl ICalendarComponent {
                         JSCalendarProperty::VirtualLocations,
                         [
                             (
+                                Key::Property(JSCalendarProperty::Uri),
+                                Value::Str(value.into()),
+                            ),
+                            (
                                 Key::Property(JSCalendarProperty::Type),
                                 Value::Element(JSCalendarValue::Type(
                                     JSCalendarType::VirtualLocation,
                                 )),
-                            ),
-                            (
-                                Key::Property(JSCalendarProperty::Uri),
-                                Value::Str(value.into()),
                             ),
                         ],
                     );
@@ -406,12 +410,12 @@ impl ICalendarComponent {
                         JSCalendarProperty::Locations,
                         [
                             (
-                                Key::Property(JSCalendarProperty::Type),
-                                Value::Element(JSCalendarValue::Type(JSCalendarType::Location)),
-                            ),
-                            (
                                 Key::Property(JSCalendarProperty::Coordinates),
                                 Value::Str(value.into()),
+                            ),
+                            (
+                                Key::Property(JSCalendarProperty::Type),
+                                Value::Element(JSCalendarValue::Type(JSCalendarType::Location)),
                             ),
                         ],
                     );
@@ -427,12 +431,12 @@ impl ICalendarComponent {
                         JSCalendarProperty::Locations,
                         [
                             (
-                                Key::Property(JSCalendarProperty::Type),
-                                Value::Element(JSCalendarValue::Type(JSCalendarType::Location)),
-                            ),
-                            (
                                 Key::Property(JSCalendarProperty::Coordinates),
                                 Value::Str(value.into()),
+                            ),
+                            (
+                                Key::Property(JSCalendarProperty::Type),
+                                Value::Element(JSCalendarValue::Type(JSCalendarType::Location)),
                             ),
                         ],
                     );
@@ -444,6 +448,13 @@ impl ICalendarComponent {
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
                 ) if !entry.entry.is_derived() => {
                     let coord2 = values.next().and_then(|v| v.as_float()).unwrap_or_default();
+                    if entry.entry.jsid().is_none()
+                        && let Some(main_location_id) = main_location_id.take()
+                    {
+                        entry
+                            .entry
+                            .add_param(ICalendarParameter::jsid(main_location_id));
+                    }
 
                     state.map_named_entry(
                         &mut entry,
@@ -451,12 +462,12 @@ impl ICalendarComponent {
                         JSCalendarProperty::Locations,
                         [
                             (
-                                Key::Property(JSCalendarProperty::Type),
-                                Value::Element(JSCalendarValue::Type(JSCalendarType::Location)),
-                            ),
-                            (
                                 Key::Property(JSCalendarProperty::Coordinates),
                                 Value::Str(format!("geo:{coord1},{coord2}").into()),
+                            ),
+                            (
+                                Key::Property(JSCalendarProperty::Type),
+                                Value::Element(JSCalendarValue::Type(JSCalendarType::Location)),
                             ),
                         ],
                     );
@@ -507,11 +518,20 @@ impl ICalendarComponent {
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
                 ) => {
                     if !entry.entry.is_derived() {
-                        let location_id = if has_locations {
-                            entry.entry.jsid().map(|s| s.to_string())
+                        let location_id = if let Some(location_id) = entry.entry.jsid() {
+                            main_location_id = Some(location_id.to_string());
+                            location_id
                         } else {
-                            None
+                            main_location_id = Some(uuid5(&value));
+                            main_location_id.as_deref().unwrap()
                         };
+
+                        if has_locations {
+                            state.entries.insert(
+                                Key::Property(JSCalendarProperty::MainLocationId),
+                                Value::Str(location_id.to_string().into()),
+                            );
+                        }
 
                         state.map_named_entry(
                             &mut entry,
@@ -519,47 +539,33 @@ impl ICalendarComponent {
                             JSCalendarProperty::Locations,
                             [
                                 (
-                                    Key::Property(JSCalendarProperty::Type),
-                                    Value::Element(JSCalendarValue::Type(JSCalendarType::Location)),
-                                ),
-                                (
                                     Key::Property(JSCalendarProperty::Name),
                                     Value::Str(value.into()),
+                                ),
+                                (
+                                    Key::Property(JSCalendarProperty::Type),
+                                    Value::Element(JSCalendarValue::Type(JSCalendarType::Location)),
                                 ),
                             ],
                         );
                         entry.set_map_name();
-
-                        if has_locations {
-                            let location_id =
-                                location_id.unwrap_or_else(|| state.main_location_id().to_string());
-                            state.entries.insert(
-                                Key::Property(JSCalendarProperty::MainLocationId),
-                                Value::Str(location_id.into()),
-                            );
-                        }
                     } else {
-                        if has_locations {
-                            let location_id = uuid5(&value);
-                            if state
+                        let location_id = uuid5(&value);
+                        if has_locations
+                            && state
                                 .entries
                                 .get(&Key::Property(JSCalendarProperty::Locations))
                                 .and_then(|v| v.as_object())
                                 .is_some_and(|v| {
                                     v.contains_key(&Key::Borrowed(location_id.as_str()))
                                 })
-                            {
-                                state.entries.insert(
-                                    Key::Property(JSCalendarProperty::MainLocationId),
-                                    Value::Str(location_id.into()),
-                                );
-                            }
+                        {
+                            state.entries.insert(
+                                Key::Property(JSCalendarProperty::MainLocationId),
+                                Value::Str(location_id.into()),
+                            );
                         }
-
-                        entry.entry.values = [ICalendarValue::Text(value)]
-                            .into_iter()
-                            .chain(values)
-                            .collect();
+                        entry.entry.params.clear();
                     }
                 }
                 (

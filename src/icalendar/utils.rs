@@ -12,8 +12,8 @@ use super::{
     ICalendarTransparency, ICalendarValue, Uri,
 };
 use crate::{
-    common::{IanaString, PartialDateTime},
-    icalendar::ICalendarParameterValue,
+    common::{IanaString, IanaType, PartialDateTime},
+    icalendar::{ICalendarParameterValue, ICalendarValueType},
 };
 
 impl ICalendar {
@@ -298,6 +298,14 @@ impl ICalendarParameterValue {
             ICalendarParameterValue::Duration(v) => Some(Cow::Owned(v.to_string())),
             ICalendarParameterValue::Integer(v) => Some(Cow::Owned(v.to_string())),
             ICalendarParameterValue::Null => None,
+        }
+    }
+
+    pub fn into_value_type(self) -> Option<IanaType<ICalendarValueType, String>> {
+        match self {
+            ICalendarParameterValue::Value(v) => Some(IanaType::Iana(v)),
+            ICalendarParameterValue::Text(v) => Some(IanaType::Other(v)),
+            _ => None,
         }
     }
 
