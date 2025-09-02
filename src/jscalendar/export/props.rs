@@ -7,32 +7,77 @@
 use jmap_tools::{JsonPointer, JsonPointerItem, Key, Map, Value};
 
 use crate::{
-    common::{CalendarScale, IanaParse, IanaType, PartialDateTime},
+    common::{CalendarScale, IanaParse, IanaType},
     icalendar::{
-        ICalendarAction, ICalendarClassification, ICalendarComponent, ICalendarComponentType,
-        ICalendarEntry, ICalendarFreeBusyType, ICalendarMethod, ICalendarParameter,
-        ICalendarParticipantType, ICalendarProperty, ICalendarProximityValue,
+        ICalendar, ICalendarAction, ICalendarClassification, ICalendarComponent,
+        ICalendarComponentType, ICalendarEntry, ICalendarFreeBusyType, ICalendarMethod,
+        ICalendarParameter, ICalendarParticipantType, ICalendarProperty, ICalendarProximityValue,
         ICalendarResourceType, ICalendarStatus, ICalendarTransparency, ICalendarValue,
         ICalendarValueType, ValueType,
     },
-    jscalendar::{
-        JSCalendarDateTime, JSCalendarProperty, JSCalendarValue, export::ConvertedComponent,
-    },
+    jscalendar::{JSCalendarProperty, JSCalendarValue, export::ConvertedComponent},
 };
 
-impl ICalendarComponent {
-    pub(super) fn apply_conversions(&mut self, conversions: Option<ConvertedComponent<'_>>) {
-        let Some(conversions) = conversions else {
-            return;
-        };
-        if !conversions.properties.is_empty() {
-            self.import_properties(conversions.properties);
+impl ConvertedComponent<'_> {
+    pub(super) fn apply_conversions(
+        self,
+        mut component: ICalendarComponent,
+        ical: &mut ICalendar,
+    ) -> ICalendarComponent {
+        if !self.properties.is_empty() {
+            component.import_properties(self.properties);
         }
-        if !conversions.components.is_empty() {
-            let todo = "implement";
-        }
-    }
+        if !self.components.is_empty() {
+            let mut jcal_components = self.components.into_iter();
+            let mut stack = Vec::new();
 
+            loop {
+                if let Some(jcal_component) = jcal_components.next() {
+                    let Some(items) = jcal_component.into_array() else {
+                        continue;
+                    };
+                    let mut items = items.into_iter();
+
+                    if let (
+                        Some(Value::Str(name)),
+                        Some(Value::Array(properties)),
+                        Some(Value::Array(child_components)),
+                    ) = (items.next(), items.next(), items.next())
+                    {
+                        // Process the component
+                        let mut sub_component = ICalendarComponent::new(
+                            ICalendarComponentType::parse(name.as_bytes()).unwrap_or_else(|| {
+                                ICalendarComponentType::Other(name.into_owned())
+                            }),
+                        );
+                        sub_component.import_properties(properties);
+                        if !child_components.is_empty() {
+                            stack.push((jcal_components, component));
+                            jcal_components = child_components.into_iter();
+                            component = sub_component;
+                        } else {
+                            component
+                                .component_ids
+                                .push(ical.push_component(sub_component));
+                        }
+                    }
+                } else if let Some((next_components, mut parent_component)) = stack.pop() {
+                    parent_component
+                        .component_ids
+                        .push(ical.push_component(component));
+                    jcal_components = next_components;
+                    component = parent_component;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        component
+    }
+}
+
+impl ICalendarComponent {
     pub(super) fn import_properties(
         &mut self,
         props: Vec<Value<'_, JSCalendarProperty, JSCalendarValue>>,
@@ -270,15 +315,5 @@ impl<'x> ConvertedComponent<'x> {
         }
 
         None
-    }
-}
-
-impl From<JSCalendarDateTime> for PartialDateTime {
-    fn from(dt: JSCalendarDateTime) -> Self {
-        if !dt.is_local {
-            Self::from_utc_timestamp(dt.timestamp)
-        } else {
-            Self::from_naive_timestamp(dt.timestamp)
-        }
     }
 }

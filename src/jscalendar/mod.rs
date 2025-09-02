@@ -12,8 +12,8 @@ pub mod types;
 use crate::{
     common::{CalendarScale, IanaString, LinkRelation},
     icalendar::{
-        ICalendarDuration, ICalendarFrequency, ICalendarMethod, ICalendarMonth, ICalendarSkip,
-        ICalendarWeekday,
+        ICalendarComponentType, ICalendarDuration, ICalendarFrequency, ICalendarMethod,
+        ICalendarMonth, ICalendarSkip, ICalendarWeekday,
     },
 };
 use jmap_tools::{JsonPointer, Value};
@@ -345,6 +345,43 @@ impl JSCalendarDateTime {
                 "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}",
                 dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second,
             )
+        }
+    }
+}
+
+impl ICalendarComponentType {
+    pub fn to_jscalendar_type(&self) -> Option<JSCalendarType> {
+        match &self {
+            ICalendarComponentType::VCalendar => Some(JSCalendarType::Group),
+            ICalendarComponentType::VEvent => Some(JSCalendarType::Event),
+            ICalendarComponentType::VTodo => Some(JSCalendarType::Task),
+            ICalendarComponentType::VAlarm => Some(JSCalendarType::Alert),
+            ICalendarComponentType::Participant => Some(JSCalendarType::Participant),
+            ICalendarComponentType::VLocation => Some(JSCalendarType::Location),
+            ICalendarComponentType::Standard
+            | ICalendarComponentType::Daylight
+            | ICalendarComponentType::VAvailability
+            | ICalendarComponentType::Available
+            | ICalendarComponentType::VResource
+            | ICalendarComponentType::VStatus
+            | ICalendarComponentType::VJournal
+            | ICalendarComponentType::VFreebusy
+            | ICalendarComponentType::VTimezone
+            | ICalendarComponentType::Other(_) => None,
+        }
+    }
+}
+
+impl JSCalendarType {
+    pub fn to_icalendar_component_type(&self) -> Option<ICalendarComponentType> {
+        match &self {
+            JSCalendarType::Group => Some(ICalendarComponentType::VCalendar),
+            JSCalendarType::Event => Some(ICalendarComponentType::VEvent),
+            JSCalendarType::Task => Some(ICalendarComponentType::VTodo),
+            JSCalendarType::Alert => Some(ICalendarComponentType::VAlarm),
+            JSCalendarType::Participant => Some(ICalendarComponentType::Participant),
+            JSCalendarType::Location => Some(ICalendarComponentType::VLocation),
+            _ => None,
         }
     }
 }

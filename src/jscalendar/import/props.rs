@@ -10,10 +10,7 @@ use jmap_tools::{JsonPointer, JsonPointerHandler, Key, Map, Property, Value};
 
 use crate::{
     common::{IanaType, timezone::TzTimestamp},
-    icalendar::{
-        ICalendarComponentType, ICalendarEntry, ICalendarParameterName, ICalendarValue,
-        ICalendarValueType,
-    },
+    icalendar::{ICalendarEntry, ICalendarParameterName, ICalendarValue, ICalendarValueType},
     jscalendar::{
         JSCalendarDateTime, JSCalendarProperty, JSCalendarValue,
         import::{EntryState, ICalendarConvertedProperty, ICalendarParams, State},
@@ -113,47 +110,11 @@ impl State {
                 }
             }
         } else {
-            let mut value_type = None;
-            let mut params = ICalendarParams::default();
-
-            entry.jcal_parameters(&mut params, &mut value_type);
-
-            let values = if entry.entry.values.len() == 1 {
-                entry
-                    .entry
-                    .values
-                    .into_iter()
-                    .next()
-                    .unwrap()
-                    .into_jscalendar_value(value_type.as_ref())
-            } else {
-                let mut values = Vec::with_capacity(entry.entry.values.len());
-                for value in entry.entry.values {
-                    values.push(value.into_jscalendar_value(value_type.as_ref()));
-                }
-                Value::Array(values)
-            };
-            self.ical_properties.push(Value::Array(vec![
-                Value::Str(entry.entry.name.as_str().to_string().into()),
-                Value::Object(
-                    params
-                        .into_jscalendar_value()
-                        .unwrap_or(Map::from(Vec::new())),
-                ),
-                Value::Str(
-                    value_type
-                        .map(|v| v.into_string())
-                        .unwrap_or(Cow::Borrowed("text")),
-                ),
-                values,
-            ]));
+            self.ical_properties.push(entry.into_jcal());
         }
     }
 
-    pub(super) fn into_object(
-        mut self,
-        component: ICalendarComponentType,
-    ) -> Value<'static, JSCalendarProperty, JSCalendarValue> {
+    pub(super) fn into_object(mut self) -> Value<'static, JSCalendarProperty, JSCalendarValue> {
         let mut ical_obj = Map::from(Vec::new());
         if !self.ical_converted_properties.is_empty() {
             let mut converted_properties =
@@ -190,10 +151,14 @@ impl State {
             );
         }
 
+        if let Some(components) = self.ical_components {
+            ical_obj.insert_unchecked(Key::Property(JSCalendarProperty::Components), components);
+        }
+
         if !ical_obj.is_empty() {
             ical_obj.insert_unchecked(
                 Key::Property(JSCalendarProperty::Name),
-                Value::Str(component.as_str().to_ascii_lowercase().into()),
+                Value::Str(self.component_type.as_str().to_ascii_lowercase().into()),
             );
             self.entries.insert(
                 Key::Property(JSCalendarProperty::ICalComponent),
@@ -250,6 +215,13 @@ impl State {
             );
         }
 
+        self.entries.insert(
+            Key::Property(JSCalendarProperty::Type),
+            Value::Element(JSCalendarValue::Type(
+                self.component_type.to_jscalendar_type().unwrap(),
+            )),
+        );
+
         let mut obj = Value::Object(self.entries.into_iter().collect());
         if self.patch_objects.is_empty() {
             for (ptr, patch) in self.patch_objects {
@@ -288,6 +260,42 @@ impl EntryState {
 
     pub(super) fn set_map_name(&mut self) {
         self.map_name = true;
+    }
+
+    pub(super) fn into_jcal(mut self) -> Value<'static, JSCalendarProperty, JSCalendarValue> {
+        let mut value_type = None;
+        let mut params = ICalendarParams::default();
+
+        self.jcal_parameters(&mut params, &mut value_type);
+
+        let values = if self.entry.values.len() == 1 {
+            self.entry
+                .values
+                .into_iter()
+                .next()
+                .unwrap()
+                .into_jscalendar_value(value_type.as_ref())
+        } else {
+            let mut values = Vec::with_capacity(self.entry.values.len());
+            for value in self.entry.values {
+                values.push(value.into_jscalendar_value(value_type.as_ref()));
+            }
+            Value::Array(values)
+        };
+        Value::Array(vec![
+            Value::Str(self.entry.name.as_str().to_string().into()),
+            Value::Object(
+                params
+                    .into_jscalendar_value()
+                    .unwrap_or(Map::from(Vec::new())),
+            ),
+            Value::Str(
+                value_type
+                    .map(|v| v.into_string())
+                    .unwrap_or(Cow::Borrowed("text")),
+            ),
+            values,
+        ])
     }
 
     pub(super) fn jcal_parameters(

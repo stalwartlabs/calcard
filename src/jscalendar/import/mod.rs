@@ -10,24 +10,29 @@ use jmap_tools::{JsonPointer, Key, Value};
 
 use crate::{
     common::timezone::Tz,
-    icalendar::{ICalendarEntry, ICalendarMethod, ICalendarParameterName, ICalendarProperty},
+    icalendar::{
+        ICalendarComponentType, ICalendarEntry, ICalendarMethod, ICalendarParameterName,
+        ICalendarProperty,
+    },
     jscalendar::{JSCalendarProperty, JSCalendarValue},
 };
 
 pub mod convert;
-pub mod entry;
+//pub mod entry;
 pub mod params;
 pub mod props;
 
 #[derive(Default)]
 #[allow(clippy::type_complexity)]
 struct State {
+    component_type: ICalendarComponentType,
     entries: AHashMap<
         Key<'static, JSCalendarProperty>,
         Value<'static, JSCalendarProperty, JSCalendarValue>,
     >,
     ical_converted_properties: AHashMap<String, ICalendarConvertedProperty>,
     ical_properties: Vec<Value<'static, JSCalendarProperty, JSCalendarValue>>,
+    ical_components: Option<Value<'static, JSCalendarProperty, JSCalendarValue>>,
     patch_objects: Vec<(
         JsonPointer<JSCalendarProperty>,
         Value<'static, JSCalendarProperty, JSCalendarValue>,

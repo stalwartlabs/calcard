@@ -14,33 +14,182 @@ use crate::{
 };
 use jmap_tools::{JsonPointer, Key, Map, Value};
 
-impl ICalendarComponent {
-    pub(super) fn entries_to_jscalendar(&mut self, tz_resolver: &TzResolver<String>) -> State {
+impl ICalendar {
+    #[allow(clippy::wrong_self_convention)]
+    pub(super) fn to_jscalendar(
+        &mut self,
+        tz_resolver: &TzResolver<String>,
+        component_id: u32,
+    ) -> State {
         let mut state = State::default();
 
-        let todo = "import sub components + converted props components";
+        // Take component
+        let Some(component) = self.components.get_mut(component_id as usize) else {
+            debug_assert!(false, "Invalid component ID {component_id}");
+            return state;
+        };
+        let mut entries = std::mem::take(&mut component.entries);
+        state.component_type = component.component_type.clone();
 
-        let has_locations = state
-            .entries
-            .contains_key(&Key::Property(JSCalendarProperty::Locations));
+        // Process subcomponents
+        let mut group_components = Vec::new();
+        let mut unsupported_component_ids = Vec::new();
+        let mut has_locations = false;
+
+        for component_id in std::mem::take(&mut component.component_ids) {
+            match (
+                &state.component_type,
+                self.components
+                    .get(component_id as usize)
+                    .map(|c| &c.component_type),
+            ) {
+                (
+                    ICalendarComponentType::VCalendar,
+                    Some(ICalendarComponentType::VEvent | ICalendarComponentType::VTodo),
+                ) => {
+                    group_components.push(self.to_jscalendar(tz_resolver, component_id));
+                }
+                (
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                    Some(
+                        component_type @ (ICalendarComponentType::VAlarm
+                        | ICalendarComponentType::Participant
+                        | ICalendarComponentType::VLocation),
+                    ),
+                ) => {
+                    let entries = state.get_mut_object_or_insert(match component_type {
+                        ICalendarComponentType::VAlarm => JSCalendarProperty::Alerts,
+                        ICalendarComponentType::Participant => JSCalendarProperty::Participants,
+                        ICalendarComponentType::VLocation => {
+                            has_locations = true;
+                            JSCalendarProperty::Locations
+                        }
+                        _ => unreachable!(),
+                    });
+                    let mut subcomponent_state = self.to_jscalendar(tz_resolver, component_id);
+                    let jsid = subcomponent_state.jsid.take();
+                    let subcomponent = subcomponent_state.into_object();
+                    entries.insert_named(jsid, subcomponent);
+                }
+                _ => {
+                    unsupported_component_ids.push(component_id);
+                }
+            }
+        }
+
+        // Build group component list
+        if !group_components.is_empty() {
+            // Order by UID placing the main components first
+            group_components.sort_unstable_by(|a, b| match a.uid.cmp(&b.uid) {
+                std::cmp::Ordering::Equal => {
+                    a.recurrence_id.is_some().cmp(&b.recurrence_id.is_some())
+                }
+                other => other,
+            });
+            let mut group_objects = Vec::with_capacity(group_components.len());
+            let mut group_components = group_components.into_iter().peekable();
+
+            // Bundle recurrence overrides together by UID
+            while let Some(mut component) = group_components.next() {
+                if component.uid.is_some() && component.recurrence_id.is_none() {
+                    while group_components
+                        .peek()
+                        .is_some_and(|r| r.uid == component.uid && r.recurrence_id.is_some())
+                    {
+                        let mut recurrence = group_components.next().unwrap();
+                        let recurrence_id = recurrence
+                            .recurrence_id
+                            .take()
+                            .unwrap()
+                            .with_timezone(&component.tz_start.unwrap_or_default())
+                            .to_naive_timestamp();
+                        let _ = recurrence.uid.take();
+
+                        component
+                            .get_mut_object_or_insert(JSCalendarProperty::RecurrenceOverrides)
+                            .insert(
+                                Key::Property(JSCalendarProperty::DateTime(
+                                    JSCalendarDateTime::new(recurrence_id, true),
+                                )),
+                                recurrence.into_object(),
+                            );
+                    }
+                }
+                group_objects.push(component.into_object());
+            }
+
+            state.entries.insert(
+                Key::Property(JSCalendarProperty::Entries),
+                Value::Array(group_objects),
+            );
+        }
+
+        // Build unsupported component jcal
+        if !unsupported_component_ids.is_empty() {
+            let mut component_iter = unsupported_component_ids.into_iter();
+            let mut component_stack = Vec::with_capacity(4);
+            let mut components = vec![Value::Array(vec![])];
+
+            loop {
+                if let Some(component_id) = component_iter.next() {
+                    let component = self.components.get_mut(component_id as usize).unwrap();
+
+                    let mut entries = Vec::with_capacity(component.entries.len());
+                    for entry in std::mem::take(&mut component.entries) {
+                        entries.push(EntryState::new(entry).into_jcal());
+                    }
+
+                    components
+                        .last_mut()
+                        .unwrap()
+                        .as_array_mut()
+                        .unwrap()
+                        .push(Value::Array(vec![
+                            Value::Str(std::mem::take(&mut component.component_type).into_string()),
+                            Value::Array(entries),
+                            Value::Array(vec![]),
+                        ]));
+
+                    if !component.component_ids.is_empty() {
+                        component_stack.push((components, component_iter));
+                        component_iter = std::mem::take(&mut component.component_ids).into_iter();
+                        components = Vec::new();
+                    }
+                } else if let Some((mut parent_components, iter)) = component_stack.pop() {
+                    parent_components
+                        .last_mut()
+                        .unwrap()
+                        .as_array_mut()
+                        .unwrap()
+                        .push(Value::Array(components));
+                    components = parent_components;
+                    component_iter = iter;
+                } else {
+                    break;
+                }
+            }
+
+            state.ical_components = components.pop();
+        }
+
         let mut main_location_id = None;
 
-        self.entries.sort_by_key(|entry| match &entry.name {
-            ICalendarProperty::Dtstart => 0,
+        entries.sort_by_key(|entry| match &entry.name {
+            ICalendarProperty::Dtstart | ICalendarProperty::Jsid => 0,
             ICalendarProperty::RecurrenceId => 1,
             ICalendarProperty::Dtend | ICalendarProperty::Due | ICalendarProperty::Location => 2,
             _ => 3,
         });
         let mut start_date = None;
 
-        for entry in std::mem::take(&mut self.entries) {
+        for entry in entries {
             let mut entry = EntryState::new(entry);
             let mut values = std::mem::take(&mut entry.entry.values).into_iter();
 
             match (
                 &entry.entry.name,
                 values.next().map(|v| v.uri_to_string()),
-                &self.component_type,
+                &state.component_type,
             ) {
                 (
                     ICalendarProperty::Acknowledged,
@@ -173,7 +322,7 @@ impl ICalendarComponent {
                     Some(ICalendarValue::Text(uri)),
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
                 ) => {
-                    let is_task = matches!(&self.component_type, ICalendarComponentType::VTodo);
+                    let is_task = matches!(&state.component_type, ICalendarComponentType::VTodo);
                     let mut progress = None;
 
                     for param in &mut entry.entry.params {
@@ -285,6 +434,9 @@ impl ICalendarComponent {
                     Some(ICalendarValue::Text(value)),
                     ICalendarComponentType::Participant,
                 ) => {
+                    if state.jsid.is_none() {
+                        state.jsid = Some(uuid5(&value));
+                    }
                     state.map_named_entry(
                         &mut entry,
                         &[ICalendarParameterName::Jsid],
@@ -478,6 +630,9 @@ impl ICalendarComponent {
                     Some(ICalendarValue::Text(value)),
                     ICalendarComponentType::VLocation,
                 ) => {
+                    if state.jsid.is_none() {
+                        state.jsid = Some(uuid5(&value));
+                    }
                     state.entries.insert(
                         Key::Property(JSCalendarProperty::Name),
                         Value::Str(value.into()),
@@ -1296,7 +1451,7 @@ impl ICalendarComponent {
                     Some(ICalendarValue::Text(value)),
                     ICalendarComponentType::VCalendar | ICalendarComponentType::VTodo,
                 ) => {
-                    let prop = if matches!(self.component_type, ICalendarComponentType::VTodo) {
+                    let prop = if matches!(state.component_type, ICalendarComponentType::VTodo) {
                         JSCalendarProperty::Progress
                     } else {
                         JSCalendarProperty::Status

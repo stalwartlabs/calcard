@@ -596,6 +596,28 @@ impl ICalendarComponentType {
             ICalendarComponentType::Other(s) => s.as_str(),
         }
     }
+
+    pub fn into_string(self) -> Cow<'static, str> {
+        match self {
+            ICalendarComponentType::VCalendar => "VCALENDAR",
+            ICalendarComponentType::VEvent => "VEVENT",
+            ICalendarComponentType::VTodo => "VTODO",
+            ICalendarComponentType::VJournal => "VJOURNAL",
+            ICalendarComponentType::VFreebusy => "VFREEBUSY",
+            ICalendarComponentType::VTimezone => "VTIMEZONE",
+            ICalendarComponentType::VAlarm => "VALARM",
+            ICalendarComponentType::Standard => "STANDARD",
+            ICalendarComponentType::Daylight => "DAYLIGHT",
+            ICalendarComponentType::VAvailability => "VAVAILABILITY",
+            ICalendarComponentType::Available => "AVAILABLE",
+            ICalendarComponentType::Participant => "PARTICIPANT",
+            ICalendarComponentType::VLocation => "VLOCATION",
+            ICalendarComponentType::VResource => "VRESOURCE",
+            ICalendarComponentType::VStatus => "VSTATUS",
+            ICalendarComponentType::Other(s) => return Cow::Owned(s),
+        }
+        .into()
+    }
 }
 
 impl IanaParse for ICalendarDisplayType {

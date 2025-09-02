@@ -4,12 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
+use std::str::FromStr;
+
 use crate::{
-    common::{IanaParse, LinkRelation, parser::Boolean},
+    common::{
+        IanaParse, LinkRelation, PartialDateTime,
+        parser::Boolean,
+        timezone::{Tz, TzTimestamp},
+    },
     icalendar::*,
-    jscalendar::{JSCalendarProperty, JSCalendarValue, export::ConvertedComponent, uuid5},
+    jscalendar::{
+        JSCalendarDateTime, JSCalendarProperty, JSCalendarValue, export::ConvertedComponent, uuid5,
+    },
     jscontact::export::params::ParamValue,
 };
+use chrono::{DateTime, NaiveDateTime, TimeZone};
 use jmap_tools::{Key, Value};
 
 impl ICalendarEntry {
@@ -249,6 +258,79 @@ impl ICalendarEntry {
                     value,
                 });
             }
+        }
+    }
+}
+
+impl ICalendarEntry {
+    pub(super) fn with_date_time(mut self, mut dt: DateTime<Tz>) -> Self {
+        debug_assert!(self.values.is_empty());
+
+        // Best effort to restore the original timezone
+        let tz_id = self.tz_id();
+        let has_tz_id = tz_id.is_some();
+        if let Some(tz) = tz_id.and_then(|id| Tz::from_str(id).ok())
+            && tz != dt.timezone()
+        {
+            dt = dt.with_timezone(&tz);
+        }
+
+        let tz = dt.timezone();
+        if has_tz_id {
+            self.values
+                .push(PartialDateTime::from_naive_timestamp(dt.to_naive_timestamp()).into());
+        } else if tz.is_utc() {
+            self.values
+                .push(PartialDateTime::from_utc_timestamp(dt.timestamp()).into());
+        } else {
+            if let Some(tz_name) = tz.name() {
+                self.params
+                    .push(ICalendarParameter::tzid(tz_name.into_owned()));
+            }
+            self.values
+                .push(PartialDateTime::from_naive_timestamp(dt.to_naive_timestamp()).into());
+        }
+
+        self
+    }
+
+    pub(super) fn with_date_times(mut self, dts: Vec<DateTime<Tz>>) -> Self {
+        debug_assert!(self.values.is_empty());
+        for dt in dts {
+            let tz = dt.timezone();
+            if tz.is_utc() {
+                self.values
+                    .push(PartialDateTime::from_utc_timestamp(dt.timestamp()).into());
+            } else {
+                if let Some(tz_name) = tz.name() {
+                    self.params
+                        .push(ICalendarParameter::tzid(tz_name.into_owned()));
+                }
+                self.values
+                    .push(PartialDateTime::from_naive_timestamp(dt.to_naive_timestamp()).into());
+            }
+        }
+        self
+    }
+}
+
+impl JSCalendarDateTime {
+    pub fn to_utc_date_time(&self) -> Option<DateTime<Tz>> {
+        DateTime::from_timestamp(self.timestamp, 0)
+            .and_then(|local| Tz::UTC.from_local_datetime(&local.naive_utc()).single())
+    }
+
+    pub fn to_naive_date_time(&self) -> Option<NaiveDateTime> {
+        DateTime::from_timestamp(self.timestamp, 0).map(|local| local.naive_utc())
+    }
+}
+
+impl From<JSCalendarDateTime> for PartialDateTime {
+    fn from(dt: JSCalendarDateTime) -> Self {
+        if !dt.is_local {
+            Self::from_utc_timestamp(dt.timestamp)
+        } else {
+            Self::from_naive_timestamp(dt.timestamp)
         }
     }
 }
