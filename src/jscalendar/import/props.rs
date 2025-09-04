@@ -4,19 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use std::{borrow::Cow, collections::hash_map::Entry};
-
-use jmap_tools::{JsonPointer, JsonPointerHandler, Key, Map, Property, Value};
-
 use crate::{
-    common::{IanaType, timezone::TzTimestamp},
-    icalendar::{ICalendarEntry, ICalendarParameterName, ICalendarValue, ICalendarValueType},
+    common::{Data, IanaType, timezone::TzTimestamp},
+    icalendar::{ICalendarEntry, ICalendarParameterName, ICalendarValue, ICalendarValueType, Uri},
     jscalendar::{
         JSCalendarDateTime, JSCalendarProperty, JSCalendarValue,
-        import::{EntryState, ICalendarConvertedProperty, ICalendarParams, State},
+        import::{
+            EntryState, ICalendarConvertedProperty, ICalendarParams, State, params::ExtractParams,
+        },
         uuid5,
     },
 };
+use ahash::AHashMap;
+use jmap_tools::{JsonPointer, JsonPointerHandler, Key, Map, Property, Value};
+use std::{borrow::Cow, collections::hash_map::Entry};
 
 impl State {
     pub(super) fn map_named_entry(
@@ -45,7 +46,8 @@ impl State {
         };
 
         // Obtain or calculate JSID
-        let js_id = self
+        let mut parameters = AHashMap::new();
+        let js_id = parameters
             .extract_params(&mut entry.entry, extract)
             .unwrap_or_else(|| uuid5(value));
 
@@ -62,7 +64,7 @@ impl State {
             .as_object_mut()
             .unwrap();
 
-        for (key, value) in values {
+        for (key, value) in values.chain(parameters.into_iter()) {
             if let Some(current_value) = obj.get_mut(&key) {
                 match (value, current_value) {
                     (Value::Object(new_obj), Value::Object(existing_obj)) => {
@@ -155,7 +157,7 @@ impl State {
             ical_obj.insert_unchecked(Key::Property(JSCalendarProperty::Components), components);
         }
 
-        if !ical_obj.is_empty() {
+        if !ical_obj.is_empty() || self.map_component {
             ical_obj.insert_unchecked(
                 Key::Property(JSCalendarProperty::Name),
                 Value::Str(self.component_type.as_str().to_ascii_lowercase().into()),
@@ -167,13 +169,15 @@ impl State {
         }
 
         if self.has_dates {
-            self.entries.insert(
-                Key::Property(JSCalendarProperty::TimeZone),
-                self.tz_start
-                    .and_then(|tz| tz.name())
-                    .map(Value::Str)
-                    .unwrap_or(Value::Null),
-            );
+            if !self.is_recurrence_instance {
+                self.entries.insert(
+                    Key::Property(JSCalendarProperty::TimeZone),
+                    self.tz_start
+                        .and_then(|tz| tz.name())
+                        .map(Value::Str)
+                        .unwrap_or(Value::Null),
+                );
+            }
 
             if self.tz_end.is_some() && self.tz_start.is_some() && self.tz_end != self.tz_start {
                 self.entries.insert(
@@ -196,7 +200,7 @@ impl State {
                     ))),
                 );
                 let rid_tz = recurrence_id.timezone().to_resolved();
-                if rid_tz.is_some() && self.tz_start.is_some() && rid_tz != self.tz_start {
+                if rid_tz.is_some() && !self.is_recurrence_instance {
                     self.entries.insert(
                         Key::Property(JSCalendarProperty::RecurrenceIdTimeZone),
                         rid_tz
@@ -215,21 +219,31 @@ impl State {
             );
         }
 
-        self.entries.insert(
-            Key::Property(JSCalendarProperty::Type),
-            Value::Element(JSCalendarValue::Type(
-                self.component_type.to_jscalendar_type().unwrap(),
-            )),
-        );
+        if !self.is_recurrence_instance {
+            self.entries.insert(
+                Key::Property(JSCalendarProperty::Type),
+                Value::Element(JSCalendarValue::Type(
+                    self.component_type.to_jscalendar_type().unwrap(),
+                )),
+            );
+        }
 
         let mut obj = Value::Object(self.entries.into_iter().collect());
-        if self.patch_objects.is_empty() {
+        if !self.patch_objects.is_empty() {
             for (ptr, patch) in self.patch_objects {
                 obj.patch_jptr(ptr.iter(), patch);
             }
         }
 
         obj
+    }
+
+    pub(super) fn set_map_component(&mut self) {
+        self.map_component = true;
+    }
+
+    pub(super) fn set_is_recurrence_instance(&mut self) {
+        self.is_recurrence_instance = true;
     }
 
     #[inline]
@@ -250,7 +264,7 @@ impl EntryState {
         Self {
             entry,
             converted_to: None,
-            map_name: true,
+            map_name: false,
         }
     }
 
@@ -332,7 +346,14 @@ impl EntryState {
 impl ICalendarValue {
     pub(super) fn uri_to_string(self) -> Self {
         match self {
-            ICalendarValue::Uri(uri) => ICalendarValue::Text(uri.to_string()),
+            ICalendarValue::Uri(uri) => ICalendarValue::Text(uri.into_unwrapped_string()),
+            ICalendarValue::Binary(data) => ICalendarValue::Text(
+                Uri::Data(Data {
+                    content_type: None,
+                    data,
+                })
+                .into_unwrapped_string(),
+            ),
             other => other,
         }
     }

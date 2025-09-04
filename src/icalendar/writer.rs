@@ -190,7 +190,7 @@ impl ICalendarEntry {
 
             let text = match value {
                 ICalendarValue::Binary(v) => {
-                    write_bytes(out, &mut line_len, v)?;
+                    write_bytes(out, Some(&mut line_len), v)?;
                     continue;
                 }
                 ICalendarValue::Boolean(v) => {
@@ -257,41 +257,6 @@ impl ICalendarEntry {
     }
 }
 
-/*pub(crate) fn write_uri_param(
-    out: &mut impl Write,
-    line_len: &mut usize,
-    name: &str,
-    value: &Uri,
-) -> std::fmt::Result {
-    write!(out, "{}=\"", name)?;
-    *line_len += name.len() + 3;
-    write_uri(out, line_len, value, false)?;
-    write!(out, "\"")
-}
-
-pub(crate) fn write_uri_params(
-    out: &mut impl Write,
-    line_len: &mut usize,
-    name: &str,
-    values: &[Uri],
-) -> std::fmt::Result {
-    write!(out, "{}", name)?;
-    *line_len += name.len() + 1;
-
-    for (pos, v) in values.iter().enumerate() {
-        if pos > 0 {
-            write!(out, ",\"")?;
-        } else {
-            write!(out, "=\"")?;
-        }
-        *line_len += 3;
-        write_uri(out, line_len, v, false)?;
-        write!(out, "\"")?;
-    }
-
-    Ok(())
-}*/
-
 pub(crate) fn write_uri(
     out: &mut impl Write,
     line_len: &mut usize,
@@ -312,18 +277,25 @@ pub(crate) fn write_uri(
                 write!(out, "base64,")?;
             }
             *line_len += 8;
-            write_bytes(out, line_len, &v.data)
+            write_bytes(out, Some(line_len), &v.data)
         }
         Uri::Location(v) => write_text(out, line_len, v, escape, escape),
     }
 }
 
 impl Uri {
-    #[allow(clippy::inherent_to_string)]
-    pub fn to_string(&self) -> String {
-        let mut out = String::with_capacity(16);
-        let _ = write_uri(&mut out, &mut 0, self, false);
-        out
+    pub fn to_unwrapped_string(&self) -> String {
+        match self {
+            Uri::Data(v) => v.to_unwrapped_string(),
+            Uri::Location(v) => v.to_string(),
+        }
+    }
+
+    pub fn into_unwrapped_string(self) -> String {
+        match self {
+            Uri::Data(v) => v.to_unwrapped_string(),
+            Uri::Location(v) => v,
+        }
     }
 }
 

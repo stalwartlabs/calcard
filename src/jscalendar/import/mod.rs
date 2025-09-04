@@ -11,14 +11,12 @@ use jmap_tools::{JsonPointer, Key, Value};
 use crate::{
     common::timezone::Tz,
     icalendar::{
-        ICalendarComponentType, ICalendarEntry, ICalendarMethod, ICalendarParameterName,
-        ICalendarProperty,
+        ICalendarComponentType, ICalendarEntry, ICalendarParameterName, ICalendarProperty,
     },
     jscalendar::{JSCalendarProperty, JSCalendarValue},
 };
 
 pub mod convert;
-//pub mod entry;
 pub mod params;
 pub mod props;
 
@@ -43,7 +41,8 @@ struct State {
     tz_start: Option<Tz>,
     tz_end: Option<Tz>,
     has_dates: bool,
-    method: Option<ICalendarMethod>,
+    map_component: bool,
+    is_recurrence_instance: bool,
 }
 
 #[derive(Debug, Default)]

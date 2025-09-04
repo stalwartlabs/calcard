@@ -8,7 +8,7 @@ use crate::{
     common::timezone::TzTimestamp,
     icalendar::{timezone::TzResolver, *},
     jscalendar::{
-        import::{EntryState, State},
+        import::{EntryState, State, params::ExtractParams},
         *,
     },
 };
@@ -42,32 +42,27 @@ impl ICalendar {
 
         // Process subcomponents
         let mut group_components = Vec::new();
+        let mut alarm_component_ids = Vec::new();
+        let mut alarm_with_related = false;
         let mut unsupported_component_ids = Vec::new();
+        let mut uid_jsid_mappings = Vec::new();
         let mut has_locations = false;
 
         for component_id in std::mem::take(&mut component.component_ids) {
-            match (
-                &state.component_type,
-                self.components
-                    .get(component_id as usize)
-                    .map(|c| &c.component_type),
-            ) {
+            let component = &mut self.components[component_id as usize];
+            match (&state.component_type, &component.component_type) {
                 (
                     ICalendarComponentType::VCalendar,
-                    Some(ICalendarComponentType::VEvent | ICalendarComponentType::VTodo),
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
                 ) => {
                     group_components.push(self.to_jscalendar(tz_resolver, component_id));
                 }
                 (
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
-                    Some(
-                        component_type @ (ICalendarComponentType::VAlarm
-                        | ICalendarComponentType::Participant
-                        | ICalendarComponentType::VLocation),
-                    ),
+                    component_type @ (ICalendarComponentType::Participant
+                    | ICalendarComponentType::VLocation),
                 ) => {
                     let entries = state.get_mut_object_or_insert(match component_type {
-                        ICalendarComponentType::VAlarm => JSCalendarProperty::Alerts,
                         ICalendarComponentType::Participant => JSCalendarProperty::Participants,
                         ICalendarComponentType::VLocation => {
                             has_locations = true;
@@ -80,13 +75,67 @@ impl ICalendar {
                     let subcomponent = subcomponent_state.into_object();
                     entries.insert_named(jsid, subcomponent);
                 }
+                (
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                    ICalendarComponentType::VAlarm,
+                ) => {
+                    let mut jsid = None;
+
+                    for entry in &mut component.entries {
+                        match &entry.name {
+                            ICalendarProperty::RelatedTo => {
+                                alarm_with_related = true;
+                            }
+                            ICalendarProperty::Jsid => {
+                                jsid = std::mem::take(&mut entry.values)
+                                    .pop()
+                                    .and_then(|v| v.into_text());
+                            }
+                            _ => {}
+                        }
+                    }
+                    let jsid = jsid.unwrap_or_else(|| {
+                        Cow::Owned(format!("k{}", alarm_component_ids.len() + 1))
+                    });
+                    if let Some(uid) = component.uid() {
+                        uid_jsid_mappings.push((uid.to_string(), jsid.clone()));
+                    }
+                    alarm_component_ids.push((component_id, jsid));
+                }
                 _ => {
                     unsupported_component_ids.push(component_id);
                 }
             }
         }
 
+        // Process alarms
+        if !alarm_component_ids.is_empty() {
+            for (component_id, jsid) in alarm_component_ids {
+                if alarm_with_related {
+                    for entry in &mut self.components[component_id as usize].entries {
+                        if matches!(entry.name, ICalendarProperty::RelatedTo) {
+                            for value in &mut entry.values {
+                                if let Some((_, jsid)) = value.as_text().and_then(|uid| {
+                                    uid_jsid_mappings.iter().find(|(u, _)| u == uid)
+                                }) {
+                                    *value = ICalendarValue::Text(jsid.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+
+                state
+                    .get_mut_object_or_insert(JSCalendarProperty::Alerts)
+                    .insert_unchecked(
+                        Key::from(jsid),
+                        self.to_jscalendar(tz_resolver, component_id).into_object(),
+                    );
+            }
+        }
+
         // Build group component list
+        let mut group_objects = Vec::with_capacity(group_components.len());
         if !group_components.is_empty() {
             // Order by UID placing the main components first
             group_components.sort_unstable_by(|a, b| match a.uid.cmp(&b.uid) {
@@ -95,7 +144,6 @@ impl ICalendar {
                 }
                 other => other,
             });
-            let mut group_objects = Vec::with_capacity(group_components.len());
             let mut group_components = group_components.into_iter().peekable();
 
             // Bundle recurrence overrides together by UID
@@ -114,6 +162,8 @@ impl ICalendar {
                             .to_naive_timestamp();
                         let _ = recurrence.uid.take();
 
+                        recurrence.set_is_recurrence_instance();
+
                         component
                             .get_mut_object_or_insert(JSCalendarProperty::RecurrenceOverrides)
                             .insert(
@@ -126,11 +176,6 @@ impl ICalendar {
                 }
                 group_objects.push(component.into_object());
             }
-
-            state.entries.insert(
-                Key::Property(JSCalendarProperty::Entries),
-                Value::Array(group_objects),
-            );
         }
 
         // Build unsupported component jcal
@@ -186,7 +231,10 @@ impl ICalendar {
         entries.sort_by_key(|entry| match &entry.name {
             ICalendarProperty::Dtstart | ICalendarProperty::Jsid => 0,
             ICalendarProperty::RecurrenceId => 1,
-            ICalendarProperty::Dtend | ICalendarProperty::Due | ICalendarProperty::Location => 2,
+            ICalendarProperty::Dtend
+            | ICalendarProperty::Due
+            | ICalendarProperty::Location
+            | ICalendarProperty::Name => 2,
             _ => 3,
         });
         let mut start_date = None;
@@ -426,7 +474,7 @@ impl ICalendar {
                                 Key::Property(JSCalendarProperty::Type),
                                 Value::Element(JSCalendarValue::Type(JSCalendarType::Participant)),
                             ),
-                            (
+                            /*(
                                 Key::Property(JSCalendarProperty::Roles),
                                 Value::Object(Map::from(vec![(
                                     Key::Property(JSCalendarProperty::ParticipantRole(
@@ -434,7 +482,7 @@ impl ICalendar {
                                     )),
                                     Value::Bool(true),
                                 )])),
-                            ),
+                            ),*/
                         ],
                     );
                 }
@@ -446,21 +494,13 @@ impl ICalendar {
                     if state.jsid.is_none() {
                         state.jsid = Some(uuid5(&value));
                     }
-                    state.map_named_entry(
-                        &mut entry,
-                        &[ICalendarParameterName::Jsid],
-                        JSCalendarProperty::Participants,
-                        [
-                            (
-                                Key::Property(JSCalendarProperty::CalendarAddress),
-                                Value::Str(value.into()),
-                            ),
-                            (
-                                Key::Property(JSCalendarProperty::Type),
-                                Value::Element(JSCalendarValue::Type(JSCalendarType::Participant)),
-                            ),
-                        ],
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::CalendarAddress),
+                        Value::Str(value.into()),
                     );
+                    entry.set_converted_to(&[JSCalendarProperty::CalendarAddress
+                        .to_string()
+                        .as_ref()]);
                     entry.set_map_name();
                 }
                 (
@@ -496,6 +536,17 @@ impl ICalendar {
                             ICalendarClassification::Private => JSCalendarPrivacy::Private,
                             ICalendarClassification::Confidential => JSCalendarPrivacy::Secret,
                         })),
+                    );
+                    entry.set_converted_to(&[JSCalendarProperty::Privacy.to_string().as_ref()]);
+                }
+                (
+                    ICalendarProperty::Class,
+                    Some(ICalendarValue::Text(value)),
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                ) => {
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::Privacy),
+                        Value::Str(value.into()),
                     );
                     entry.set_converted_to(&[JSCalendarProperty::Privacy.to_string().as_ref()]);
                 }
@@ -565,42 +616,27 @@ impl ICalendar {
                     Some(ICalendarValue::Text(value)),
                     ICalendarComponentType::VLocation,
                 ) => {
-                    state.map_named_entry(
-                        &mut entry,
-                        &[ICalendarParameterName::Jsid],
-                        JSCalendarProperty::Locations,
-                        [
-                            (
-                                Key::Property(JSCalendarProperty::Coordinates),
-                                Value::Str(value.into()),
-                            ),
-                            (
-                                Key::Property(JSCalendarProperty::Type),
-                                Value::Element(JSCalendarValue::Type(JSCalendarType::Location)),
-                            ),
-                        ],
+                    if state.jsid.is_none() {
+                        state.jsid = Some(uuid5(&value));
+                    }
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::Coordinates),
+                        Value::Str(value.into()),
                     );
+                    entry.set_converted_to(&[JSCalendarProperty::Coordinates.to_string().as_ref()]);
                 }
                 (
                     ICalendarProperty::Geo,
-                    Some(ICalendarValue::Text(value)),
+                    Some(ICalendarValue::Float(coord1)),
                     ICalendarComponentType::VLocation,
                 ) if !entry.entry.is_derived() => {
-                    state.map_named_entry(
-                        &mut entry,
-                        &[ICalendarParameterName::Jsid],
-                        JSCalendarProperty::Locations,
-                        [
-                            (
-                                Key::Property(JSCalendarProperty::Coordinates),
-                                Value::Str(value.into()),
-                            ),
-                            (
-                                Key::Property(JSCalendarProperty::Type),
-                                Value::Element(JSCalendarValue::Type(JSCalendarType::Location)),
-                            ),
-                        ],
+                    let coord2 = values.next().and_then(|v| v.as_float()).unwrap_or_default();
+
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::Coordinates),
+                        Value::Str(format!("geo:{coord1},{coord2}").into()),
                     );
+                    entry.set_converted_to(&[JSCalendarProperty::Coordinates.to_string().as_ref()]);
                     entry.set_map_name();
                 }
                 (
@@ -647,6 +683,7 @@ impl ICalendar {
                         Value::Str(value.into()),
                     );
                     entry.set_converted_to(&[JSCalendarProperty::Name.to_string().as_ref()]);
+                    state.set_map_component();
                 }
                 (
                     ICalendarProperty::Name,
@@ -658,7 +695,9 @@ impl ICalendar {
                     Some(ICalendarValue::Text(value)),
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
                 ) => {
-                    state.extract_params(&mut entry.entry, &[ICalendarParameterName::Language]);
+                    state
+                        .entries
+                        .extract_params(&mut entry.entry, &[ICalendarParameterName::Language]);
                     state.entries.insert(
                         Key::Property(JSCalendarProperty::Title),
                         Value::Str(value.into()),
@@ -675,6 +714,7 @@ impl ICalendar {
                         Value::Str(value.into()),
                     );
                     entry.set_converted_to(&[JSCalendarProperty::Name.to_string().as_ref()]);
+                    state.set_map_component();
                 }
                 (
                     ICalendarProperty::Location,
@@ -712,7 +752,6 @@ impl ICalendar {
                                 ),
                             ],
                         );
-                        entry.set_map_name();
                     } else {
                         let location_id = uuid5(&value);
                         if has_locations
@@ -729,7 +768,7 @@ impl ICalendar {
                                 Value::Str(location_id.into()),
                             );
                         }
-                        entry.entry.params.clear();
+                        continue;
                     }
                 }
                 (
@@ -797,6 +836,34 @@ impl ICalendar {
                         Value::Str(value.into()),
                     );
                     entry.set_converted_to(&[JSCalendarProperty::Description.to_string().as_ref()]);
+                    if matches!(state.component_type, ICalendarComponentType::Participant) {
+                        state.set_map_component();
+                    }
+                }
+                (
+                    ICalendarProperty::StyledDescription,
+                    Some(ICalendarValue::Text(value)),
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                ) if !entry.entry.is_derived()
+                    && entry
+                        .entry
+                        .parameter(&ICalendarParameterName::Fmttype)
+                        .is_none_or(|v| v.as_text().is_some_and(|v| v.starts_with("text/"))) =>
+                {
+                    state
+                        .entries
+                        .extract_params(&mut entry.entry, &[ICalendarParameterName::Fmttype]);
+                    state.entries.insert(
+                        Key::Property(JSCalendarProperty::Description),
+                        Value::Str(value.into()),
+                    );
+                    entry.set_converted_to(&[JSCalendarProperty::Description.to_string().as_ref()]);
+                    if !state
+                        .entries
+                        .contains_key(&Key::Property(JSCalendarProperty::DescriptionContentType))
+                    {
+                        entry.set_map_name();
+                    }
                 }
                 (
                     ICalendarProperty::Dtstart,
@@ -989,7 +1056,9 @@ impl ICalendar {
                         state.has_dates = true;
                         state.recurrence_id = Some(dt);
 
-                        state.extract_params(&mut entry.entry, &[ICalendarParameterName::Range]);
+                        state
+                            .entries
+                            .extract_params(&mut entry.entry, &[ICalendarParameterName::Range]);
 
                         entry.set_converted_to(&[JSCalendarProperty::RecurrenceId
                             .to_string()
@@ -1154,7 +1223,7 @@ impl ICalendar {
                             JSCalendarProperty::ByMinute,
                             (!value.byminute.is_empty()).then(|| {
                                 value
-                                    .bysecond
+                                    .byminute
                                     .iter()
                                     .map(|&v| Value::Number((v as u64).into()))
                                     .collect::<Vec<_>>()
@@ -1271,7 +1340,13 @@ impl ICalendar {
                     Some(ICalendarValue::Method(value)),
                     ICalendarComponentType::VCalendar,
                 ) => {
-                    state.method = Some(value);
+                    for object in &mut group_objects {
+                        object.as_object_mut().unwrap().insert_unchecked(
+                            Key::Property(JSCalendarProperty::Method),
+                            Value::Element(JSCalendarValue::Method(value.clone())),
+                        );
+                    }
+                    continue;
                 }
                 (
                     ICalendarProperty::PercentComplete,
@@ -1377,6 +1452,11 @@ impl ICalendar {
                         }
                     }
 
+                    entry.set_converted_to(&[
+                        JSCalendarProperty::RelatedTo.to_string().as_ref(),
+                        value.as_str(),
+                    ]);
+
                     state
                         .entries
                         .entry(Key::Property(JSCalendarProperty::RelatedTo))
@@ -1385,12 +1465,15 @@ impl ICalendar {
                         .unwrap()
                         .insert(
                             Key::Owned(value),
-                            Value::Object(Map::from(vec![(
-                                Key::Property(JSCalendarProperty::Relation),
-                                Value::Object(rels),
-                            )])),
+                            Value::Object(Map::from(if !rels.is_empty() {
+                                vec![(
+                                    Key::Property(JSCalendarProperty::Relation),
+                                    Value::Object(rels),
+                                )]
+                            } else {
+                                vec![]
+                            })),
                         );
-                    entry.set_converted_to(&[JSCalendarProperty::RelatedTo.to_string().as_ref()]);
                 }
                 (
                     ICalendarProperty::ShowWithoutTime,
@@ -1565,10 +1648,22 @@ impl ICalendar {
                     );
                     entry.set_converted_to(&[JSCalendarProperty::Trigger.to_string().as_ref()]);
                 }
-
-                // Other props
+                (
+                    ICalendarProperty::Uid,
+                    Some(ICalendarValue::Text(value)),
+                    ICalendarComponentType::VCalendar
+                    | ICalendarComponentType::VEvent
+                    | ICalendarComponentType::VTodo,
+                ) => {
+                    state.uid = Some(value);
+                    continue;
+                }
                 (ICalendarProperty::Jsid, Some(ICalendarValue::Text(value)), _) => {
                     state.jsid = Some(value);
+                    continue;
+                }
+                (ICalendarProperty::Jsid, _, _) => {
+                    continue;
                 }
                 (ICalendarProperty::Jsprop, Some(ICalendarValue::Text(value)), _) => {
                     if let Some(ICalendarParameter {
@@ -1588,7 +1683,6 @@ impl ICalendar {
                         .chain(values)
                         .collect();
                 }
-
                 (ICalendarProperty::Begin | ICalendarProperty::End, _, _) => {
                     continue;
                 }
@@ -1599,6 +1693,13 @@ impl ICalendar {
             }
 
             state.add_conversion_props(entry);
+        }
+
+        if !group_objects.is_empty() {
+            state.entries.insert(
+                Key::Property(JSCalendarProperty::Entries),
+                Value::Array(group_objects),
+            );
         }
 
         state

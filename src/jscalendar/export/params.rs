@@ -14,7 +14,7 @@ use crate::{
     },
     icalendar::*,
     jscalendar::{
-        JSCalendarDateTime, JSCalendarProperty, JSCalendarValue, export::ConvertedComponent, uuid5,
+        JSCalendarDateTime, JSCalendarProperty, JSCalendarValue, export::ConvertedComponent,
     },
     jscontact::export::params::ParamValue,
 };
@@ -36,14 +36,10 @@ impl ICalendarEntry {
 
         // Obtain jsid
         let value = self.values.first().and_then(|v| v.as_text());
-        let (jsid, is_uuid5_jsid) = if matches!(self.name, ICalendarProperty::RelatedTo) {
-            (value, false)
+        let jsid = if matches!(self.name, ICalendarProperty::RelatedTo) {
+            value
         } else {
-            let jsid = self.jsid();
-            (
-                jsid,
-                jsid.is_some_and(|id| value.is_some_and(|v| uuid5(v) == id)),
-            )
+            self.jsid()
         };
 
         let mut matched_once = false;
@@ -80,9 +76,24 @@ impl ICalendarEntry {
             }
         }
 
-        if is_uuid5_jsid {
-            self.params
-                .retain(|p| !matches!(p.name, ICalendarParameterName::Jsid));
+        // Update binary contents
+        if self
+            .parameter(&ICalendarParameterName::Value)
+            .is_some_and(|v| {
+                matches!(
+                    v,
+                    ICalendarParameterValue::Value(ICalendarValueType::Binary)
+                )
+            })
+            && let Some(ICalendarValue::Uri(Uri::Data(data))) = self.values.first_mut()
+        {
+            let bin = ICalendarValue::Binary(std::mem::take(&mut data.data));
+            if let Some(content_type) = data.content_type.take()
+                && !self.has_parameter(&ICalendarParameterName::Fmttype)
+            {
+                self.params.push(ICalendarParameter::fmttype(content_type));
+            }
+            self.values[0] = bin;
         }
 
         self

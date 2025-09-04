@@ -7,22 +7,35 @@
 use crate::{
     common::{Data, IanaString, IanaType},
     icalendar::{
-        ICalendarEntry, ICalendarFeatureType, ICalendarParameter, ICalendarParameterName,
-        ICalendarParameterValue, ICalendarParticipationRole, ICalendarParticipationStatus,
-        ICalendarProperty, ICalendarRelated, ICalendarUserTypes, ICalendarValue,
-        ICalendarValueType, Uri,
+        ICalendarDisplayType, ICalendarEntry, ICalendarFeatureType, ICalendarParameter,
+        ICalendarParameterName, ICalendarParameterValue, ICalendarParticipationRole,
+        ICalendarParticipationStatus, ICalendarProperty, ICalendarRelated, ICalendarUserTypes,
+        ICalendarValue, ICalendarValueType, Uri,
     },
     jscalendar::{
-        JSCalendarParticipantKind, JSCalendarParticipantRole, JSCalendarParticipationStatus,
-        JSCalendarProperty, JSCalendarRelativeTo, JSCalendarValue,
-        JSCalendarVirtualLocationFeature,
-        import::{ICalendarParams, State},
+        JSCalendarLinkDisplay, JSCalendarParticipantKind, JSCalendarParticipantRole,
+        JSCalendarParticipationStatus, JSCalendarProperty, JSCalendarRelativeTo, JSCalendarValue,
+        JSCalendarVirtualLocationFeature, import::ICalendarParams,
     },
 };
+use ahash::AHashMap;
 use jmap_tools::{Key, Map, Value};
 
-impl State {
-    pub(super) fn extract_params(
+pub(super) trait ExtractParams {
+    fn extract_params(
+        &mut self,
+        entry: &mut ICalendarEntry,
+        extract: &[ICalendarParameterName],
+    ) -> Option<String>;
+}
+
+impl ExtractParams
+    for AHashMap<
+        Key<'static, JSCalendarProperty>,
+        Value<'static, JSCalendarProperty, JSCalendarValue>,
+    >
+{
+    fn extract_params(
         &mut self,
         entry: &mut ICalendarEntry,
         extract: &[ICalendarParameterName],
@@ -38,12 +51,11 @@ impl State {
             match param.name {
                 ICalendarParameterName::Cn => {
                     if let Some(text) = param.value.into_text() {
-                        self.entries
-                            .insert(Key::Property(JSCalendarProperty::Name), Value::Str(text));
+                        self.insert(Key::Property(JSCalendarProperty::Name), Value::Str(text));
                     }
                 }
                 ICalendarParameterName::Cutype => {
-                    self.entries.insert(
+                    self.insert(
                         Key::Property(JSCalendarProperty::Kind),
                         match param.value {
                             ICalendarParameterValue::Text(value) => Value::Str(value.into()),
@@ -78,7 +90,7 @@ impl State {
                 }
                 ICalendarParameterName::DelegatedFrom => {
                     if let Some(text) = param.value.into_text() {
-                        self.entries.insert(
+                        self.insert(
                             Key::Property(JSCalendarProperty::DelegatedFrom),
                             Value::Str(text),
                         );
@@ -86,7 +98,7 @@ impl State {
                 }
                 ICalendarParameterName::DelegatedTo => {
                     if let Some(text) = param.value.into_text() {
-                        self.entries.insert(
+                        self.insert(
                             Key::Property(JSCalendarProperty::DelegatedTo),
                             Value::Str(text),
                         );
@@ -94,13 +106,12 @@ impl State {
                 }
                 ICalendarParameterName::Email => {
                     if let Some(text) = param.value.into_text() {
-                        self.entries
-                            .insert(Key::Property(JSCalendarProperty::Email), Value::Str(text));
+                        self.insert(Key::Property(JSCalendarProperty::Email), Value::Str(text));
                     }
                 }
                 ICalendarParameterName::Rsvp => {
                     if let Some(boolean) = param.value.as_bool() {
-                        self.entries.insert(
+                        self.insert(
                             Key::Property(JSCalendarProperty::ExpectReply),
                             Value::Bool(boolean),
                         );
@@ -108,8 +119,7 @@ impl State {
                 }
                 ICalendarParameterName::Member => {
                     if let Some(text) = param.value.into_text() {
-                        self.entries
-                            .entry(Key::Property(JSCalendarProperty::MemberOf))
+                        self.entry(Key::Property(JSCalendarProperty::MemberOf))
                             .or_insert_with(Value::new_object)
                             .as_object_mut()
                             .unwrap()
@@ -117,7 +127,7 @@ impl State {
                     }
                 }
                 ICalendarParameterName::Partstat => {
-                    self.entries.insert(
+                    self.insert(
                         Key::Property(JSCalendarProperty::ParticipationStatus),
                         match param.value {
                             ICalendarParameterValue::Partstat(value) => {
@@ -168,8 +178,7 @@ impl State {
                         ICalendarParameterValue::Text(value) => Key::Owned(value),
                         _ => continue,
                     };
-                    self.entries
-                        .entry(Key::Property(JSCalendarProperty::Roles))
+                    self.entry(Key::Property(JSCalendarProperty::Roles))
                         .or_insert_with(Value::new_object)
                         .as_object_mut()
                         .unwrap()
@@ -177,13 +186,12 @@ impl State {
                 }
                 ICalendarParameterName::SentBy => {
                     if let Some(text) = param.value.into_text() {
-                        self.entries
-                            .insert(Key::Property(JSCalendarProperty::SentBy), Value::Str(text));
+                        self.insert(Key::Property(JSCalendarProperty::SentBy), Value::Str(text));
                     }
                 }
                 ICalendarParameterName::Fmttype => {
                     if let Some(text) = param.value.into_text() {
-                        self.entries.insert(
+                        self.insert(
                             Key::Property(
                                 if matches!(entry.name, ICalendarProperty::StyledDescription) {
                                     JSCalendarProperty::DescriptionContentType
@@ -197,7 +205,7 @@ impl State {
                 }
                 ICalendarParameterName::Label => {
                     if let Some(text) = param.value.into_text() {
-                        self.entries.insert(
+                        self.insert(
                             Key::Property(if matches!(entry.name, ICalendarProperty::Conference) {
                                 JSCalendarProperty::Name
                             } else {
@@ -209,7 +217,7 @@ impl State {
                 }
                 ICalendarParameterName::Size => {
                     if let Some(number) = param.value.as_integer() {
-                        self.entries.insert(
+                        self.insert(
                             Key::Property(JSCalendarProperty::Size),
                             Value::Number(number.into()),
                         );
@@ -219,9 +227,15 @@ impl State {
                 }
                 ICalendarParameterName::Linkrel => match param.value {
                     ICalendarParameterValue::Linkrel(linkrel) => {
-                        self.entries.insert(
+                        self.insert(
                             Key::Property(JSCalendarProperty::Rel),
                             Value::Element(JSCalendarValue::LinkRelation(linkrel)),
+                        );
+                    }
+                    ICalendarParameterValue::Text(value) => {
+                        self.insert(
+                            Key::Property(JSCalendarProperty::Rel),
+                            Value::Str(value.into()),
                         );
                     }
                     value => {
@@ -230,7 +244,7 @@ impl State {
                 },
                 ICalendarParameterName::Related => {
                     if let ICalendarParameterValue::Related(related) = param.value {
-                        self.entries.insert(
+                        self.insert(
                             Key::Property(JSCalendarProperty::RelativeTo),
                             Value::Element(JSCalendarValue::RelativeTo(match related {
                                 ICalendarRelated::Start => JSCalendarRelativeTo::Start,
@@ -271,8 +285,7 @@ impl State {
                         ICalendarParameterValue::Text(value) => Key::Owned(value),
                         _ => continue,
                     };
-                    self.entries
-                        .entry(Key::Property(JSCalendarProperty::Features))
+                    self.entry(Key::Property(JSCalendarProperty::Features))
                         .or_insert_with(Value::new_object)
                         .as_object_mut()
                         .unwrap()
@@ -280,9 +293,30 @@ impl State {
                 }
                 ICalendarParameterName::Language => {
                     if let Some(text) = param.value.into_text() {
-                        self.entries
-                            .insert(Key::Property(JSCalendarProperty::Locale), Value::Str(text));
+                        self.insert(Key::Property(JSCalendarProperty::Locale), Value::Str(text));
                     }
+                }
+                ICalendarParameterName::Display => {
+                    let display = match param.value {
+                        ICalendarParameterValue::Display(value) => {
+                            Key::Property(JSCalendarProperty::LinkDisplay(match value {
+                                ICalendarDisplayType::Badge => JSCalendarLinkDisplay::Badge,
+                                ICalendarDisplayType::Graphic => JSCalendarLinkDisplay::Graphic,
+                                ICalendarDisplayType::Fullsize => JSCalendarLinkDisplay::Fullsize,
+                                ICalendarDisplayType::Thumbnail => JSCalendarLinkDisplay::Thumbnail,
+                            }))
+                        }
+                        ICalendarParameterValue::Text(value) => Key::Owned(value),
+                        value => {
+                            entry.params.push(ICalendarParameter::display(value));
+                            continue;
+                        }
+                    };
+                    self.entry(Key::Property(JSCalendarProperty::Display))
+                        .or_insert_with(Value::new_object)
+                        .as_object_mut()
+                        .unwrap()
+                        .insert(display, Value::Bool(true));
                 }
                 ICalendarParameterName::Jsid => {
                     jsid = param.value.into_text().map(|v| v.into_owned());
@@ -296,7 +330,6 @@ impl State {
                 | ICalendarParameterName::ScheduleStatus
                 | ICalendarParameterName::Tzid
                 | ICalendarParameterName::Value
-                | ICalendarParameterName::Display
                 | ICalendarParameterName::Filename
                 | ICalendarParameterName::ManagedId
                 | ICalendarParameterName::Order
@@ -366,10 +399,10 @@ impl ICalendarValue {
                     content_type: None,
                     data: v,
                 })
-                .to_string()
+                .into_unwrapped_string()
                 .into(),
             ),
-            ICalendarValue::Uri(v) => Value::Str(v.to_string().into()),
+            ICalendarValue::Uri(v) => Value::Str(v.into_unwrapped_string().into()),
             ICalendarValue::Duration(v) => Value::Str(v.to_string().into()),
             ICalendarValue::RecurrenceRule(v) => Value::Str(v.to_string().into()),
             ICalendarValue::Period(v) => Value::Str(v.to_string().into()),

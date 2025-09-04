@@ -626,7 +626,7 @@ impl VCardValue {
                 );
                 Value::Str(out.into())
             }
-            VCardValue::Binary(v) => Value::Str(v.to_string().into()),
+            VCardValue::Binary(v) => Value::Str(v.to_unwrapped_string().into()),
             VCardValue::Sex(v) => Value::Str(v.as_str().into()),
             VCardValue::GramGender(v) => Value::Str(v.as_str().into()),
             VCardValue::Kind(v) => Value::Str(v.as_str().into()),

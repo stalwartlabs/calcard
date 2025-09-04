@@ -107,7 +107,7 @@ impl EntryState {
         match values.next()? {
             VCardValue::Text(v) => Some(Cow::Owned(v)),
             VCardValue::Component(v) => Some(Cow::Owned(v.join(","))),
-            VCardValue::Binary(data) => Some(Cow::Owned(data.to_string())),
+            VCardValue::Binary(data) => Some(Cow::Owned(data.to_unwrapped_string())),
             VCardValue::Sex(v) => Some(v.as_str().into()),
             VCardValue::GramGender(v) => Some(v.as_str().into()),
             VCardValue::Kind(v) => Some(v.as_str().into()),

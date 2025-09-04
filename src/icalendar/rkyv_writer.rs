@@ -197,7 +197,7 @@ impl ArchivedICalendarEntry {
 
                 let text = match value {
                     ArchivedICalendarValue::Binary(v) => {
-                        write_bytes(out, &mut line_len, v)?;
+                        write_bytes(out, Some(&mut line_len), v)?;
                         continue;
                     }
                     ArchivedICalendarValue::Boolean(v) => {
@@ -319,7 +319,7 @@ pub(crate) fn write_uri(
                 write!(out, "base64,")?;
             }
             *line_len += 8;
-            write_bytes(out, line_len, &v.data)
+            write_bytes(out, Some(line_len), &v.data)
         }
         ArchivedUri::Location(v) => write_text(out, line_len, v, true, true),
     }

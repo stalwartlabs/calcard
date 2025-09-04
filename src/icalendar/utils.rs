@@ -52,8 +52,18 @@ impl ICalendarComponent {
             .and_then(|v| v.as_text())
     }
 
+    pub fn jsid(&self) -> Option<&str> {
+        self.property(&ICalendarProperty::Jsid)
+            .and_then(|e| e.values.first())
+            .and_then(|v| v.as_text())
+    }
+
     pub fn property(&self, prop: &ICalendarProperty) -> Option<&ICalendarEntry> {
         self.entries.iter().find(|entry| &entry.name == prop)
+    }
+
+    pub fn property_mut(&mut self, prop: &ICalendarProperty) -> Option<&mut ICalendarEntry> {
+        self.entries.iter_mut().find(|entry| &entry.name == prop)
     }
 
     pub fn has_property(&self, prop: &ICalendarProperty) -> bool {
@@ -65,6 +75,15 @@ impl ICalendarComponent {
         prop: &'y ICalendarProperty,
     ) -> impl Iterator<Item = &'x ICalendarEntry> + 'x {
         self.entries.iter().filter(move |entry| &entry.name == prop)
+    }
+
+    pub fn properties_mut<'x, 'y: 'x>(
+        &'x mut self,
+        prop: &'y ICalendarProperty,
+    ) -> impl Iterator<Item = &'x mut ICalendarEntry> + 'x {
+        self.entries
+            .iter_mut()
+            .filter(move |entry| &entry.name == prop)
     }
 
     pub fn size(&self) -> usize {
@@ -150,7 +169,7 @@ impl ICalendarValue {
     pub fn into_text(self) -> Option<Cow<'static, str>> {
         match self {
             ICalendarValue::Text(s) => Some(Cow::Owned(s)),
-            ICalendarValue::Uri(v) => Some(Cow::Owned(v.to_string())),
+            ICalendarValue::Uri(v) => Some(Cow::Owned(v.into_unwrapped_string())),
             ICalendarValue::CalendarScale(v) => Some(Cow::Borrowed(v.as_str())),
             ICalendarValue::Method(v) => Some(Cow::Borrowed(v.as_str())),
             ICalendarValue::Classification(v) => Some(Cow::Borrowed(v.as_str())),
@@ -230,14 +249,29 @@ impl ICalendarEntry {
         })
     }
 
+    #[inline]
+    pub fn parameter(&self, prop: &ICalendarParameterName) -> Option<&ICalendarParameterValue> {
+        self.params.iter().find_map(move |param| {
+            if &param.name == prop {
+                Some(&param.value)
+            } else {
+                None
+            }
+        })
+    }
+
+    #[inline]
+    pub fn has_parameter(&self, prop: &ICalendarParameterName) -> bool {
+        self.params.iter().any(|param| &param.name == prop)
+    }
+
     pub fn jsid(&self) -> Option<&str> {
-        self.parameters(&ICalendarParameterName::Jsid)
-            .find_map(|v| v.as_text())
+        self.parameter(&ICalendarParameterName::Jsid)
+            .and_then(|v| v.as_text())
     }
 
     pub fn is_derived(&self) -> bool {
-        self.parameters(&ICalendarParameterName::Derived)
-            .next()
+        self.parameter(&ICalendarParameterName::Derived)
             .is_some_and(|v| matches!(v, ICalendarParameterValue::Bool(true)))
     }
 
@@ -282,7 +316,7 @@ impl ICalendarParameterValue {
             ICalendarParameterValue::Bool(v) => {
                 Some(Cow::Borrowed(if v { "TRUE" } else { "FALSE" }))
             }
-            ICalendarParameterValue::Uri(uri) => Some(Cow::Owned(uri.to_string())),
+            ICalendarParameterValue::Uri(uri) => Some(Cow::Owned(uri.into_unwrapped_string())),
             ICalendarParameterValue::Cutype(v) => Some(Cow::Borrowed(v.as_str())),
             ICalendarParameterValue::Fbtype(v) => Some(Cow::Borrowed(v.as_str())),
             ICalendarParameterValue::Partstat(v) => Some(Cow::Borrowed(v.as_str())),

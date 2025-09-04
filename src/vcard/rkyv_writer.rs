@@ -227,7 +227,7 @@ impl ArchivedVCardEntry {
                             write!(out, "base64\\,")?;
                             line_len += 8;
                         }
-                        write_bytes(out, &mut line_len, &v.data)?;
+                        write_bytes(out, Some(&mut line_len), &v.data)?;
                     }
                     ArchivedVCardValue::Sex(v) => {
                         let text = v.as_str();

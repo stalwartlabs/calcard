@@ -61,7 +61,7 @@ pub(crate) fn write_text(
 
 pub(crate) fn write_bytes(
     out: &mut impl Write,
-    line_len: &mut usize,
+    mut line_len: Option<&mut usize>,
     value: &[u8],
 ) -> std::fmt::Result {
     const CHARPAD: u8 = b'=';
@@ -83,13 +83,14 @@ pub(crate) fn write_bytes(
                 E1[(((t2 & 0x0F) << 2) | ((t3 >> 6) & 0x03)) as usize],
                 E2[t3 as usize],
             ] {
-                if *line_len + 1 > 75 {
-                    write!(out, "\r\n ")?;
-                    *line_len = 1;
+                if let Some(line_len) = line_len.as_deref_mut() {
+                    if *line_len + 1 > 75 {
+                        write!(out, "\r\n ")?;
+                        *line_len = 1;
+                    }
+                    *line_len += 1;
                 }
-
                 write!(out, "{}", char::from(ch))?;
-                *line_len += 1;
             }
 
             i += 3;
@@ -117,13 +118,15 @@ pub(crate) fn write_bytes(
         };
 
         for ch in chs.iter() {
-            if *line_len + 1 > 75 {
-                write!(out, "\r\n ")?;
-                *line_len = 1;
+            if let Some(line_len) = line_len.as_deref_mut() {
+                if *line_len + 1 > 75 {
+                    write!(out, "\r\n ")?;
+                    *line_len = 1;
+                }
+                *line_len += 1;
             }
 
             write!(out, "{}", char::from(*ch))?;
-            *line_len += 1;
         }
     }
 

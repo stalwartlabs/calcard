@@ -13,7 +13,6 @@ use chrono::DateTime;
 use jmap_tools::{Key, Map, Value};
 
 pub mod convert;
-//pub mod entry;
 pub mod params;
 pub mod props;
 

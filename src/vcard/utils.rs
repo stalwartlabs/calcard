@@ -119,7 +119,7 @@ impl VCardValue {
 
     pub fn into_uri(self) -> Option<String> {
         match self {
-            VCardValue::Binary(v) => Some(v.to_string()),
+            VCardValue::Binary(v) => Some(v.to_unwrapped_string()),
             VCardValue::Text(v) => Some(v),
             _ => None,
         }
@@ -162,8 +162,7 @@ impl VCardValue {
 }
 
 impl Data {
-    #[allow(clippy::inherent_to_string)]
-    pub fn to_string(&self) -> String {
+    pub fn to_unwrapped_string(&self) -> String {
         use std::fmt::Write;
         let mut out = String::with_capacity(
             self.data.len().div_ceil(4) + self.content_type.as_ref().map_or(0, |ct| ct.len() + 5),
@@ -172,8 +171,8 @@ impl Data {
         if let Some(ct) = &self.content_type {
             let _ = write!(&mut out, "{ct};");
         }
-        let _ = write!(&mut out, "base64\\,");
-        let _ = write_bytes(&mut out, &mut 0, &self.data);
+        let _ = write!(&mut out, "base64,");
+        let _ = write_bytes(&mut out, None, &self.data);
         out
     }
 }

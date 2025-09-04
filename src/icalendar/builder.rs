@@ -116,11 +116,11 @@ impl ICalendarComponent {
         });
     }
 
-    pub fn add_property(&mut self, name: ICalendarProperty, value: ICalendarValue) {
+    pub fn add_property(&mut self, name: ICalendarProperty, value: impl Into<ICalendarValue>) {
         self.entries.push(ICalendarEntry {
             name,
             params: vec![],
-            values: vec![value],
+            values: vec![value.into()],
         });
     }
 
@@ -128,12 +128,12 @@ impl ICalendarComponent {
         &mut self,
         name: ICalendarProperty,
         params: impl IntoIterator<Item = ICalendarParameter>,
-        value: ICalendarValue,
+        value: impl Into<ICalendarValue>,
     ) {
         self.entries.push(ICalendarEntry {
             name,
             params: params.into_iter().collect(),
-            values: vec![value],
+            values: vec![value.into()],
         });
     }
 }
@@ -567,8 +567,6 @@ impl<T: Into<ICalendarParameterValue>> From<IanaType<T, String>> for ICalendarPa
         }
     }
 }
-
-// From implementations for ICalendarValue enum
 
 impl From<Vec<u8>> for ICalendarValue {
     fn from(value: Vec<u8>) -> Self {

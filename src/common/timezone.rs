@@ -84,6 +84,7 @@ impl Tz {
 
     pub fn name(&self) -> Option<Cow<'static, str>> {
         match self {
+            Self::Tz(chrono_tz::Tz::UTC) => Some(Cow::Borrowed("Etc/UTC")),
             Self::Tz(tz) => Some(Cow::Borrowed(tz.name())),
             Self::Fixed(offset) => {
                 let hour = offset.local_minus_utc() / 3600;
@@ -116,7 +117,7 @@ impl Tz {
 
     pub fn is_utc(&self) -> bool {
         match self {
-            Self::Tz(tz) => tz == &chrono_tz::UTC,
+            Self::Tz(chrono_tz::UTC | chrono_tz::Tz::Etc__GMT | chrono_tz::Tz::Etc__UTC) => true,
             Self::Fixed(offset) => offset.local_minus_utc() == 0,
             _ => false,
         }
