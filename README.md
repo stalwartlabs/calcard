@@ -5,15 +5,26 @@
 [![docs.rs](https://img.shields.io/docsrs/calcard)](https://docs.rs/calcard)
 [![crates.io](https://img.shields.io/crates/l/calcard)](http://www.apache.org/licenses/LICENSE-2.0)
 
-Calcard is a Rust crate for parsing and generating vCard and iCalendar data. It is designed to easily handle `.vcf` and `.ics` file formats, making it straightforward to integrate with calendaring and contact management applications.
+`calcard` is a Rust crate for parsing, generating, and converting calendaring and contact data across multiple formats. It supports iCalendar and vCard, making it easy to work with `.ics` and `.vcf` files. It also fully handles JSCalendar and JSContact, the emerging standards commonly used in JMAP-based systems. In addition to parsing and serializing these formats, `calcard` provides seamless conversion between iCalendar and JSCalendar, as well as between vCard and JSContact, enabling smooth interoperability between traditional and modern calendaring and contact protocols.
 
-In general, this library abides by the Postel's law or [Robustness Principle](https://en.wikipedia.org/wiki/Robustness_principle) which 
-states that an implementation must be conservative in its sending behavior and liberal in its receiving behavior. This means that
-_calcard_ will make a best effort to parse non-conformant iCal/vCard objects as long as these do not deviate too much from the standard.
+In general, this library abides by the Postel's law or [Robustness Principle](https://en.wikipedia.org/wiki/Robustness_principle) which states that an implementation must be conservative in its sending behavior and liberal in its receiving behavior. This means that `calcard` will make a best effort to parse non-conformant iCal/vCard/JSCalendar/JSContact objects as long as these do not deviate too much from the standard.
+
+## Features
+
+Comprehensive features for working with calendaring and contact data, including:
+
+- **iCalendar** support: Parsing and generating iCalendar data.
+- **vCard** support: Parsing and generating vCard data.
+- **JSCalendar** support: Parsing and generating JSCalendar data.
+- **JSContact** support: Parsing and generating JSContact data.
+- Seamless conversion between **iCalendar** and **JSCalendar**.
+- Seamless conversion between **vCard** and **JSContact**.
+- **Recurrence rules expansion**: Accurately computes and enumerates repeating events based on iCalendar and JSCalendar RRULEs.
+- **IANA timezone detection**: Automatically resolves and handles custom and proprietary timezones.
 
 ## Usage
 
-### Parsing Stream
+### Parsing an iCalendar and/or vCard stream
 
 You can parse vCard and iCalendar files using the stream-based parser:
 
@@ -39,21 +50,110 @@ loop {
 }
 ```
 
-### Parsing a Single vCard or iCalendar
+### Parsing iCalendar
 
-You can also parse a single vCard or iCalendar instance directly:
+You can parse a single iCalendar using the `ICalendar::parse` method:
 
 ```rust
-let vcard_input = "BEGIN:VCARD\nVERSION:3.0\nFN:John Doe\nEND:VCARD\n";
-let vcard = VCard::parse(&vcard_input);
-println!("Parsed VCard: {:?}", vcard);
+let input = "BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR\n";
+let ical = ICalendar::parse(&input);
 
-let ical_input = "BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR\n";
-let ical = ICalendar::parse(&ical_input);
 println!("Parsed ICalendar: {:?}", ical);
 ```
 
-## Generation
+### Parsing vCard
+
+You can parse a single vCard using the `VCard::parse` method:
+
+```rust
+let input = "BEGIN:VCARD\nVERSION:3.0\nFN:John Doe\nEND:VCARD\n";
+let vcard = VCard::parse(&input);
+
+println!("Parsed VCard: {:?}", vcard);
+```
+### Parsing JSCalendar
+
+You can parse a JSCalendar JSON string using the `JSCalendar::parse` method:
+
+```rust
+let input = r#"{
+                    "@type": "Group",
+                    "uid": "bf0ac22b-4989-4caf-9ebd-54301b4ee51a",
+                    "updated": "2020-01-15T18:00:00Z",
+                    "title": "A simple group",
+                    "entries": [{
+                        "@type": "Event",
+                        "uid": "a8df6573-0474-496d-8496-033ad45d7fea",
+                        "updated": "2020-01-02T18:23:04Z",
+                        "title": "Some event",
+                        "start": "2020-01-15T13:00:00",
+                        "timeZone": "America/New_York",
+                        "duration": "PT1H"
+                    },
+                    {
+                        "@type": "Task",
+                        "uid": "2a358cee-6489-4f14-a57f-c104db4dc2f2",
+                        "updated": "2020-01-09T14:32:01Z",
+                        "title": "Do something"
+                    }]
+                }"#;
+
+let jscalendar = JSCalendar::parse(input).unwrap();
+println!("Parsed JSCalendar: {}", jscalendar.to_string_pretty());
+```
+
+### Parsing JSContact
+
+You can parse a JSContact JSON string using the `JSContact::parse` method:
+
+```rust
+let input = r#"{
+                    "@type": "Card",
+                    "version": "1.0",
+                    "uid": "22B2C7DF-9120-4969-8460-05956FE6B065",
+                    "kind": "individual",
+                    "name": {
+                    "components": [
+                        { "kind": "given", "value": "John" },
+                        { "kind": "surname", "value": "Doe" }
+                    ],
+                    "isOrdered": true
+                    }
+                }"#;
+
+let jscontact = JSContact::parse(input).unwrap();
+println!("Parsed JSContact: {}", jscontact.to_string_pretty());
+```
+
+### Converting to/from iCalendar and JSCalendar
+
+To convert a JSCalendar to an iCalendar, use the `JSCalendar::into_icalendar` method:
+
+```rust
+let ical = JSCalendar::parse(input).unwrap().into_icalendar().unwrap();
+```
+
+To convert an iCalendar to a JSCalendar, use the `ICalendar::into_jscalendar` method:
+
+```rust
+let jscalendar = ICalendar::parse(&input).unwrap().into_jscalendar().unwrap();
+```
+
+### Converting to/from vCard and JSContact
+
+To convert a JSContact to a vCard, use the `JSContact::into_vcard` method:
+
+```rust
+let vcard = JSContact::parse(input).unwrap().into_vcard().unwrap();
+```
+
+To convert a vCard to a JSContact, use the `VCard::into_jscontact` method:
+
+```rust
+let jscontact = VCard::parse(&input).unwrap().into_jscontact().unwrap();
+```
+
+### Generating iCalendar and vCard
 
 To generate a vCard or iCalendar, simply call `.to_string()` on the parsed object:
 
@@ -66,6 +166,21 @@ println!("Generated ICalendar:\n{}", ical_string);
 ```
 
 *Note: Documentation for creating VCard and ICalendar objects is coming soon.*
+
+### Generating JSCalendar and JSContact
+
+To generate a JSCalendar or JSContact, simply call `.to_string()` on the parsed object or `.to_string_pretty()` for a more human-readable format:
+
+```rust
+let jscalendar_string = jscalendar.to_string();
+println!("Generated JSCalendar:\n{}", jscalendar_string);
+
+let jscontact_string = jscontact.to_string();
+println!("Generated JSContact:\n{}", jscontact_string);
+```
+
+*Note: Documentation for creating JSCalendar and JSContact objects is coming soon.*
+
 
 ## Testing and Fuzzing
 

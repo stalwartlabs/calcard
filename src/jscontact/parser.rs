@@ -20,6 +20,10 @@ impl<'x> JSContact<'x> {
     pub fn parse(json: &'x str) -> Result<Self, String> {
         Value::parse_json(json).map(JSContact)
     }
+
+    pub fn to_string_pretty(&self) -> String {
+        serde_json::to_string_pretty(&self.0).unwrap_or_default()
+    }
 }
 
 impl Element for JSContactValue {
