@@ -27,60 +27,6 @@ impl<'x> Parser<'x> {
             .and_then(|v| std::str::from_utf8(v).ok())
     }
 
-    /*pub(crate) fn buf_to_string(&mut self) -> String {
-        match self.token_buf.len() {
-            0 => String::new(),
-            1 => self.token_buf.pop().unwrap().into_string(),
-            _ => {
-                let from_offset = self.token_buf.first().unwrap().start;
-                let to_offset = self.token_buf.last().unwrap().end;
-
-                if self
-                    .token_buf
-                    .iter()
-                    .all(|t| matches!(t.text, Cow::Borrowed(_)))
-                {
-                    self.token_buf.clear();
-                    self.input
-                        .get(from_offset..=to_offset)
-                        .map(|slice| String::from_utf8_lossy(slice).into_owned())
-                        .unwrap_or_default()
-                } else {
-                    let mut string = String::with_capacity(to_offset - from_offset);
-                    for token in self.token_buf.drain(..) {
-                        string
-                            .push_str(std::str::from_utf8(token.text.as_ref()).unwrap_or_default());
-                    }
-                    string
-                }
-            }
-        }
-    }
-
-    pub(crate) fn buf_to_other<T: FromStr>(&mut self) -> Option<T> {
-        let result = self.token_buf.first().and_then(|token| {
-            std::str::from_utf8(token.text.as_ref())
-                .ok()
-                .and_then(|s| s.parse().ok())
-        });
-        self.token_buf.clear();
-        result
-    }
-
-    pub(crate) fn buf_to_bool(&mut self) -> Option<Result<bool, String>> {
-        let result = self.token_buf.pop().map(|token| {
-            if token.text.as_ref().eq_ignore_ascii_case(b"TRUE") {
-                Ok(true)
-            } else if token.text.as_ref().eq_ignore_ascii_case(b"FALSE") {
-                Ok(false)
-            } else {
-                Err(token.into_string())
-            }
-        });
-        self.token_buf.clear();
-        result
-    }*/
-
     pub(crate) fn buf_parse_many<T: From<Token<'x>>>(&mut self) -> Vec<T> {
         self.token_buf.drain(..).map(T::from).collect()
     }
@@ -90,15 +36,6 @@ impl<'x> Parser<'x> {
         self.token_buf.clear();
         result
     }
-
-    /*pub(crate) fn buf_try_parse_one<T: IanaParse>(&mut self) -> Option<T> {
-        let result = self
-            .token_buf
-            .first()
-            .and_then(|t| T::parse(t.text.as_ref()));
-        self.token_buf.clear();
-        result
-    }*/
 }
 
 impl Token<'_> {

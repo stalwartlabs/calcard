@@ -5,14 +5,15 @@
  */
 
 use crate::{
-    common::{CalendarScale, IanaParse, IanaType, PartialDateTime},
+    common::{CalendarScale, IanaParse, IanaType, PartialDateTime, parser::Integer},
+    icalendar::Uri,
     jscontact::{
         JSContactGrammaticalGender, JSContactKind, JSContactLevel, JSContactPhoneticSystem,
         JSContactProperty, JSContactValue,
     },
     vcard::{
         VCardGramGender, VCardKind, VCardLevel, VCardPhonetic, VCardSex, VCardType, VCardValue,
-        ValueType,
+        VCardValueType, ValueType,
     },
 };
 use jmap_tools::{JsonPointerItem, Key, Map, Value};
@@ -174,7 +175,75 @@ pub(super) fn convert_value<'x>(
                         return Ok(VCardValue::GramGender(gender));
                     }
                 }
-                ValueType::Vcard(_) => (),
+                ValueType::Vcard(typ) => match typ {
+                    VCardValueType::Boolean => {
+                        if s.eq_ignore_ascii_case("true") {
+                            return Ok(VCardValue::Boolean(true));
+                        } else if s.eq_ignore_ascii_case("false") {
+                            return Ok(VCardValue::Boolean(false));
+                        }
+                    }
+                    VCardValueType::Date => {
+                        let mut dt = PartialDateTime::default();
+                        dt.parse_vcard_date(&mut s.as_ref().as_bytes().iter().peekable());
+                        if !dt.is_null() {
+                            return Ok(VCardValue::PartialDateTime(dt));
+                        }
+                    }
+                    VCardValueType::DateAndOrTime => {
+                        let mut dt = PartialDateTime::default();
+                        dt.parse_vcard_date_and_or_time(
+                            &mut s.as_ref().as_bytes().iter().peekable(),
+                        );
+                        if !dt.is_null() {
+                            return Ok(VCardValue::PartialDateTime(dt));
+                        }
+                    }
+                    VCardValueType::DateTime => {
+                        let mut dt = PartialDateTime::default();
+                        dt.parse_vcard_date_time(&mut s.as_ref().as_bytes().iter().peekable());
+                        if !dt.is_null() {
+                            return Ok(VCardValue::PartialDateTime(dt));
+                        }
+                    }
+                    VCardValueType::Time => {
+                        let mut dt = PartialDateTime::default();
+                        dt.parse_vcard_time(&mut s.as_ref().as_bytes().iter().peekable(), false);
+                        if !dt.is_null() {
+                            return Ok(VCardValue::PartialDateTime(dt));
+                        }
+                    }
+                    VCardValueType::Timestamp => {
+                        let mut dt = PartialDateTime::default();
+                        if dt.parse_timestamp(&mut s.as_ref().as_bytes().iter().peekable(), true) {
+                            return Ok(VCardValue::PartialDateTime(dt));
+                        }
+                    }
+                    VCardValueType::UtcOffset => {
+                        let mut dt = PartialDateTime::default();
+                        dt.parse_zone(&mut s.as_ref().as_bytes().iter().peekable());
+                        if !dt.is_null() {
+                            return Ok(VCardValue::PartialDateTime(dt));
+                        }
+                    }
+                    VCardValueType::Float => {
+                        if let Ok(float) = s.as_ref().parse::<f64>() {
+                            return Ok(VCardValue::Float(float));
+                        }
+                    }
+                    VCardValueType::Integer => {
+                        if let Some(integer) = Integer::parse(s.as_ref().as_bytes()) {
+                            return Ok(VCardValue::Integer(integer.0));
+                        }
+                    }
+                    VCardValueType::Uri => {
+                        return Ok(match Uri::parse(s) {
+                            Uri::Data(data) => VCardValue::Binary(data),
+                            Uri::Location(text) => VCardValue::Text(text),
+                        });
+                    }
+                    VCardValueType::LanguageTag | VCardValueType::Text => (),
+                },
             }
 
             Ok(VCardValue::Text(s.into_owned()))

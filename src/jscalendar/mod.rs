@@ -48,14 +48,21 @@ pub enum JSCalendarValue {
     Method(ICalendarMethod),
 }
 
+impl Default for JSCalendarValue {
+    fn default() -> Self {
+        JSCalendarValue::Type(JSCalendarType::default())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct JSCalendarDateTime {
     pub timestamp: i64,
     pub is_local: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum JSCalendarProperty {
+    #[default]
     Type,
     Acknowledged,
     Action,
@@ -392,8 +399,8 @@ static JSCAL_NAMESPACE: uuid::Uuid = uuid::Uuid::from_bytes([
 ]);
 
 #[inline]
-pub(crate) fn uuid5(text: &str) -> String {
-    uuid::Uuid::new_v5(&JSCAL_NAMESPACE, text.as_bytes())
+pub(crate) fn uuid5(text: impl AsRef<[u8]>) -> String {
+    uuid::Uuid::new_v5(&JSCAL_NAMESPACE, text.as_ref())
         .hyphenated()
         .to_string()
 }

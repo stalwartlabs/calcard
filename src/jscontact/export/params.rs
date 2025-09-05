@@ -12,7 +12,7 @@ use crate::{
     },
     vcard::{
         VCard, VCardEntry, VCardParameter, VCardParameterName, VCardParameterValue, VCardProperty,
-        VCardValueType,
+        VCardValueType, ValueType,
     },
 };
 use jmap_tools::{Element, JsonPointer, Key, Property, Value};
@@ -174,13 +174,18 @@ impl<'x> State<'x> {
             };
 
             let (default_type, _) = name.default_types();
+            let convert_type = value_type
+                .iana()
+                .map(|v| ValueType::Vcard(*v))
+                .unwrap_or(default_type);
+
             let Some(values) = prop.next().and_then(|v| match v {
                 Value::Array(arr) => Some(
                     arr.into_iter()
-                        .filter_map(|v| convert_value(v, &default_type).ok())
+                        .filter_map(|v| convert_value(v, &convert_type).ok())
                         .collect::<Vec<_>>(),
                 ),
-                v => convert_value(v, &default_type).ok().map(|v| vec![v]),
+                v => convert_value(v, &convert_type).ok().map(|v| vec![v]),
             }) else {
                 continue;
             };
@@ -188,7 +193,7 @@ impl<'x> State<'x> {
             let mut entry = VCardEntry::new(name);
             entry.import_jcard_params(params);
             entry.values = values;
-            if !value_type.is_iana_and(|v| v == &default_type.unwrap_vcard()) {
+            if convert_type != default_type {
                 entry.params.push(VCardParameter::value(value_type));
             }
             self.vcard.entries.push(entry);

@@ -831,7 +831,7 @@ pub enum ICalendarScheduleForceSendValue {
     Reply,   // [RFC6638, Section 7.2]
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
@@ -885,7 +885,7 @@ pub(crate) enum ValueSeparator {
     Semicolon,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ValueType {
     Ical(ICalendarValueType),
     CalendarScale,

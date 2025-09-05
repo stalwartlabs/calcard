@@ -7,14 +7,9 @@
 use jmap_tools::{JsonPointer, JsonPointerItem, Key, Map, Value};
 
 use crate::{
-    common::{CalendarScale, IanaParse, IanaType},
-    icalendar::{
-        ICalendar, ICalendarAction, ICalendarClassification, ICalendarComponent,
-        ICalendarComponentType, ICalendarEntry, ICalendarFreeBusyType, ICalendarMethod,
-        ICalendarParameter, ICalendarParticipantType, ICalendarProperty, ICalendarProximityValue,
-        ICalendarResourceType, ICalendarStatus, ICalendarTransparency, ICalendarValue,
-        ICalendarValueType, ValueType,
-    },
+    Parser,
+    common::{CalendarScale, IanaParse, IanaType, PartialDateTime, parser::Integer},
+    icalendar::*,
     jscalendar::{JSCalendarProperty, JSCalendarValue, export::ConvertedComponent},
 };
 
@@ -105,13 +100,18 @@ impl ICalendarComponent {
             };
 
             let (default_type, _) = name.default_types();
+            let convert_type = value_type
+                .iana()
+                .filter(|&v| v != &ICalendarValueType::Unknown)
+                .map(|v| ValueType::Ical(*v))
+                .unwrap_or(default_type);
             let Some(values) = prop.next().and_then(|v| match v {
                 Value::Array(arr) => Some(
                     arr.into_iter()
-                        .filter_map(|v| convert_value(v, &default_type).ok())
+                        .filter_map(|v| convert_value(v, &convert_type).ok())
                         .collect::<Vec<_>>(),
                 ),
-                v => convert_value(v, &default_type).ok().map(|v| vec![v]),
+                v => convert_value(v, &convert_type).ok().map(|v| vec![v]),
             }) else {
                 continue;
             };
@@ -119,7 +119,7 @@ impl ICalendarComponent {
             let mut entry = ICalendarEntry::new(name);
             entry.import_jcal_params(params);
             entry.values = values;
-            if !value_type.is_iana_and(|v| v == &default_type.unwrap_ical()) {
+            if convert_type != default_type {
                 entry.params.push(ICalendarParameter::value(value_type));
             }
             self.entries.push(entry);
@@ -205,7 +205,78 @@ pub(super) fn convert_value<'x>(
                         return Ok(ICalendarValue::Proximity(value));
                     }
                 }
-                ValueType::Ical(_) => (),
+                ValueType::Ical(typ) => match typ {
+                    ICalendarValueType::Uri | ICalendarValueType::CalAddress => {
+                        return Ok(ICalendarValue::Uri(Uri::parse(s)));
+                    }
+                    ICalendarValueType::Date => {
+                        let mut dt = PartialDateTime::default();
+                        if dt.parse_ical_date(&mut s.as_ref().as_bytes().iter().peekable()) {
+                            return Ok(ICalendarValue::PartialDateTime(Box::new(dt)));
+                        }
+                    }
+                    ICalendarValueType::Time => {
+                        let mut dt = PartialDateTime::default();
+                        if dt.parse_ical_time(&mut s.as_ref().as_bytes().iter().peekable()) {
+                            return Ok(ICalendarValue::PartialDateTime(Box::new(dt)));
+                        }
+                    }
+                    ICalendarValueType::DateTime => {
+                        let mut dt = PartialDateTime::default();
+                        if dt.parse_timestamp(&mut s.as_ref().as_bytes().iter().peekable(), false) {
+                            return Ok(ICalendarValue::PartialDateTime(Box::new(dt)));
+                        }
+                    }
+                    ICalendarValueType::UtcOffset => {
+                        let mut dt = PartialDateTime::default();
+                        if dt.parse_zone(&mut s.as_ref().as_bytes().iter().peekable()) {
+                            return Ok(ICalendarValue::PartialDateTime(Box::new(dt)));
+                        }
+                    }
+                    ICalendarValueType::Duration => {
+                        if let Some(duration) = ICalendarDuration::parse(s.as_ref().as_bytes()) {
+                            return Ok(ICalendarValue::Duration(duration));
+                        }
+                    }
+                    ICalendarValueType::Float => {
+                        if let Ok(float) = s.as_ref().parse::<f64>() {
+                            return Ok(ICalendarValue::Float(float));
+                        }
+                    }
+                    ICalendarValueType::Integer => {
+                        if let Some(integer) = Integer::parse(s.as_ref().as_bytes()) {
+                            return Ok(ICalendarValue::Integer(integer.0));
+                        }
+                    }
+                    ICalendarValueType::Period => {
+                        if let Some(period) = ICalendarPeriod::parse(s.as_ref().as_bytes()) {
+                            return Ok(ICalendarValue::Period(period));
+                        }
+                    }
+                    ICalendarValueType::Recur => {
+                        let mut parser = Parser::new(s.as_ref());
+                        if let Ok(recur) = parser.rrule() {
+                            return Ok(ICalendarValue::RecurrenceRule(Box::new(recur)));
+                        }
+                    }
+                    ICalendarValueType::Boolean => {
+                        if s.eq_ignore_ascii_case("true") {
+                            return Ok(ICalendarValue::Boolean(true));
+                        } else if s.eq_ignore_ascii_case("false") {
+                            return Ok(ICalendarValue::Boolean(false));
+                        }
+                    }
+                    ICalendarValueType::Binary => {
+                        return Ok(match Uri::parse(s) {
+                            Uri::Data(data) => ICalendarValue::Binary(data.data),
+                            Uri::Location(text) => ICalendarValue::Text(text),
+                        });
+                    }
+                    ICalendarValueType::Text
+                    | ICalendarValueType::Unknown
+                    | ICalendarValueType::XmlReference
+                    | ICalendarValueType::Uid => (),
+                },
             }
 
             Ok(ICalendarValue::Text(s.into_owned()))

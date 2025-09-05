@@ -306,7 +306,7 @@ impl EntryState {
             Value::Str(
                 value_type
                     .map(|v| v.into_string())
-                    .unwrap_or(Cow::Borrowed("text")),
+                    .unwrap_or(Cow::Borrowed("unknown")),
             ),
             values,
         ])

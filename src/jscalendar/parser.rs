@@ -7,7 +7,8 @@
 use crate::{
     common::{IanaParse, IanaString, LinkRelation},
     icalendar::{
-        ICalendarDuration, ICalendarMethod, ICalendarMonth, ICalendarSkip, ICalendarWeekday,
+        ICalendarDuration, ICalendarFrequency, ICalendarMethod, ICalendarMonth, ICalendarSkip,
+        ICalendarWeekday,
     },
     jscalendar::{
         JSCalendar, JSCalendarAlertAction, JSCalendarDateTime, JSCalendarEventStatus,
@@ -17,8 +18,8 @@ use crate::{
         JSCalendarScheduleAgent, JSCalendarType, JSCalendarValue, JSCalendarVirtualLocationFeature,
     },
 };
-use chrono::DateTime;
-use jmap_tools::{Element, JsonPointer, Key, Value};
+use jmap_tools::{Element, JsonPointer, JsonPointerItem, Key, Value};
+use mail_parser::DateTime;
 use std::{borrow::Cow, str::FromStr};
 
 impl<'x> JSCalendar<'x> {
@@ -32,7 +33,7 @@ impl Element for JSCalendarValue {
 
     fn try_parse<P>(key: &Key<'_, Self::Property>, value: &str) -> Option<Self> {
         if let Key::Property(prop) = key {
-            match prop {
+            match prop.patch_or_prop() {
                 JSCalendarProperty::Type => JSCalendarType::from_str(value)
                     .ok()
                     .map(JSCalendarValue::Type),
@@ -40,25 +41,21 @@ impl Element for JSCalendarValue {
                 | JSCalendarProperty::Updated
                 | JSCalendarProperty::Acknowledged
                 | JSCalendarProperty::ScheduleUpdated
-                | JSCalendarProperty::When => DateTime::parse_from_rfc3339(value)
-                    .map(|dt| {
-                        JSCalendarValue::DateTime(JSCalendarDateTime {
-                            timestamp: dt.timestamp(),
-                            is_local: false,
-                        })
+                | JSCalendarProperty::When => DateTime::parse_rfc3339(value).map(|dt| {
+                    JSCalendarValue::DateTime(JSCalendarDateTime {
+                        timestamp: dt.to_timestamp_local(),
+                        is_local: false,
                     })
-                    .ok(),
+                }),
                 JSCalendarProperty::Due
                 | JSCalendarProperty::RecurrenceId
                 | JSCalendarProperty::Start
-                | JSCalendarProperty::Until => DateTime::parse_from_rfc3339(value)
-                    .map(|dt| {
-                        JSCalendarValue::DateTime(JSCalendarDateTime {
-                            timestamp: dt.timestamp(),
-                            is_local: true,
-                        })
+                | JSCalendarProperty::Until => DateTime::parse_rfc3339(value).map(|dt| {
+                    JSCalendarValue::DateTime(JSCalendarDateTime {
+                        timestamp: dt.to_timestamp_local(),
+                        is_local: true,
                     })
-                    .ok(),
+                }),
                 JSCalendarProperty::Duration
                 | JSCalendarProperty::EstimatedDuration
                 | JSCalendarProperty::Offset => {
@@ -95,6 +92,9 @@ impl Element for JSCalendarValue {
                     .map(JSCalendarValue::EventStatus),
                 JSCalendarProperty::Rel => {
                     LinkRelation::parse(value.as_bytes()).map(JSCalendarValue::LinkRelation)
+                }
+                JSCalendarProperty::Frequency => {
+                    ICalendarFrequency::parse(value.as_bytes()).map(JSCalendarValue::Frequency)
                 }
                 JSCalendarProperty::FirstDayOfWeek | JSCalendarProperty::Day => {
                     ICalendarWeekday::parse(value.as_bytes()).map(JSCalendarValue::Weekday)
@@ -142,38 +142,33 @@ impl Element for JSCalendarValue {
 
 impl jmap_tools::Property for JSCalendarProperty {
     fn try_parse(key: Option<&Key<'_, Self>>, value: &str) -> Option<Self> {
-        match key {
-            Some(Key::Property(JSCalendarProperty::RecurrenceOverrides)) => {
-                DateTime::parse_from_rfc3339(value)
-                    .map(|dt| {
-                        JSCalendarProperty::DateTime(JSCalendarDateTime {
-                            timestamp: dt.timestamp(),
-                            is_local: false,
-                        })
-                    })
-                    .ok()
+        let Some(Key::Property(key)) = key else {
+            return JSCalendarProperty::from_str(value).ok();
+        };
+
+        match key.patch_or_prop() {
+            JSCalendarProperty::RecurrenceOverrides => DateTime::parse_rfc3339(value).map(|dt| {
+                JSCalendarProperty::DateTime(JSCalendarDateTime {
+                    timestamp: dt.to_timestamp_local(),
+                    is_local: true,
+                })
+            }),
+            JSCalendarProperty::Display => JSCalendarLinkDisplay::from_str(value)
+                .ok()
+                .map(JSCalendarProperty::LinkDisplay),
+            JSCalendarProperty::Features => JSCalendarVirtualLocationFeature::from_str(value)
+                .ok()
+                .map(JSCalendarProperty::VirtualLocationFeature),
+            JSCalendarProperty::Roles => JSCalendarParticipantRole::from_str(value)
+                .ok()
+                .map(JSCalendarProperty::ParticipantRole),
+            JSCalendarProperty::Relation => JSCalendarRelation::from_str(value)
+                .ok()
+                .map(JSCalendarProperty::RelationValue),
+            JSCalendarProperty::ConvertedProperties => {
+                JSCalendarProperty::Pointer(JsonPointer::parse(value)).into()
             }
-            Some(Key::Property(JSCalendarProperty::Display)) => {
-                JSCalendarLinkDisplay::from_str(value)
-                    .ok()
-                    .map(JSCalendarProperty::LinkDisplay)
-            }
-            Some(Key::Property(JSCalendarProperty::Features)) => {
-                JSCalendarVirtualLocationFeature::from_str(value)
-                    .ok()
-                    .map(JSCalendarProperty::VirtualLocationFeature)
-            }
-            Some(Key::Property(JSCalendarProperty::Roles)) => {
-                JSCalendarParticipantRole::from_str(value)
-                    .ok()
-                    .map(JSCalendarProperty::ParticipantRole)
-            }
-            Some(Key::Property(JSCalendarProperty::Relation)) => {
-                JSCalendarRelation::from_str(value)
-                    .ok()
-                    .map(JSCalendarProperty::RelationValue)
-            }
-            Some(Key::Property(JSCalendarProperty::ConvertedProperties)) => {
+            JSCalendarProperty::DateTime(_) if value.contains('/') => {
                 JSCalendarProperty::Pointer(JsonPointer::parse(value)).into()
             }
             _ => JSCalendarProperty::from_str(value).ok(),
@@ -182,5 +177,17 @@ impl jmap_tools::Property for JSCalendarProperty {
 
     fn to_cow(&self) -> Cow<'static, str> {
         self.to_string()
+    }
+}
+
+impl JSCalendarProperty {
+    fn patch_or_prop(&self) -> &JSCalendarProperty {
+        if let JSCalendarProperty::Pointer(ptr) = self
+            && let Some(JsonPointerItem::Key(Key::Property(prop))) = ptr.last()
+        {
+            prop
+        } else {
+            self
+        }
     }
 }

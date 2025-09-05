@@ -633,7 +633,7 @@ impl Parser<'_> {
         }
     }
 
-    fn rrule(&mut self) -> Result<ICalendarRecurrenceRule, String> {
+    pub(crate) fn rrule(&mut self) -> Result<ICalendarRecurrenceRule, String> {
         self.expect_rrule_value();
 
         let mut last_stop_char = StopChar::Equal;
