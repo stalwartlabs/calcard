@@ -1126,7 +1126,7 @@ impl ICalendarProperty {
             ),
             ICalendarProperty::Freebusy => (
                 ValueType::Ical(ICalendarValueType::Period),
-                ValueSeparator::None,
+                ValueSeparator::Comma,
             ),
             ICalendarProperty::Transp => (ValueType::Transparency, ValueSeparator::None),
             ICalendarProperty::Tzid => (

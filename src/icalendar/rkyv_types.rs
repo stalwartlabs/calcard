@@ -90,7 +90,7 @@ impl ArchivedICalendarProperty {
             ),
             ArchivedICalendarProperty::Freebusy => (
                 ArchivedValueType::Ical(ArchivedICalendarValueType::Period),
-                ValueSeparator::None,
+                ValueSeparator::Comma,
             ),
             ArchivedICalendarProperty::Transp => {
                 (ArchivedValueType::Transparency, ValueSeparator::None)
