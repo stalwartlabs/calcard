@@ -170,7 +170,7 @@ impl<'x> Parser<'x> {
                     let mut next_offset_end = idx;
                     while let Some((idx, ch)) = self.iter.next() {
                         match ch {
-                            b' ' | b'\t' | b'\r' => {}
+                            b'\t' | b'\r' => {}
                             b'\n' => {
                                 if self.try_unfold() {
                                     if let Some((idx, ch)) = self.iter.next() {
@@ -200,7 +200,6 @@ impl<'x> Parser<'x> {
                     }
                     buf.push(match next_ch {
                         b'n' | b'N' => b'\n',
-                        b't' | b'T' => b'\t',
                         b'r' | b'R' => b'\r',
                         _ => next_ch,
                     });
