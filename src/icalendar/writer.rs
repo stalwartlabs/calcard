@@ -304,7 +304,14 @@ impl Display for ICalendarRecurrenceRule {
         write!(f, "FREQ={}", self.freq.as_str())?;
         if let Some(until) = &self.until {
             write!(f, ";UNTIL=")?;
-            until.format_as_ical(f, &ICalendarValueType::DateTime)?;
+            until.format_as_ical(
+                f,
+                if until.has_date_and_time() {
+                    &ICalendarValueType::DateTime
+                } else {
+                    &ICalendarValueType::Date
+                },
+            )?;
         }
         if let Some(count) = self.count.filter(|c| *c > 0) {
             write!(f, ";COUNT={}", count)?;

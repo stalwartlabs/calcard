@@ -685,7 +685,7 @@ impl Parser<'_> {
                     }
                 },
                 b"UNTIL" => {
-                    while let Some(value) = self.parse_value_until_lf::<ICalendarDateTime>(StopChar::Semicolon, &mut last_stop_char) {
+                    while let Some(value) = self.parse_value_until_lf::<ICalendarDateOrTime>(StopChar::Semicolon, &mut last_stop_char) {
                         token_end = token.end;
                         if let Some(value)= value {
                             rrule.until = Some(value.0);
@@ -910,13 +910,13 @@ impl PartialDateTime {
     }
 }
 
-struct ICalendarDateTime(PartialDateTime);
+struct ICalendarDateOrTime(PartialDateTime);
 
-impl IanaParse for ICalendarDateTime {
+impl IanaParse for ICalendarDateOrTime {
     fn parse(value: &[u8]) -> Option<Self> {
         let mut dt = PartialDateTime::default();
-        if dt.parse_timestamp(&mut value.iter().peekable(), true) {
-            Some(ICalendarDateTime(dt))
+        if dt.parse_timestamp(&mut value.iter().peekable(), false) {
+            Some(ICalendarDateOrTime(dt))
         } else {
             None
         }

@@ -264,41 +264,6 @@ impl ArchivedICalendarEntry {
     }
 }
 
-/*pub(crate) fn write_uri_param(
-    out: &mut impl Write,
-    line_len: &mut usize,
-    name: &str,
-    value: &ArchivedUri,
-) -> std::fmt::Result {
-    write!(out, "{}=\"", name)?;
-    *line_len += name.len() + 3;
-    write_uri(out, line_len, value, false)?;
-    write!(out, "\"")
-}
-
-pub(crate) fn write_uri_params(
-    out: &mut impl Write,
-    line_len: &mut usize,
-    name: &str,
-    values: &[ArchivedUri],
-) -> std::fmt::Result {
-    write!(out, "{}", name)?;
-    *line_len += name.len() + 1;
-
-    for (pos, v) in values.iter().enumerate() {
-        if pos > 0 {
-            write!(out, ",\"")?;
-        } else {
-            write!(out, "=\"")?;
-        }
-        *line_len += 3;
-        write_uri(out, line_len, v, false)?;
-        write!(out, "\"")?;
-    }
-
-    Ok(())
-}*/
-
 pub(crate) fn write_uri(
     out: &mut impl Write,
     line_len: &mut usize,
@@ -330,7 +295,14 @@ impl Display for ArchivedICalendarRecurrenceRule {
         write!(f, "FREQ={}", self.freq.as_str())?;
         if let Some(until) = self.until.as_ref() {
             write!(f, ";UNTIL=")?;
-            until.format_as_ical(f, &ArchivedICalendarValueType::DateTime)?;
+            until.format_as_ical(
+                f,
+                if until.has_date_and_time() {
+                    &ArchivedICalendarValueType::DateTime
+                } else {
+                    &ArchivedICalendarValueType::Date
+                },
+            )?;
         }
         if let Some(count) = self.count.as_ref().filter(|c| **c > 0) {
             write!(f, ";COUNT={}", count)?;

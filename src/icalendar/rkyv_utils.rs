@@ -318,6 +318,26 @@ impl ArchivedPartialDateTime {
         self.to_date_time()
             .and_then(|dt| dt.to_date_time_with_tz(tz))
     }
+
+    #[inline(always)]
+    pub fn has_date(&self) -> bool {
+        self.year.is_some() && self.month.is_some() && self.day.is_some()
+    }
+
+    #[inline(always)]
+    pub fn has_time(&self) -> bool {
+        self.hour.is_some() && self.minute.is_some()
+    }
+
+    #[inline(always)]
+    pub fn has_zone(&self) -> bool {
+        self.tz_hour.is_some()
+    }
+
+    #[inline(always)]
+    pub fn has_date_and_time(&self) -> bool {
+        self.has_date() && self.has_time()
+    }
 }
 
 impl ArchivedICalendarDuration {
