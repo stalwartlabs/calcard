@@ -17,8 +17,8 @@ jmap-tools = { version = "0.1", optional = true }
 ahash = "0.8.11"
 chrono = "0.4.40"
 chrono-tz = "0.10.3"
-hashify = "0.2.6"
-mail-builder = { version = "0.4" }
+hashify = "0.2.7"
+mail-builder = { version = "0.4", default-features = false }
 mail-parser = "0.11"
 uuid = { version = "1.18", default-features = false, features = ["v5"], optional = true }
 rkyv = { version = "0.8", optional = true }
@@ -28,8 +28,9 @@ serde_json = { version = "1.0", optional = true }
 [features]
 default = ["jmap"]
 rkyv = ["dep:rkyv"]
-serde = ["dep:serde"]
+serde = ["dep:serde", "chrono/serde"]
 jmap = ["jmap-tools", "uuid", "serde", "serde_json"]
+wasm = ["hashify/force-32bit"]
 
 [dev-dependencies]
 chrono = { version = "0.4", features = ["serde"] }
