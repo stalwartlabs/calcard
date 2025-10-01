@@ -7,7 +7,7 @@
 use crate::{
     common::{IanaString, IanaType, writer::write_jscomps},
     jscontact::{
-        JSContactGrammaticalGender, JSContactKind, JSContactProperty, JSContactType,
+        JSContactGrammaticalGender, JSContactId, JSContactKind, JSContactProperty, JSContactType,
         JSContactValue,
         import::{EntryState, VCardParams},
     },
@@ -28,9 +28,9 @@ impl EntryState {
         }
     }
 
-    pub(super) fn jcal_parameters(
+    pub(super) fn jcal_parameters<I: JSContactId, B: JSContactId>(
         &mut self,
-        params: &mut VCardParams,
+        params: &mut VCardParams<I, B>,
         value_type: &mut Option<IanaType<VCardValueType, String>>,
     ) {
         if self.entry.params.is_empty() && self.entry.group.is_none() {
@@ -90,15 +90,17 @@ impl EntryState {
         }
     }
 
-    pub(super) fn set_converted_to(&mut self, converted_to: &[&str]) {
-        self.converted_to = Some(JsonPointer::<JSContactProperty>::encode(converted_to));
+    pub(super) fn set_converted_to<I: JSContactId>(&mut self, converted_to: &[&str]) {
+        self.converted_to = Some(JsonPointer::<JSContactProperty<I>>::encode(converted_to));
     }
 
     pub(super) fn set_map_name(&mut self) {
         self.map_name = true;
     }
 
-    pub(super) fn to_text(&mut self) -> Option<Value<'static, JSContactProperty, JSContactValue>> {
+    pub(super) fn to_text<I: JSContactId, B: JSContactId>(
+        &mut self,
+    ) -> Option<Value<'static, JSContactProperty<I>, JSContactValue<I, B>>> {
         self.to_string().map(Into::into)
     }
 
@@ -123,7 +125,9 @@ impl EntryState {
         self.entry.values.iter().filter_map(|value| value.as_text())
     }
 
-    pub(super) fn to_kind(&mut self) -> Option<Value<'static, JSContactProperty, JSContactValue>> {
+    pub(super) fn to_kind<I: JSContactId, B: JSContactId>(
+        &mut self,
+    ) -> Option<Value<'static, JSContactProperty<I>, JSContactValue<I, B>>> {
         let mut values = std::mem::take(&mut self.entry.values).into_iter();
         match values.next()? {
             VCardValue::Kind(v) => Value::Element(JSContactValue::Kind(match v {
@@ -145,9 +149,9 @@ impl EntryState {
         }
     }
 
-    pub(super) fn to_gram_gender(
+    pub(super) fn to_gram_gender<I: JSContactId, B: JSContactId>(
         &mut self,
-    ) -> Option<Value<'static, JSContactProperty, JSContactValue>> {
+    ) -> Option<Value<'static, JSContactProperty<I>, JSContactValue<I, B>>> {
         let mut values = std::mem::take(&mut self.entry.values).into_iter();
         match values.next()? {
             VCardValue::GramGender(v) => {
@@ -171,9 +175,9 @@ impl EntryState {
         }
     }
 
-    pub(super) fn to_timestamp(
+    pub(super) fn to_timestamp<I: JSContactId, B: JSContactId>(
         &mut self,
-    ) -> Option<Value<'static, JSContactProperty, JSContactValue>> {
+    ) -> Option<Value<'static, JSContactProperty<I>, JSContactValue<I, B>>> {
         if let Some(VCardValue::PartialDateTime(dt)) = self.entry.values.first()
             && let Some(timestamp) = dt.to_timestamp()
         {
@@ -183,7 +187,9 @@ impl EntryState {
         None
     }
 
-    pub(super) fn to_tz(&mut self) -> Option<Value<'static, JSContactProperty, JSContactValue>> {
+    pub(super) fn to_tz<I: JSContactId, B: JSContactId>(
+        &mut self,
+    ) -> Option<Value<'static, JSContactProperty<I>, JSContactValue<I, B>>> {
         let mut values = std::mem::take(&mut self.entry.values).into_iter();
         match values.next()? {
             VCardValue::PartialDateTime(v) if v.has_zone() => {
@@ -209,9 +215,9 @@ impl EntryState {
         }
     }
 
-    pub(super) fn to_anniversary(
+    pub(super) fn to_anniversary<I: JSContactId, B: JSContactId>(
         &mut self,
-    ) -> Option<Value<'static, JSContactProperty, JSContactValue>> {
+    ) -> Option<Value<'static, JSContactProperty<I>, JSContactValue<I, B>>> {
         if let Some(VCardValue::PartialDateTime(dt)) = self.entry.values.first() {
             if let Some(timestamp) = dt.to_timestamp() {
                 Some(Value::Object(Map::from(vec![

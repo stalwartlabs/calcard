@@ -7,7 +7,8 @@
 use crate::{
     common::IanaType,
     jscontact::{
-        JSContactKind, JSContactLevel, JSContactPhoneticSystem, JSContactProperty, JSContactValue,
+        JSContactId, JSContactKind, JSContactLevel, JSContactPhoneticSystem, JSContactProperty,
+        JSContactValue,
         import::{ExtractedParams, VCardParams},
     },
     vcard::{VCardLevel, VCardPhonetic, VCardProperty, VCardType},
@@ -32,25 +33,25 @@ impl ExtractedParams {
     }
 
     #[allow(clippy::type_complexity)]
-    pub(super) fn into_iter(
+    pub(super) fn into_iter<I: JSContactId, B: JSContactId>(
         mut self,
         property: &VCardProperty,
     ) -> impl Iterator<
         Item = (
-            Key<'static, JSContactProperty>,
-            Value<'static, JSContactProperty, JSContactValue>,
+            Key<'static, JSContactProperty<I>>,
+            Value<'static, JSContactProperty<I>, JSContactValue<I, B>>,
         ),
     > {
         let mut contexts: Option<
             Vec<(
-                Key<'static, JSContactProperty>,
-                Value<'static, JSContactProperty, JSContactValue>,
+                Key<'static, JSContactProperty<I>>,
+                Value<'static, JSContactProperty<I>, JSContactValue<I, B>>,
             )>,
         > = None;
         let mut features: Option<
             Vec<(
-                Key<'static, JSContactProperty>,
-                Value<'static, JSContactProperty, JSContactValue>,
+                Key<'static, JSContactProperty<I>>,
+                Value<'static, JSContactProperty<I>, JSContactValue<I, B>>,
             )>,
         > = None;
 
@@ -256,10 +257,10 @@ impl ExtractedParams {
     }
 }
 
-impl VCardParams {
+impl<I: JSContactId, B: JSContactId> VCardParams<I, B> {
     pub(super) fn into_jscontact_value(
         self,
-    ) -> Option<Map<'static, JSContactProperty, JSContactValue>> {
+    ) -> Option<Map<'static, JSContactProperty<I>, JSContactValue<I, B>>> {
         if !self.0.is_empty() {
             let mut obj = Map::from(Vec::with_capacity(self.0.len()));
 

@@ -7,7 +7,12 @@
 use crate::common::CalendarScale;
 use jmap_tools::{JsonPointer, Value};
 use serde::Serialize;
-use std::{borrow::Cow, str::FromStr};
+use std::{
+    borrow::Cow,
+    fmt::{Debug, Display},
+    hash::Hash,
+    str::FromStr,
+};
 
 pub mod export;
 pub mod import;
@@ -16,10 +21,20 @@ pub mod types;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 #[repr(transparent)]
-pub struct JSContact<'x>(pub Value<'x, JSContactProperty, JSContactValue>);
+pub struct JSContact<'x, I, B>(pub Value<'x, JSContactProperty<I>, JSContactValue<I, B>>)
+where
+    I: JSContactId,
+    B: JSContactId;
+
+pub trait JSContactId:
+    FromStr + Sized + Serialize + Display + Clone + Eq + Hash + Ord + Debug + Default
+{
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum JSContactValue {
+pub enum JSContactValue<I: JSContactId, B: JSContactId> {
+    Id(I),
+    BlobId(B),
     Timestamp(i64),
     Type(JSContactType),
     GrammaticalGender(JSContactGrammaticalGender),
@@ -31,7 +46,7 @@ pub enum JSContactValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum JSContactProperty {
+pub enum JSContactProperty<I: JSContactId> {
     Type,
     Address,
     AddressBookIds,
@@ -109,10 +124,11 @@ pub enum JSContactProperty {
     Value,
     Version,
     Year,
+    IdValue(I),
     Context(Context),
     Feature(Feature),
     SortAsKind(JSContactKind),
-    Pointer(JsonPointer<JSContactProperty>),
+    Pointer(JsonPointer<JSContactProperty<I>>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -366,4 +382,21 @@ pub enum JSContactPhoneticSystem {
     Jyut,
     Piny,
     Script,
+}
+
+impl<T> JSContactId for T where
+    T: FromStr + Sized + Serialize + Display + Clone + Eq + Hash + Ord + Debug + Default
+{
+}
+
+impl<I: JSContactId> From<I> for JSContactProperty<I> {
+    fn from(id: I) -> Self {
+        JSContactProperty::IdValue(id)
+    }
+}
+
+impl<I: JSContactId, B: JSContactId> From<I> for JSContactValue<I, B> {
+    fn from(id: I) -> Self {
+        JSContactValue::Id(id)
+    }
 }

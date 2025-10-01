@@ -8,8 +8,8 @@ use crate::{
     common::{CalendarScale, IanaParse, IanaType, PartialDateTime, parser::Integer},
     icalendar::Uri,
     jscontact::{
-        JSContactGrammaticalGender, JSContactKind, JSContactLevel, JSContactPhoneticSystem,
-        JSContactProperty, JSContactValue,
+        JSContactGrammaticalGender, JSContactId, JSContactKind, JSContactLevel,
+        JSContactPhoneticSystem, JSContactProperty, JSContactValue,
     },
     vcard::{
         VCardGramGender, VCardKind, VCardLevel, VCardPhonetic, VCardSex, VCardType, VCardValue,
@@ -19,11 +19,15 @@ use crate::{
 use jmap_tools::{JsonPointerItem, Key, Map, Value};
 use std::{borrow::Cow, iter::Peekable, vec::IntoIter};
 
-pub(super) fn build_path<'x>(
-    obj: &mut Value<'x, JSContactProperty, JSContactValue>,
-    mut ptr: Peekable<IntoIter<JsonPointerItem<JSContactProperty>>>,
-    value: Value<'x, JSContactProperty, JSContactValue>,
-) -> Option<Value<'x, JSContactProperty, JSContactValue>> {
+pub(super) fn build_path<'x, I, B>(
+    obj: &mut Value<'x, JSContactProperty<I>, JSContactValue<I, B>>,
+    mut ptr: Peekable<IntoIter<JsonPointerItem<JSContactProperty<I>>>>,
+    value: Value<'x, JSContactProperty<I>, JSContactValue<I, B>>,
+) -> Option<Value<'x, JSContactProperty<I>, JSContactValue<I, B>>>
+where
+    I: JSContactId,
+    B: JSContactId,
+{
     if let Some(item) = ptr.next() {
         match item {
             JsonPointerItem::Root | JsonPointerItem::Wildcard => {}
@@ -78,9 +82,16 @@ pub(super) fn build_path<'x>(
     }
 }
 
-pub(super) fn convert_anniversary(
-    value: Value<'_, JSContactProperty, JSContactValue>,
-) -> Result<(PartialDateTime, Option<CalendarScale>), Value<'_, JSContactProperty, JSContactValue>>
+#[allow(clippy::type_complexity)]
+pub(super) fn convert_anniversary<I, B>(
+    value: Value<'_, JSContactProperty<I>, JSContactValue<I, B>>,
+) -> Result<
+    (PartialDateTime, Option<CalendarScale>),
+    Value<'_, JSContactProperty<I>, JSContactValue<I, B>>,
+>
+where
+    I: JSContactId,
+    B: JSContactId,
 {
     let mut date = PartialDateTime::default();
     let mut calendar_scale = None;
@@ -126,10 +137,14 @@ pub(super) fn convert_anniversary(
     }
 }
 
-pub(super) fn convert_value<'x>(
-    value: Value<'x, JSContactProperty, JSContactValue>,
+pub(super) fn convert_value<'x, I, B>(
+    value: Value<'x, JSContactProperty<I>, JSContactValue<I, B>>,
     value_type: &'_ ValueType,
-) -> Result<VCardValue, Value<'x, JSContactProperty, JSContactValue>> {
+) -> Result<VCardValue, Value<'x, JSContactProperty<I>, JSContactValue<I, B>>>
+where
+    I: JSContactId,
+    B: JSContactId,
+{
     match value {
         Value::Element(e) => match e {
             JSContactValue::Timestamp(t) => Ok(VCardValue::PartialDateTime(
@@ -156,7 +171,9 @@ pub(super) fn convert_value<'x>(
             | JSContactValue::Type(_)
             | JSContactValue::Relation(_)
             | JSContactValue::PhoneticSystem(_)
-            | JSContactValue::CalendarScale(_) => Err(Value::Element(e)),
+            | JSContactValue::CalendarScale(_)
+            | JSContactValue::BlobId(_)
+            | JSContactValue::Id(_) => Err(Value::Element(e)),
         },
         Value::Str(s) => {
             match value_type {
@@ -257,10 +274,14 @@ pub(super) fn convert_value<'x>(
     }
 }
 
-pub(super) fn convert_types(
-    value: Value<'_, JSContactProperty, JSContactValue>,
+pub(super) fn convert_types<I, B>(
+    value: Value<'_, JSContactProperty<I>, JSContactValue<I, B>>,
     is_context: bool,
-) -> Option<Vec<IanaType<VCardType, String>>> {
+) -> Option<Vec<IanaType<VCardType, String>>>
+where
+    I: JSContactId,
+    B: JSContactId,
+{
     let mut types = Vec::new();
     for typ in value.into_expanded_boolean_set() {
         let typ = typ.to_string();
@@ -278,10 +299,14 @@ pub(super) fn convert_types(
     if !types.is_empty() { Some(types) } else { None }
 }
 
-pub(super) fn map_kind<T>(
-    value: &Value<'_, JSContactProperty, JSContactValue>,
+pub(super) fn map_kind<T, I, B>(
+    value: &Value<'_, JSContactProperty<I>, JSContactValue<I, B>>,
     types: impl IntoIterator<Item = (JSContactKind, T)>,
-) -> Option<T> {
+) -> Option<T>
+where
+    I: JSContactId,
+    B: JSContactId,
+{
     value
         .as_object()
         .and_then(|obj| obj.get(&Key::Property(JSContactProperty::Kind)))
@@ -300,9 +325,16 @@ pub(super) fn map_kind<T>(
         })
 }
 
-impl TryFrom<Value<'_, JSContactProperty, JSContactValue>> for IanaType<VCardPhonetic, String> {
+impl<I, B> TryFrom<Value<'_, JSContactProperty<I>, JSContactValue<I, B>>>
+    for IanaType<VCardPhonetic, String>
+where
+    I: JSContactId,
+    B: JSContactId,
+{
     type Error = ();
-    fn try_from(value: Value<'_, JSContactProperty, JSContactValue>) -> Result<Self, Self::Error> {
+    fn try_from(
+        value: Value<'_, JSContactProperty<I>, JSContactValue<I, B>>,
+    ) -> Result<Self, Self::Error> {
         match value {
             Value::Element(JSContactValue::PhoneticSystem(system)) => {
                 Ok(IanaType::Iana(match system {
@@ -321,10 +353,17 @@ impl TryFrom<Value<'_, JSContactProperty, JSContactValue>> for IanaType<VCardPho
     }
 }
 
-impl TryFrom<Value<'_, JSContactProperty, JSContactValue>> for IanaType<VCardLevel, String> {
+impl<I, B> TryFrom<Value<'_, JSContactProperty<I>, JSContactValue<I, B>>>
+    for IanaType<VCardLevel, String>
+where
+    I: JSContactId,
+    B: JSContactId,
+{
     type Error = ();
 
-    fn try_from(value: Value<'_, JSContactProperty, JSContactValue>) -> Result<Self, Self::Error> {
+    fn try_from(
+        value: Value<'_, JSContactProperty<I>, JSContactValue<I, B>>,
+    ) -> Result<Self, Self::Error> {
         match value {
             Value::Element(JSContactValue::Level(level)) => Ok(IanaType::Iana(match level {
                 JSContactLevel::High => VCardLevel::High,
@@ -340,10 +379,14 @@ impl TryFrom<Value<'_, JSContactProperty, JSContactValue>> for IanaType<VCardLev
     }
 }
 
-pub(super) fn find_text_param<'x>(
-    value: &'x Value<'x, JSContactProperty, JSContactValue>,
+pub(super) fn find_text_param<'x, I, B>(
+    value: &'x Value<'x, JSContactProperty<I>, JSContactValue<I, B>>,
     name: &str,
-) -> Option<Cow<'x, str>> {
+) -> Option<Cow<'x, str>>
+where
+    I: JSContactId,
+    B: JSContactId,
+{
     value
         .as_object()
         .and_then(|obj| obj.get(&Key::Property(JSContactProperty::Parameters)))

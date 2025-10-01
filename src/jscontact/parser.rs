@@ -7,16 +7,20 @@
 use crate::{
     common::{CalendarScale, IanaParse},
     jscontact::{
-        Context, Feature, JSContact, JSContactGrammaticalGender, JSContactKind, JSContactLevel,
-        JSContactPhoneticSystem, JSContactProperty, JSContactRelation, JSContactType,
-        JSContactValue,
+        Context, Feature, JSContact, JSContactGrammaticalGender, JSContactId, JSContactKind,
+        JSContactLevel, JSContactPhoneticSystem, JSContactProperty, JSContactRelation,
+        JSContactType, JSContactValue,
     },
 };
 use chrono::DateTime;
-use jmap_tools::{Element, JsonPointer, Key, Value};
+use jmap_tools::{Element, JsonPointer, JsonPointerItem, Key, Value};
 use std::{borrow::Cow, str::FromStr};
 
-impl<'x> JSContact<'x> {
+impl<'x, I, B> JSContact<'x, I, B>
+where
+    I: JSContactId,
+    B: JSContactId,
+{
     pub fn parse(json: &'x str) -> Result<Self, String> {
         Value::parse_json(json).map(JSContact)
     }
@@ -26,8 +30,12 @@ impl<'x> JSContact<'x> {
     }
 }
 
-impl Element for JSContactValue {
-    type Property = JSContactProperty;
+impl<I, B> Element for JSContactValue<I, B>
+where
+    I: JSContactId,
+    B: JSContactId,
+{
+    type Property = JSContactProperty<I>;
 
     fn try_parse<P>(key: &Key<'_, Self::Property>, value: &str) -> Option<Self> {
         if let Key::Property(prop) = key {
@@ -58,6 +66,8 @@ impl Element for JSContactValue {
                 JSContactProperty::Level => JSContactLevel::from_str(value)
                     .ok()
                     .map(JSContactValue::Level),
+                JSContactProperty::BlobId => B::from_str(value).ok().map(JSContactValue::BlobId),
+                JSContactProperty::Id => I::from_str(value).ok().map(JSContactValue::Id),
                 _ => None,
             }
         } else {
@@ -77,42 +87,35 @@ impl Element for JSContactValue {
                 .to_rfc3339()
                 .into(),
             JSContactValue::CalendarScale(v) => v.as_js_str().into(),
+            JSContactValue::Id(v) => v.to_string().into(),
+            JSContactValue::BlobId(v) => v.to_string().into(),
         }
     }
 }
 
-impl jmap_tools::Property for JSContactProperty {
+impl<I: JSContactId> jmap_tools::Property for JSContactProperty<I> {
     fn try_parse(key: Option<&Key<'_, Self>>, value: &str) -> Option<Self> {
         match key {
-            Some(Key::Property(JSContactProperty::Contexts)) => Context::from_str(value)
-                .ok()
-                .map(JSContactProperty::Context),
-            Some(Key::Property(JSContactProperty::Features)) => Feature::from_str(value)
-                .ok()
-                .map(JSContactProperty::Feature),
-            Some(Key::Property(JSContactProperty::SortAs)) => JSContactKind::from_str(value)
-                .ok()
-                .map(JSContactProperty::SortAsKind),
-            Some(Key::Property(
-                JSContactProperty::ConvertedProperties | JSContactProperty::Localizations,
-            )) => JSContactProperty::Pointer(JsonPointer::parse(value)).into(),
-            Some(Key::Property(JSContactProperty::Pointer(ptr))) => {
-                if let Some(Key::Property(prop)) = ptr.last().and_then(|p| p.as_key()) {
-                    match prop {
-                        JSContactProperty::Contexts => Context::from_str(value)
-                            .ok()
-                            .map(JSContactProperty::Context),
-                        JSContactProperty::Features => Feature::from_str(value)
-                            .ok()
-                            .map(JSContactProperty::Feature),
-                        JSContactProperty::SortAs => JSContactKind::from_str(value)
-                            .ok()
-                            .map(JSContactProperty::SortAsKind),
-                        _ => JSContactProperty::from_str(value).ok(),
-                    }
-                } else {
-                    JSContactProperty::from_str(value).ok()
+            Some(Key::Property(key)) => match key.patch_or_prop() {
+                JSContactProperty::Contexts => Context::from_str(value)
+                    .ok()
+                    .map(JSContactProperty::Context),
+                JSContactProperty::Features => Feature::from_str(value)
+                    .ok()
+                    .map(JSContactProperty::Feature),
+                JSContactProperty::SortAs => JSContactKind::from_str(value)
+                    .ok()
+                    .map(JSContactProperty::SortAsKind),
+                JSContactProperty::ConvertedProperties | JSContactProperty::Localizations => {
+                    JSContactProperty::Pointer(JsonPointer::parse(value)).into()
                 }
+                JSContactProperty::AddressBookIds => {
+                    I::from_str(value).ok().map(JSContactProperty::IdValue)
+                }
+                _ => JSContactProperty::from_str(value).ok(),
+            },
+            None if value.contains('/') => {
+                JSContactProperty::Pointer(JsonPointer::parse(value)).into()
             }
             _ => JSContactProperty::from_str(value).ok(),
         }
@@ -120,5 +123,17 @@ impl jmap_tools::Property for JSContactProperty {
 
     fn to_cow(&self) -> Cow<'static, str> {
         self.to_string()
+    }
+}
+
+impl<I: JSContactId> JSContactProperty<I> {
+    fn patch_or_prop(&self) -> &JSContactProperty<I> {
+        if let JSContactProperty::Pointer(ptr) = self
+            && let Some(JsonPointerItem::Key(Key::Property(prop))) = ptr.last()
+        {
+            prop
+        } else {
+            self
+        }
     }
 }

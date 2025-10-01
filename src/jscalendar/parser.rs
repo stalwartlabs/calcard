@@ -146,33 +146,37 @@ impl Element for JSCalendarValue {
 
 impl jmap_tools::Property for JSCalendarProperty {
     fn try_parse(key: Option<&Key<'_, Self>>, value: &str) -> Option<Self> {
-        let Some(Key::Property(key)) = key else {
-            return JSCalendarProperty::from_str(value).ok();
-        };
-
-        match key.patch_or_prop() {
-            JSCalendarProperty::RecurrenceOverrides => DateTime::parse_rfc3339(value).map(|dt| {
-                JSCalendarProperty::DateTime(JSCalendarDateTime {
-                    timestamp: dt.to_timestamp_local(),
-                    is_local: true,
-                })
-            }),
-            JSCalendarProperty::Display => JSCalendarLinkDisplay::from_str(value)
-                .ok()
-                .map(JSCalendarProperty::LinkDisplay),
-            JSCalendarProperty::Features => JSCalendarVirtualLocationFeature::from_str(value)
-                .ok()
-                .map(JSCalendarProperty::VirtualLocationFeature),
-            JSCalendarProperty::Roles => JSCalendarParticipantRole::from_str(value)
-                .ok()
-                .map(JSCalendarProperty::ParticipantRole),
-            JSCalendarProperty::Relation => JSCalendarRelation::from_str(value)
-                .ok()
-                .map(JSCalendarProperty::RelationValue),
-            JSCalendarProperty::ConvertedProperties => {
-                JSCalendarProperty::Pointer(JsonPointer::parse(value)).into()
-            }
-            JSCalendarProperty::DateTime(_) if value.contains('/') => {
+        match key {
+            Some(Key::Property(key)) => match key.patch_or_prop() {
+                JSCalendarProperty::RecurrenceOverrides => {
+                    DateTime::parse_rfc3339(value).map(|dt| {
+                        JSCalendarProperty::DateTime(JSCalendarDateTime {
+                            timestamp: dt.to_timestamp_local(),
+                            is_local: true,
+                        })
+                    })
+                }
+                JSCalendarProperty::Display => JSCalendarLinkDisplay::from_str(value)
+                    .ok()
+                    .map(JSCalendarProperty::LinkDisplay),
+                JSCalendarProperty::Features => JSCalendarVirtualLocationFeature::from_str(value)
+                    .ok()
+                    .map(JSCalendarProperty::VirtualLocationFeature),
+                JSCalendarProperty::Roles => JSCalendarParticipantRole::from_str(value)
+                    .ok()
+                    .map(JSCalendarProperty::ParticipantRole),
+                JSCalendarProperty::Relation => JSCalendarRelation::from_str(value)
+                    .ok()
+                    .map(JSCalendarProperty::RelationValue),
+                JSCalendarProperty::ConvertedProperties => {
+                    JSCalendarProperty::Pointer(JsonPointer::parse(value)).into()
+                }
+                JSCalendarProperty::DateTime(_) if value.contains('/') => {
+                    JSCalendarProperty::Pointer(JsonPointer::parse(value)).into()
+                }
+                _ => JSCalendarProperty::from_str(value).ok(),
+            },
+            None if value.contains('/') => {
                 JSCalendarProperty::Pointer(JsonPointer::parse(value)).into()
             }
             _ => JSCalendarProperty::from_str(value).ok(),

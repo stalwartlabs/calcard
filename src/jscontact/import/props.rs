@@ -7,7 +7,7 @@
 use crate::{
     common::{IanaString, IanaType},
     jscontact::{
-        JSContact, JSContactProperty, JSContactType, JSContactValue,
+        JSContact, JSContactId, JSContactProperty, JSContactType, JSContactValue,
         import::{
             EntryState, ExtractedParams, PropIdKey, State, VCardConvertedProperty, VCardParams,
         },
@@ -24,7 +24,11 @@ use std::{
     collections::{HashMap, hash_map::Entry},
 };
 
-impl State {
+impl<I, B> State<I, B>
+where
+    I: JSContactId,
+    B: JSContactId,
+{
     pub(super) fn new(vcard: &mut VCard) -> Self {
         let mut entries = AHashMap::with_capacity(vcard.entries.len());
 
@@ -136,12 +140,12 @@ impl State {
         &mut self,
         entry: &mut EntryState,
         extract: &[VCardParameterName],
-        top_property_name: JSContactProperty,
-        value_property_name: JSContactProperty,
+        top_property_name: JSContactProperty<I>,
+        value_property_name: JSContactProperty<I>,
         extra_properties: impl IntoIterator<
             Item = (
-                Key<'static, JSContactProperty>,
-                Value<'static, JSContactProperty, JSContactValue>,
+                Key<'static, JSContactProperty<I>>,
+                Value<'static, JSContactProperty<I>, JSContactValue<I, B>>,
             ),
         >,
     ) {
@@ -191,8 +195,8 @@ impl State {
                         }
                     })
                 {
-                    entry.set_converted_to(&[
-                        JSContactProperty::Localizations.to_cow().as_ref(),
+                    entry.set_converted_to::<I>(&[
+                        JSContactProperty::Localizations::<I>.to_cow().as_ref(),
                         language.as_str(),
                         patch.as_str(),
                     ]);
@@ -228,14 +232,14 @@ impl State {
             let prop_id = entries.insert_named(prop_id, Value::Object(Map::from(obj)));
 
             if let Some(sub_property) = sub_property {
-                entry.set_converted_to(&[
+                entry.set_converted_to::<I>(&[
                     top_property_name.to_cow().as_ref(),
                     sub_property.to_cow().as_ref(),
                     prop_id.as_str(),
                     value_property_name.to_cow().as_ref(),
                 ]);
             } else {
-                entry.set_converted_to(&[
+                entry.set_converted_to::<I>(&[
                     top_property_name.to_cow().as_ref(),
                     prop_id.as_str(),
                     value_property_name.to_cow().as_ref(),
@@ -391,8 +395,8 @@ impl State {
     #[inline]
     pub(super) fn get_mut_object_or_insert(
         &mut self,
-        key: JSContactProperty,
-    ) -> &mut Map<'static, JSContactProperty, JSContactValue> {
+        key: JSContactProperty<I>,
+    ) -> &mut Map<'static, JSContactProperty<I>, JSContactValue<I, B>> {
         self.entries
             .entry(Key::Property(key))
             .or_insert_with(|| Value::Object(Map::from(Vec::new())))
@@ -401,7 +405,7 @@ impl State {
     }
 
     #[inline]
-    pub(super) fn has_property(&self, key: JSContactProperty) -> bool {
+    pub(super) fn has_property(&self, key: JSContactProperty<I>) -> bool {
         self.entries.contains_key(&Key::Property(key))
     }
 
@@ -478,7 +482,7 @@ impl State {
     pub(super) fn track_prop(
         &mut self,
         entry: &VCardEntry,
-        prop_js: JSContactProperty,
+        prop_js: JSContactProperty<I>,
         alt_id: Option<String>,
         prop_id: String,
     ) {
@@ -505,7 +509,7 @@ impl State {
             .map(|p| p.prop_id.as_str())
     }
 
-    pub(super) fn find_entry_by_group(&self, group: Option<&str>) -> Option<&PropIdKey> {
+    pub(super) fn find_entry_by_group(&self, group: Option<&str>) -> Option<&PropIdKey<I>> {
         self.prop_ids.iter().find(|p| p.group.as_deref() == group)
     }
 
@@ -515,7 +519,7 @@ impl State {
             .any(|p| p.prop == *prop && p.prop_id == prop_id)
     }
 
-    pub(super) fn into_jscontact(mut self) -> JSContact<'static> {
+    pub(super) fn into_jscontact(mut self) -> JSContact<'static, I, B> {
         if !self.localizations.is_empty() {
             self.entries.insert(
                 Key::Property(JSContactProperty::Localizations),
@@ -592,8 +596,11 @@ impl State {
     }
 }
 
-impl JSContactProperty {
-    pub(super) fn sub_property(&self) -> Option<JSContactProperty> {
+impl<I> JSContactProperty<I>
+where
+    I: JSContactId,
+{
+    pub(super) fn sub_property(&self) -> Option<JSContactProperty<I>> {
         match self {
             JSContactProperty::SpeakToAs => Some(JSContactProperty::Pronouns),
             _ => None,
@@ -602,10 +609,10 @@ impl JSContactProperty {
 }
 
 impl VCardValue {
-    pub(super) fn into_jscontact_value(
+    pub(super) fn into_jscontact_value<I: JSContactId, B: JSContactId>(
         self,
         value_type: Option<&IanaType<VCardValueType, String>>,
-    ) -> Value<'static, JSContactProperty, JSContactValue> {
+    ) -> Value<'static, JSContactProperty<I>, JSContactValue<I, B>> {
         match self {
             VCardValue::Text(v) => Value::Str(v.into()),
             VCardValue::Component(v) => Value::Str(v.join(",").into()),

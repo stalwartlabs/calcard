@@ -6,7 +6,7 @@
 
 use crate::{
     common::{CalendarScale, IanaType},
-    jscontact::{JSContactProperty, JSContactValue},
+    jscontact::{JSContactId, JSContactProperty, JSContactValue},
     vcard::{
         Jscomp, VCardEntry, VCardLevel, VCardParameterName, VCardPhonetic, VCardProperty, VCardType,
     },
@@ -21,21 +21,30 @@ pub mod params;
 pub mod props;
 
 #[allow(clippy::type_complexity)]
-struct State {
+struct State<I, B>
+where
+    I: JSContactId,
+    B: JSContactId,
+{
     entries: AHashMap<
-        Key<'static, JSContactProperty>,
-        Value<'static, JSContactProperty, JSContactValue>,
+        Key<'static, JSContactProperty<I>>,
+        Value<'static, JSContactProperty<I>, JSContactValue<I, B>>,
     >,
-    vcard_converted_properties: AHashMap<String, VCardConvertedProperty>,
-    vcard_properties: Vec<Value<'static, JSContactProperty, JSContactValue>>,
+    vcard_converted_properties: AHashMap<String, VCardConvertedProperty<I, B>>,
+    vcard_properties: Vec<Value<'static, JSContactProperty<I>, JSContactValue<I, B>>>,
     patch_objects: Vec<(
-        JsonPointer<JSContactProperty>,
-        Value<'static, JSContactProperty, JSContactValue>,
+        JsonPointer<JSContactProperty<I>>,
+        Value<'static, JSContactProperty<I>, JSContactValue<I, B>>,
     )>,
-    localizations:
-        HashMap<String, Vec<(String, Value<'static, JSContactProperty, JSContactValue>)>>,
+    localizations: HashMap<
+        String,
+        Vec<(
+            String,
+            Value<'static, JSContactProperty<I>, JSContactValue<I, B>>,
+        )>,
+    >,
     default_language: Option<String>,
-    prop_ids: Vec<PropIdKey>,
+    prop_ids: Vec<PropIdKey<I>>,
     name_alt_id: Option<String>,
     has_fn: bool,
     has_fn_localization: bool,
@@ -51,24 +60,35 @@ struct EntryState {
     map_name: bool,
 }
 
-struct PropIdKey {
+struct PropIdKey<I>
+where
+    I: JSContactId,
+{
     prop: VCardProperty,
-    prop_js: JSContactProperty,
+    prop_js: JSContactProperty<I>,
     group: Option<String>,
     alt_id: Option<String>,
     prop_id: String,
 }
 
 #[derive(Debug, Default)]
-struct VCardConvertedProperty {
+struct VCardConvertedProperty<I, B>
+where
+    I: JSContactId,
+    B: JSContactId,
+{
     name: Option<VCardProperty>,
-    params: VCardParams,
+    params: VCardParams<I, B>,
 }
 
 #[derive(Debug, Default)]
-struct VCardParams(
-    AHashMap<VCardParameterName, Vec<Value<'static, JSContactProperty, JSContactValue>>>,
-);
+#[allow(clippy::type_complexity)]
+struct VCardParams<I, B>(
+    AHashMap<VCardParameterName, Vec<Value<'static, JSContactProperty<I>, JSContactValue<I, B>>>>,
+)
+where
+    I: JSContactId,
+    B: JSContactId;
 
 #[derive(Default)]
 struct ExtractedParams {
@@ -96,21 +116,31 @@ struct ExtractedParams {
     jscomps: Vec<Jscomp>,
 }
 
-trait GetObjectOrCreate {
+trait GetObjectOrCreate<I, B>
+where
+    I: JSContactId,
+    B: JSContactId,
+{
     fn get_mut_object_or_insert(
         &mut self,
-        key: JSContactProperty,
-    ) -> &mut Map<'static, JSContactProperty, JSContactValue>;
+        key: JSContactProperty<I>,
+    ) -> &mut Map<'static, JSContactProperty<I>, JSContactValue<I, B>>;
 }
 
-impl GetObjectOrCreate
-    for AHashMap<Key<'static, JSContactProperty>, Value<'static, JSContactProperty, JSContactValue>>
+impl<I, B> GetObjectOrCreate<I, B>
+    for AHashMap<
+        Key<'static, JSContactProperty<I>>,
+        Value<'static, JSContactProperty<I>, JSContactValue<I, B>>,
+    >
+where
+    I: JSContactId,
+    B: JSContactId,
 {
     #[inline]
     fn get_mut_object_or_insert(
         &mut self,
-        key: JSContactProperty,
-    ) -> &mut Map<'static, JSContactProperty, JSContactValue> {
+        key: JSContactProperty<I>,
+    ) -> &mut Map<'static, JSContactProperty<I>, JSContactValue<I, B>> {
         self.entry(Key::Property(key))
             .or_insert_with(|| Value::Object(Map::from(Vec::new())))
             .as_object_mut()

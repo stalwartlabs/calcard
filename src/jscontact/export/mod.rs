@@ -5,7 +5,7 @@
  */
 
 use crate::{
-    jscontact::{JSContactProperty, JSContactValue},
+    jscontact::{JSContactId, JSContactProperty, JSContactValue},
     vcard::VCard,
 };
 use jmap_tools::{Key, Value};
@@ -17,11 +17,15 @@ pub mod props;
 
 #[derive(Default)]
 #[allow(clippy::type_complexity)]
-struct State<'x> {
+struct State<'x, I, B>
+where
+    I: JSContactId,
+    B: JSContactId,
+{
     pub(super) vcard: VCard,
     pub(super) converted_props: Vec<(
-        Vec<Key<'static, JSContactProperty>>,
-        Value<'x, JSContactProperty, JSContactValue>,
+        Vec<Key<'static, JSContactProperty<I>>>,
+        Value<'x, JSContactProperty<I>, JSContactValue<I, B>>,
     )>,
     pub(super) converted_props_count: usize,
     pub(super) language: Option<String>,

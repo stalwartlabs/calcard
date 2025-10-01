@@ -7,7 +7,7 @@
 use crate::{
     common::{Data, IanaParse, IanaType, timezone::Tz},
     jscontact::{
-        JSContact, JSContactKind, JSContactProperty, JSContactValue,
+        JSContact, JSContactId, JSContactKind, JSContactProperty, JSContactValue,
         export::{
             State,
             props::{
@@ -24,9 +24,13 @@ use crate::{
 use jmap_tools::{JsonPointer, JsonPointerItem, Key, Map, Value};
 use std::{collections::HashMap, str::FromStr};
 
-impl JSContact<'_> {
+impl<I, B> JSContact<'_, I, B>
+where
+    I: JSContactId,
+    B: JSContactId,
+{
     pub fn into_vcard(self) -> Option<VCard> {
-        let mut state = State::default();
+        let mut state = State::<I, B>::default();
         let mut properties = self.0.into_object()?.into_vec();
         let mut localized_properties: HashMap<String, Vec<_>> = HashMap::new();
 
@@ -34,8 +38,11 @@ impl JSContact<'_> {
             match (property, value) {
                 (Key::Property(JSContactProperty::Localizations), Value::Object(obj)) => {
                     for (lang, value) in std::mem::take(obj.as_mut_vec()) {
-                        let mut localizations: Value<'_, JSContactProperty, JSContactValue> =
-                            Value::Object(Map::from(Vec::with_capacity(3)));
+                        let mut localizations: Value<
+                            '_,
+                            JSContactProperty<I>,
+                            JSContactValue<I, B>,
+                        > = Value::Object(Map::from(Vec::with_capacity(3)));
                         for (key, value) in value.into_expanded_object() {
                             let ptr = match key {
                                 Key::Property(JSContactProperty::Pointer(ptr)) => ptr,
@@ -50,7 +57,7 @@ impl JSContact<'_> {
                             ) {
                                 state.insert_jsprop(
                                     &[
-                                        JSContactProperty::Localizations.to_string().as_ref(),
+                                        JSContactProperty::Localizations::<I>.to_string().as_ref(),
                                         lang.to_string().as_ref(),
                                         ptr_path.as_str(),
                                     ],
@@ -117,7 +124,7 @@ impl JSContact<'_> {
                             _ => {
                                 state.insert_jsprop(
                                     &[
-                                        JSContactProperty::VCard.to_string().as_ref(),
+                                        JSContactProperty::VCard::<I>.to_string().as_ref(),
                                         sub_property.to_string().as_ref(),
                                     ],
                                     value,
@@ -382,7 +389,7 @@ impl JSContact<'_> {
                                         _ => {
                                             state.insert_jsprop(
                                                 &[
-                                                    JSContactProperty::Anniversaries
+                                                    JSContactProperty::Anniversaries::<I>
                                                         .to_string()
                                                         .as_ref(),
                                                     name.to_string().as_ref(),
@@ -483,10 +490,10 @@ impl JSContact<'_> {
                                                 (component, value) => {
                                                     state.insert_jsprop(
                                                         &[
-                                                            JSContactProperty::Name
+                                                            JSContactProperty::Name::<I>
                                                                 .to_string()
                                                                 .as_ref(),
-                                                            JSContactProperty::Components
+                                                            JSContactProperty::Components::<I>
                                                                 .to_string()
                                                                 .as_ref(),
                                                             index.to_string().as_str(),
@@ -568,10 +575,10 @@ impl JSContact<'_> {
                                             _ => {
                                                 state.insert_jsprop(
                                                     &[
-                                                        JSContactProperty::Name
+                                                        JSContactProperty::Name::<I>
                                                             .to_string()
                                                             .as_ref(),
-                                                        JSContactProperty::SortAs
+                                                        JSContactProperty::SortAs::<I>
                                                             .to_string()
                                                             .as_ref(),
                                                         key.to_string().as_ref(),

@@ -7,10 +7,10 @@
 use crate::jscontact::*;
 use std::str::FromStr;
 
-impl FromStr for JSContactProperty {
+impl<I: JSContactId> FromStr for JSContactProperty<I> {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        hashify::map!(s.as_bytes(), JSContactProperty,
+        hashify::tiny_map!(s.as_bytes(),
             "@type" => JSContactProperty::Type,
             "address" => JSContactProperty::Address,
             "addressBookIds" => JSContactProperty::AddressBookIds,
@@ -89,12 +89,11 @@ impl FromStr for JSContactProperty {
             "version" => JSContactProperty::Version,
             "year" => JSContactProperty::Year,
         )
-        .cloned()
         .ok_or(())
     }
 }
 
-impl JSContactProperty {
+impl<I: JSContactId> JSContactProperty<I> {
     pub fn to_string(&self) -> Cow<'static, str> {
         match self {
             JSContactProperty::Type => "@type",
@@ -178,6 +177,7 @@ impl JSContactProperty {
             JSContactProperty::Feature(feature) => feature.as_str(),
             JSContactProperty::SortAsKind(kind) => kind.as_str(),
             JSContactProperty::Pointer(pointer) => return Cow::Owned(pointer.to_string()),
+            JSContactProperty::IdValue(id) => return Cow::Owned(id.to_string()),
         }
         .into()
     }

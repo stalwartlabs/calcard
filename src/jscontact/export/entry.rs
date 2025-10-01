@@ -9,7 +9,7 @@ use crate::{
         CalendarScale, IanaParse,
         parser::{Boolean, Timestamp},
     },
-    jscontact::{JSContactProperty, JSContactValue, export::params::ParamValue},
+    jscontact::{JSContactId, JSContactProperty, JSContactValue, export::params::ParamValue},
     vcard::{
         VCardEntry, VCardLevel, VCardParameter, VCardParameterName, VCardParameterValue,
         VCardPhonetic, VCardProperty, VCardType, VCardValueType,
@@ -18,10 +18,13 @@ use crate::{
 use jmap_tools::{Key, Value};
 
 impl VCardEntry {
-    pub(super) fn import_converted_properties(
+    pub(super) fn import_converted_properties<I, B>(
         &mut self,
-        props: Value<'_, JSContactProperty, JSContactValue>,
-    ) {
+        props: Value<'_, JSContactProperty<I>, JSContactValue<I, B>>,
+    ) where
+        I: JSContactId,
+        B: JSContactId,
+    {
         for (key, value) in props.into_expanded_object() {
             match key {
                 Key::Property(JSContactProperty::Name) => {
@@ -38,10 +41,13 @@ impl VCardEntry {
         }
     }
 
-    pub(super) fn import_jcard_params(
+    pub(super) fn import_jcard_params<I, B>(
         &mut self,
-        params: Value<'_, JSContactProperty, JSContactValue>,
-    ) {
+        params: Value<'_, JSContactProperty<I>, JSContactValue<I, B>>,
+    ) where
+        I: JSContactId,
+        B: JSContactId,
+    {
         for (key, value) in params.into_expanded_object() {
             let mut values = match value {
                 Value::Array(values) => values.into_iter().filter_map(ParamValue::try_from_value),

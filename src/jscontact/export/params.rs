@@ -7,7 +7,7 @@
 use crate::{
     common::{IanaParse, IanaType},
     jscontact::{
-        JSContactProperty, JSContactValue,
+        JSContactId, JSContactProperty, JSContactValue,
         export::{State, props::convert_value},
     },
     vcard::{
@@ -18,8 +18,12 @@ use crate::{
 use jmap_tools::{Element, JsonPointer, Key, Property, Value};
 use std::borrow::Cow;
 
-impl<'x> State<'x> {
-    pub(super) fn insert_vcard(&mut self, path: &[JSContactProperty], mut entry: VCardEntry) {
+impl<'x, I, B> State<'x, I, B>
+where
+    I: JSContactId,
+    B: JSContactId,
+{
+    pub(super) fn insert_vcard(&mut self, path: &[JSContactProperty<I>], mut entry: VCardEntry) {
         if self.converted_props_count < self.converted_props.len() {
             // Obtain propId
             let mut prop_id =
@@ -130,16 +134,16 @@ impl<'x> State<'x> {
     pub(super) fn insert_jsprop(
         &mut self,
         path: &[&str],
-        value: Value<'x, JSContactProperty, JSContactValue>,
+        value: Value<'x, JSContactProperty<I>, JSContactValue<I, B>>,
     ) {
         let path = if let Some(lang) = &self.language {
-            JsonPointer::<JSContactProperty>::encode([
-                JSContactProperty::Localizations.to_string().as_ref(),
+            JsonPointer::<JSContactProperty<I>>::encode([
+                JSContactProperty::Localizations::<I>.to_string().as_ref(),
                 lang.as_str(),
-                JsonPointer::<JSContactProperty>::encode(path).as_str(),
+                JsonPointer::<JSContactProperty<I>>::encode(path).as_str(),
             ])
         } else {
-            JsonPointer::<JSContactProperty>::encode(path)
+            JsonPointer::<JSContactProperty<I>>::encode(path)
         };
 
         self.vcard.entries.push(
@@ -151,7 +155,7 @@ impl<'x> State<'x> {
 
     pub(super) fn import_properties(
         &mut self,
-        props: Vec<Value<'x, JSContactProperty, JSContactValue>>,
+        props: Vec<Value<'x, JSContactProperty<I>, JSContactValue<I, B>>>,
     ) {
         for prop in props.into_iter().flat_map(|prop| prop.into_array()) {
             let mut prop = prop.into_iter();
