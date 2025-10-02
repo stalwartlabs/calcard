@@ -370,6 +370,7 @@ impl FromStr for Tz {
         "Central Standard Time (Mexico)" => chrono_tz::Tz::America__Mexico_City,
         "Central Standard Time" => chrono_tz::Tz::America__Chicago,
         "Central Time (US & Canada)" => chrono_tz::Tz::America__Chicago,
+        "Central Time (US and Canada)" => chrono_tz::Tz::America__Chicago,
         "Central" => chrono_tz::Tz::America__Chicago,
         "Chatham Islands Standard Time" => chrono_tz::Tz::Pacific__Chatham,
         "China Standard Time" => chrono_tz::Tz::Asia__Shanghai,
@@ -391,6 +392,7 @@ impl FromStr for Tz {
         "Eastern Standard Time (Mexico)" => chrono_tz::Tz::America__Cancun,
         "Eastern Standard Time" => chrono_tz::Tz::America__New_York,
         "Eastern Time (US & Canada)" => chrono_tz::Tz::America__New_York,
+        "Eastern Time (US and Canada)" => chrono_tz::Tz::America__New_York,
         "Eastern" => chrono_tz::Tz::America__New_York,
         "Egypt Standard Time" => chrono_tz::Tz::Africa__Cairo,
         "Egypt" => chrono_tz::Tz::Africa__Cairo,
@@ -465,6 +467,7 @@ impl FromStr for Tz {
         "Mountain Standard Time (Mexico)" => chrono_tz::Tz::America__Chihuahua,
         "Mountain Standard Time" => chrono_tz::Tz::America__Denver,
         "Mountain Time (US & Canada)" => chrono_tz::Tz::America__Denver,
+        "Mountain Time (US and Canada)" => chrono_tz::Tz::America__Denver,
         "Mountain" => chrono_tz::Tz::America__Denver,
         "Myanmar Standard Time" => chrono_tz::Tz::Asia__Rangoon,
         "Myanmar" => chrono_tz::Tz::Asia__Rangoon,
@@ -493,6 +496,8 @@ impl FromStr for Tz {
         "Pacific Standard Time" => chrono_tz::Tz::America__Los_Angeles,
         "Pacific Time (US & Canada)" => chrono_tz::Tz::America__Los_Angeles,
         "Pacific Time (US & Canada); Tijuana" => chrono_tz::Tz::America__Los_Angeles,
+        "Pacific Time (US and Canada)" => chrono_tz::Tz::America__Los_Angeles,
+        "Pacific Time (US and Canada); Tijuana" => chrono_tz::Tz::America__Los_Angeles,
         "Pacific" => chrono_tz::Tz::America__Los_Angeles,
         "Pakistan Standard Time" => chrono_tz::Tz::Asia__Karachi,
         "Pakistan" => chrono_tz::Tz::Asia__Karachi,
@@ -591,9 +596,9 @@ impl FromStr for Tz {
             return Ok(Self::Tz(*tz));
         } else if let Some(zone_offset) = zone_offset {
             let (zone, sign, time) = if let Some((zone, part)) = zone_offset.split_once('+') {
-                (zone.trim(), '+', part.trim())
-            } else if let Some((zone, part)) = zone_offset.split_once('-') {
                 (zone.trim(), '-', part.trim())
+            } else if let Some((zone, part)) = zone_offset.split_once('-') {
+                (zone.trim(), '+', part.trim())
             } else {
                 return Err(());
             };

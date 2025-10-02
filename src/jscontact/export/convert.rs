@@ -24,7 +24,7 @@ use crate::{
 use jmap_tools::{JsonPointer, JsonPointerItem, Key, Map, Value};
 use std::{collections::HashMap, str::FromStr};
 
-impl<I, B> JSContact<'_, I, B>
+impl<'x, I, B> JSContact<'x, I, B>
 where
     I: JSContactId,
     B: JSContactId,
@@ -1896,5 +1896,9 @@ where
         }
 
         Some(state.into_vcard())
+    }
+
+    pub fn into_inner(self) -> Value<'x, JSContactProperty<I>, JSContactValue<I, B>> {
+        self.0
     }
 }
