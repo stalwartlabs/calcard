@@ -14,7 +14,8 @@ use crate::{
     },
     icalendar::*,
     jscalendar::{
-        JSCalendarDateTime, JSCalendarProperty, JSCalendarValue, export::ConvertedComponent,
+        JSCalendarDateTime, JSCalendarId, JSCalendarProperty, JSCalendarValue,
+        export::ConvertedComponent,
     },
     jscontact::export::params::ParamValue,
 };
@@ -22,10 +23,10 @@ use chrono::{DateTime, NaiveDateTime, TimeZone};
 use jmap_tools::{Key, Value};
 
 impl ICalendarEntry {
-    pub(super) fn import_converted(
+    pub(super) fn import_converted<I: JSCalendarId>(
         mut self,
-        path: &[JSCalendarProperty],
-        conversions: &mut Option<ConvertedComponent<'_>>,
+        path: &[JSCalendarProperty<I>],
+        conversions: &mut Option<ConvertedComponent<'_, I>>,
     ) -> Self {
         let Some(conversions) = conversions
             .as_mut()
@@ -99,9 +100,9 @@ impl ICalendarEntry {
         self
     }
 
-    pub(super) fn import_converted_properties(
+    pub(super) fn import_converted_properties<I: JSCalendarId>(
         &mut self,
-        props: Value<'_, JSCalendarProperty, JSCalendarValue>,
+        props: Value<'_, JSCalendarProperty<I>, JSCalendarValue<I>>,
     ) {
         for (key, value) in props.into_expanded_object() {
             match key {
@@ -119,9 +120,9 @@ impl ICalendarEntry {
         }
     }
 
-    pub(super) fn import_jcal_params(
+    pub(super) fn import_jcal_params<I: JSCalendarId>(
         &mut self,
-        params: Value<'_, JSCalendarProperty, JSCalendarValue>,
+        params: Value<'_, JSCalendarProperty<I>, JSCalendarValue<I>>,
     ) {
         for (key, value) in params.into_expanded_object() {
             let mut values = match value {

@@ -5,7 +5,7 @@
  */
 
 use crate::{
-    common::{CalendarScale, IanaParse},
+    common::{CalendarScale, IanaParse, IdReference},
     jscontact::{
         Context, Feature, JSContact, JSContactGrammaticalGender, JSContactId, JSContactKind,
         JSContactLevel, JSContactPhoneticSystem, JSContactProperty, JSContactRelation,
@@ -66,8 +66,16 @@ where
                 JSContactProperty::Level => JSContactLevel::from_str(value)
                     .ok()
                     .map(JSContactValue::Level),
-                JSContactProperty::BlobId => B::from_str(value).ok().map(JSContactValue::BlobId),
-                JSContactProperty::Id => I::from_str(value).ok().map(JSContactValue::Id),
+                JSContactProperty::BlobId => match IdReference::parse(value) {
+                    IdReference::Value(value) => JSContactValue::BlobId(value).into(),
+                    IdReference::Reference(value) => JSContactValue::IdReference(value).into(),
+                    IdReference::Error => None,
+                },
+                JSContactProperty::Id => match IdReference::parse(value) {
+                    IdReference::Value(value) => JSContactValue::Id(value).into(),
+                    IdReference::Reference(value) => JSContactValue::IdReference(value).into(),
+                    IdReference::Error => None,
+                },
                 _ => None,
             }
         } else {
@@ -89,6 +97,7 @@ where
             JSContactValue::CalendarScale(v) => v.as_js_str().into(),
             JSContactValue::Id(v) => v.to_string().into(),
             JSContactValue::BlobId(v) => v.to_string().into(),
+            JSContactValue::IdReference(s) => format!("#{}", s).into(),
         }
     }
 }
@@ -109,9 +118,11 @@ impl<I: JSContactId> jmap_tools::Property for JSContactProperty<I> {
                 JSContactProperty::ConvertedProperties | JSContactProperty::Localizations => {
                     JSContactProperty::Pointer(JsonPointer::parse(value)).into()
                 }
-                JSContactProperty::AddressBookIds => {
-                    I::from_str(value).ok().map(JSContactProperty::IdValue)
-                }
+                JSContactProperty::AddressBookIds => match IdReference::parse(value) {
+                    IdReference::Value(value) => JSContactProperty::IdValue(value).into(),
+                    IdReference::Reference(value) => JSContactProperty::IdReference(value).into(),
+                    IdReference::Error => None,
+                },
                 _ => JSContactProperty::from_str(value).ok(),
             },
             None if value.contains('/') => {

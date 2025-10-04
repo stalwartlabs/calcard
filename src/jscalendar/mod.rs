@@ -19,14 +19,21 @@ use crate::{
 use jmap_tools::{JsonPointer, Value};
 use mail_parser::DateTime;
 use serde::Serialize;
-use std::borrow::Cow;
+use std::{borrow::Cow, fmt::Debug, fmt::Display, hash::Hash, str::FromStr};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 #[repr(transparent)]
-pub struct JSCalendar<'x>(pub Value<'x, JSCalendarProperty, JSCalendarValue>);
+pub struct JSCalendar<'x, I: JSCalendarId>(
+    pub Value<'x, JSCalendarProperty<I>, JSCalendarValue<I>>,
+);
+
+pub trait JSCalendarId:
+    FromStr + Sized + Serialize + Display + Clone + Eq + Hash + Ord + Debug + Default
+{
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum JSCalendarValue {
+pub enum JSCalendarValue<I: JSCalendarId> {
     Type(JSCalendarType),
     DateTime(JSCalendarDateTime),
     Duration(ICalendarDuration),
@@ -46,9 +53,11 @@ pub enum JSCalendarValue {
     Weekday(ICalendarWeekday),
     Month(ICalendarMonth),
     Method(ICalendarMethod),
+    Id(I),
+    IdReference(String),
 }
 
-impl Default for JSCalendarValue {
+impl<I: JSCalendarId> Default for JSCalendarValue<I> {
     fn default() -> Self {
         JSCalendarValue::Type(JSCalendarType::default())
     }
@@ -61,13 +70,23 @@ pub struct JSCalendarDateTime {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum JSCalendarProperty {
+pub enum JSCalendarProperty<I: JSCalendarId> {
+    // JMAP for Calendar Properties
+    Id,
+    BaseEventId,
+    CalendarIds,
+    IsDraft,
+    IsOrigin,
+    UtcStart,
+    UtcEnd,
+    UseDefaultAlerts,
+
+    // JSCalendar Properties
     #[default]
     Type,
     Acknowledged,
     Action,
     Alerts,
-    BaseEventId,
     ByDay,
     ByHour,
     ByMinute,
@@ -78,7 +97,6 @@ pub enum JSCalendarProperty {
     ByWeekNo,
     ByYearDay,
     CalendarAddress,
-    CalendarIds,
     Categories,
     Color,
     ContentType,
@@ -104,11 +122,8 @@ pub enum JSCalendarProperty {
     Frequency,
     HideAttendees,
     Href,
-    Id,
     Interval,
     InvitedBy,
-    IsDraft,
-    IsOrigin,
     Keywords,
     Kind,
     Links,
@@ -162,9 +177,6 @@ pub enum JSCalendarProperty {
     Until,
     Updated,
     Uri,
-    UseDefaultAlerts,
-    UtcEnd,
-    UtcStart,
     VirtualLocations,
     When,
     EndTimeZone,
@@ -183,7 +195,14 @@ pub enum JSCalendarProperty {
     ParticipantRole(JSCalendarParticipantRole),
     RelationValue(JSCalendarRelation),
     LinkRelation(LinkRelation),
-    Pointer(JsonPointer<JSCalendarProperty>),
+    Pointer(JsonPointer<JSCalendarProperty<I>>),
+    IdValue(I),
+    IdReference(String),
+}
+
+impl<T> JSCalendarId for T where
+    T: FromStr + Sized + Serialize + Display + Clone + Eq + Hash + Ord + Debug + Default
+{
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

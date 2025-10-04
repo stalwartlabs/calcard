@@ -243,3 +243,21 @@ pub enum LinkRelation {
     WorkingCopy,
     WorkingCopyOf,
 }
+
+pub(crate) enum IdReference<T> {
+    Value(T),
+    Reference(String),
+    Error,
+}
+
+impl<T: std::str::FromStr> IdReference<T> {
+    pub fn parse(s: &str) -> Self {
+        if let Some(reference) = s.strip_prefix('#') {
+            IdReference::Reference(reference.to_string())
+        } else {
+            T::from_str(s)
+                .map(IdReference::Value)
+                .unwrap_or(IdReference::Error)
+        }
+    }
+}

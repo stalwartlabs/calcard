@@ -13,7 +13,7 @@ use crate::{
     icalendar::{
         ICalendarComponentType, ICalendarEntry, ICalendarParameterName, ICalendarProperty,
     },
-    jscalendar::{JSCalendarProperty, JSCalendarValue},
+    jscalendar::{JSCalendarId, JSCalendarProperty, JSCalendarValue},
 };
 
 pub mod convert;
@@ -22,18 +22,18 @@ pub mod props;
 
 #[derive(Default)]
 #[allow(clippy::type_complexity)]
-struct State {
+struct State<I: JSCalendarId> {
     component_type: ICalendarComponentType,
     entries: AHashMap<
-        Key<'static, JSCalendarProperty>,
-        Value<'static, JSCalendarProperty, JSCalendarValue>,
+        Key<'static, JSCalendarProperty<I>>,
+        Value<'static, JSCalendarProperty<I>, JSCalendarValue<I>>,
     >,
-    ical_converted_properties: AHashMap<String, ICalendarConvertedProperty>,
-    ical_properties: Vec<Value<'static, JSCalendarProperty, JSCalendarValue>>,
-    ical_components: Option<Value<'static, JSCalendarProperty, JSCalendarValue>>,
+    ical_converted_properties: AHashMap<String, ICalendarConvertedProperty<I>>,
+    ical_properties: Vec<Value<'static, JSCalendarProperty<I>, JSCalendarValue<I>>>,
+    ical_components: Option<Value<'static, JSCalendarProperty<I>, JSCalendarValue<I>>>,
     patch_objects: Vec<(
-        JsonPointer<JSCalendarProperty>,
-        Value<'static, JSCalendarProperty, JSCalendarValue>,
+        JsonPointer<JSCalendarProperty<I>>,
+        Value<'static, JSCalendarProperty<I>, JSCalendarValue<I>>,
     )>,
     jsid: Option<String>,
     uid: Option<String>,
@@ -46,14 +46,18 @@ struct State {
 }
 
 #[derive(Debug, Default)]
-struct ICalendarConvertedProperty {
+struct ICalendarConvertedProperty<I: JSCalendarId> {
     name: Option<ICalendarProperty>,
-    params: ICalendarParams,
+    params: ICalendarParams<I>,
 }
 
 #[derive(Debug, Default)]
-struct ICalendarParams(
-    AHashMap<ICalendarParameterName, Vec<Value<'static, JSCalendarProperty, JSCalendarValue>>>,
+#[allow(clippy::type_complexity)]
+struct ICalendarParams<I: JSCalendarId>(
+    AHashMap<
+        ICalendarParameterName,
+        Vec<Value<'static, JSCalendarProperty<I>, JSCalendarValue<I>>>,
+    >,
 );
 
 #[derive(Debug, Clone)]

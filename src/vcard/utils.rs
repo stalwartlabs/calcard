@@ -10,7 +10,10 @@ use crate::{
         CalendarScale, Data, IanaString, IanaType, PartialDateTime,
         writer::{write_bytes, write_jscomps},
     },
-    vcard::{Jscomp, VCardLevel, VCardParameterValue, VCardPhonetic, VCardType, VCardValueType},
+    vcard::{
+        Jscomp, VCardLevel, VCardParameter, VCardParameterValue, VCardPhonetic, VCardType,
+        VCardValueType,
+    },
 };
 use std::borrow::Cow;
 
@@ -42,6 +45,10 @@ impl VCard {
                     .and_then(|v| v.as_text())
                     .and_then(VCardVersion::try_parse)
             })
+    }
+
+    pub fn size(&self) -> usize {
+        self.entries.iter().map(|e| e.size()).sum()
     }
 }
 
@@ -83,6 +90,13 @@ impl VCardEntry {
     pub fn phonetic_script(&self) -> Option<&str> {
         self.parameters(&VCardParameterName::Script)
             .find_map(|v| v.as_text())
+    }
+
+    pub fn size(&self) -> usize {
+        self.group.as_ref().map_or(0, |g| g.len())
+            + self.name.as_str().len()
+            + self.params.iter().map(|p| p.size()).sum::<usize>()
+            + self.values.iter().map(|v| v.size()).sum::<usize>()
     }
 }
 
@@ -157,6 +171,23 @@ impl VCardValue {
         match self {
             VCardValue::Binary(d) => Some(d),
             _ => None,
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        match self {
+            VCardValue::Text(v) => v.len(),
+            VCardValue::Sex(v) => v.as_str().len(),
+            VCardValue::GramGender(v) => v.as_str().len(),
+            VCardValue::Kind(v) => v.as_str().len(),
+            VCardValue::Component(v) => v.iter().map(|s| s.len()).sum::<usize>(),
+            VCardValue::Integer(_) => std::mem::size_of::<i64>(),
+            VCardValue::Float(_) => std::mem::size_of::<f64>(),
+            VCardValue::Boolean(_) => std::mem::size_of::<bool>(),
+            VCardValue::PartialDateTime(_) => std::mem::size_of::<PartialDateTime>(),
+            VCardValue::Binary(d) => {
+                d.content_type.as_ref().map_or(0, |ct| ct.len()) + d.data.len()
+            }
         }
     }
 }
@@ -330,6 +361,37 @@ impl VCardParameterValue {
         match self {
             VCardParameterValue::Jscomps(v) => Some(v),
             _ => None,
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        match self {
+            VCardParameterValue::Text(v) => v.len(),
+            VCardParameterValue::ValueType(v) => v.as_str().len(),
+            VCardParameterValue::Type(v) => v.as_str().len(),
+            VCardParameterValue::Calscale(v) => v.as_str().len(),
+            VCardParameterValue::Level(v) => v.as_str().len(),
+            VCardParameterValue::Phonetic(v) => v.as_str().len(),
+            VCardParameterValue::Jscomps(v) => v.iter().map(|j| j.size()).sum::<usize>(),
+            VCardParameterValue::Integer(_) => std::mem::size_of::<u32>(),
+            VCardParameterValue::Timestamp(_) => std::mem::size_of::<i64>(),
+            VCardParameterValue::Bool(_) => std::mem::size_of::<bool>(),
+            VCardParameterValue::Null => 0,
+        }
+    }
+}
+
+impl VCardParameter {
+    pub fn size(&self) -> usize {
+        self.name.as_str().len() + self.value.size()
+    }
+}
+
+impl Jscomp {
+    pub fn size(&self) -> usize {
+        match self {
+            Jscomp::Entry { .. } => std::mem::size_of::<Jscomp>(),
+            Jscomp::Separator(value) => value.len(),
         }
     }
 }

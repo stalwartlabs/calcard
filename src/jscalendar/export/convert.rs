@@ -17,7 +17,7 @@ use chrono::{TimeDelta, TimeZone};
 use jmap_tools::{JsonPointer, JsonPointerHandler, JsonPointerItem, Key, Map, Value};
 use std::str::FromStr;
 
-impl JSCalendar<'_> {
+impl<I: JSCalendarId> JSCalendar<'_, I> {
     pub fn into_icalendar(self) -> Option<ICalendar> {
         self.0.into_object().map(|entries| {
             let mut ical = ICalendar::default();
@@ -43,9 +43,9 @@ impl JSCalendar<'_> {
 
 impl ICalendar {
     #[allow(clippy::wrong_self_convention)]
-    pub(super) fn from_jscalendar(
+    pub(super) fn from_jscalendar<I: JSCalendarId>(
         &mut self,
-        mut state: State<'_>,
+        mut state: State<'_, I>,
         mut parent_component: Option<&mut ICalendarComponent>,
     ) {
         let mut root_conversions = None;
@@ -136,8 +136,8 @@ impl ICalendar {
 
                 if let Some(patched_obj) = patched_obj {
                     let mut patched_props: AHashMap<
-                        Key<'static, JSCalendarProperty>,
-                        Vec<Key<'static, JSCalendarProperty>>,
+                        Key<'static, JSCalendarProperty<I>>,
+                        Vec<Key<'static, JSCalendarProperty<I>>>,
                     > = AHashMap::new();
 
                     for (key, value) in std::mem::take(obj.as_mut_vec()) {
@@ -362,11 +362,11 @@ impl ICalendar {
                                                 JSCalendarParticipantRole::Attendee,
                                             )) => {}
                                             key => {
-                                                component.insert_jsprop(
+                                                component.insert_jsprop::<I>(
                                                     &[
                                                         property.to_string().as_ref(),
                                                         name.to_string().as_ref(),
-                                                        JSCalendarProperty::Roles
+                                                        JSCalendarProperty::Roles::<I>
                                                             .to_string()
                                                             .as_ref(),
                                                         key.to_string().as_ref(),
@@ -690,7 +690,7 @@ impl ICalendar {
                                             (key, value) => {
                                                 alert.insert_jsprop(
                                                     &[
-                                                        JSCalendarProperty::Trigger
+                                                        JSCalendarProperty::Trigger::<I>
                                                             .to_string()
                                                             .as_ref(),
                                                         key.to_string().as_ref(),
@@ -926,7 +926,7 @@ impl ICalendar {
                                 (sub_property, value) => {
                                     component.insert_jsprop(
                                         &[
-                                            JSCalendarProperty::VirtualLocations
+                                            JSCalendarProperty::VirtualLocations::<I>
                                                 .to_string()
                                                 .as_ref(),
                                             name.to_string().as_ref(),
@@ -1148,7 +1148,9 @@ impl ICalendar {
                                     } else {
                                         component.insert_jsprop(
                                             &[
-                                                JSCalendarProperty::Locations.to_string().as_ref(),
+                                                JSCalendarProperty::Locations::<I>
+                                                    .to_string()
+                                                    .as_ref(),
                                                 name.to_string().as_ref(),
                                                 sub_property.to_string().as_ref(),
                                             ],
@@ -1358,7 +1360,9 @@ impl ICalendar {
                             (key, value) => {
                                 component.insert_jsprop(
                                     &[
-                                        JSCalendarProperty::RecurrenceRule.to_string().as_ref(),
+                                        JSCalendarProperty::RecurrenceRule::<I>
+                                            .to_string()
+                                            .as_ref(),
                                         key.to_string().as_ref(),
                                     ],
                                     value,
@@ -1471,7 +1475,7 @@ impl ICalendar {
                                 ),
                             );
                         } else {
-                            component.insert_jsprop(
+                            component.insert_jsprop::<I>(
                                 &[property.to_string().as_ref()],
                                 Value::Element(JSCalendarValue::Duration(duration)),
                             );
@@ -1874,10 +1878,10 @@ impl ICalendar {
 }
 
 impl ICalendarComponent {
-    fn import_links(
+    fn import_links<I: JSCalendarId>(
         &mut self,
-        obj: Map<'_, JSCalendarProperty, JSCalendarValue>,
-        conversion: &mut Option<ConvertedComponent<'_>>,
+        obj: Map<'_, JSCalendarProperty<I>, JSCalendarValue<I>>,
+        conversion: &mut Option<ConvertedComponent<'_, I>>,
     ) {
         for (name, value) in obj.into_vec() {
             let mut entry = ICalendarEntry::new(ICalendarProperty::Link);
@@ -1947,7 +1951,7 @@ impl ICalendarComponent {
                     (sub_property, value) => {
                         self.insert_jsprop(
                             &[
-                                JSCalendarProperty::Links.to_string().as_ref(),
+                                JSCalendarProperty::Links::<I>.to_string().as_ref(),
                                 name.to_string().as_ref(),
                                 sub_property.to_string().as_ref(),
                             ],
@@ -1971,10 +1975,10 @@ impl ICalendarComponent {
         }
     }
 
-    fn import_relations(
+    fn import_relations<I: JSCalendarId>(
         &mut self,
-        obj: Map<'_, JSCalendarProperty, JSCalendarValue>,
-        conversion: &mut Option<ConvertedComponent<'_>>,
+        obj: Map<'_, JSCalendarProperty<I>, JSCalendarValue<I>>,
+        conversion: &mut Option<ConvertedComponent<'_, I>>,
     ) {
         for (name, value) in obj.into_vec() {
             let mut entry = ICalendarEntry::new(ICalendarProperty::RelatedTo);
@@ -2015,7 +2019,7 @@ impl ICalendarComponent {
                     (sub_property, value) => {
                         self.insert_jsprop(
                             &[
-                                JSCalendarProperty::RelatedTo.to_string().as_ref(),
+                                JSCalendarProperty::RelatedTo::<I>.to_string().as_ref(),
                                 name.to_string().as_ref(),
                                 sub_property.to_string().as_ref(),
                             ],
@@ -2033,16 +2037,16 @@ impl ICalendarComponent {
         }
     }
 
-    fn insert_jsprop(
+    fn insert_jsprop<I: JSCalendarId>(
         &mut self,
         path: &[&str],
-        value: Value<'_, JSCalendarProperty, JSCalendarValue>,
+        value: Value<'_, JSCalendarProperty<I>, JSCalendarValue<I>>,
     ) {
         self.entries.push(
             ICalendarEntry::new(ICalendarProperty::Jsprop)
-                .with_param(ICalendarParameter::jsptr(
-                    JsonPointer::<JSCalendarProperty>::encode(path),
-                ))
+                .with_param(ICalendarParameter::jsptr(JsonPointer::<
+                    JSCalendarProperty<I>,
+                >::encode(path)))
                 .with_value(serde_json::to_string(&value).unwrap_or_default()),
         );
     }

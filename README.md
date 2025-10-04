@@ -98,7 +98,7 @@ let input = r#"{
                     }]
                 }"#;
 
-let jscalendar = JSCalendar::parse(input).unwrap();
+let jscalendar = JSCalendar::<String>::parse(input).unwrap();
 println!("Parsed JSCalendar: {}", jscalendar.to_string_pretty());
 ```
 
@@ -121,7 +121,7 @@ let input = r#"{
                     }
                 }"#;
 
-let jscontact = JSContact::parse(input).unwrap();
+let jscontact = JSContact::<String, String>::parse(input).unwrap();
 println!("Parsed JSContact: {}", jscontact.to_string_pretty());
 ```
 
@@ -130,13 +130,13 @@ println!("Parsed JSContact: {}", jscontact.to_string_pretty());
 To convert a JSCalendar to an iCalendar, use the `JSCalendar::into_icalendar` method:
 
 ```rust
-let ical = JSCalendar::parse(input).unwrap().into_icalendar().unwrap();
+let ical = JSCalendar::<String>::parse(input).unwrap().into_icalendar().unwrap();
 ```
 
 To convert an iCalendar to a JSCalendar, use the `ICalendar::into_jscalendar` method:
 
 ```rust
-let jscalendar = ICalendar::parse(&input).unwrap().into_jscalendar().unwrap();
+let jscalendar = ICalendar::parse(&input).unwrap().into_jscalendar::<String>().unwrap();
 ```
 
 ### Converting to/from vCard and JSContact
@@ -144,13 +144,13 @@ let jscalendar = ICalendar::parse(&input).unwrap().into_jscalendar().unwrap();
 To convert a JSContact to a vCard, use the `JSContact::into_vcard` method:
 
 ```rust
-let vcard = JSContact::parse(input).unwrap().into_vcard().unwrap();
+let vcard = JSContact::<String, String>::parse(input).unwrap().into_vcard().unwrap();
 ```
 
 To convert a vCard to a JSContact, use the `VCard::into_jscontact` method:
 
 ```rust
-let jscontact = VCard::parse(&input).unwrap().into_jscontact().unwrap();
+let jscontact = VCard::parse(&input).unwrap().into_jscontact::<String, String>().unwrap();
 ```
 
 ### Generating iCalendar and vCard

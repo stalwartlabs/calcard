@@ -35,6 +35,7 @@ pub trait JSContactId:
 pub enum JSContactValue<I: JSContactId, B: JSContactId> {
     Id(I),
     BlobId(B),
+    IdReference(String),
     Timestamp(i64),
     Type(JSContactType),
     GrammaticalGender(JSContactGrammaticalGender),
@@ -125,6 +126,7 @@ pub enum JSContactProperty<I: JSContactId> {
     Version,
     Year,
     IdValue(I),
+    IdReference(String),
     Context(Context),
     Feature(Feature),
     SortAsKind(JSContactKind),
@@ -398,5 +400,11 @@ impl<I: JSContactId> From<I> for JSContactProperty<I> {
 impl<I: JSContactId, B: JSContactId> From<I> for JSContactValue<I, B> {
     fn from(id: I) -> Self {
         JSContactValue::Id(id)
+    }
+}
+
+impl<'x, I: JSContactId, B: JSContactId> Default for JSContact<'x, I, B> {
+    fn default() -> Self {
+        Self(Value::Object(jmap_tools::Map::new()))
     }
 }

@@ -173,7 +173,8 @@ where
             | JSContactValue::PhoneticSystem(_)
             | JSContactValue::CalendarScale(_)
             | JSContactValue::BlobId(_)
-            | JSContactValue::Id(_) => Err(Value::Element(e)),
+            | JSContactValue::Id(_)
+            | JSContactValue::IdReference(_) => Err(Value::Element(e)),
         },
         Value::Str(s) => {
             match value_type {

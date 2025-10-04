@@ -13,7 +13,7 @@ use crate::{
         ICalendarValue, ICalendarValueType, Uri,
     },
     jscalendar::{
-        JSCalendarLinkDisplay, JSCalendarParticipantKind, JSCalendarParticipantRole,
+        JSCalendarId, JSCalendarLinkDisplay, JSCalendarParticipantKind, JSCalendarParticipantRole,
         JSCalendarParticipationStatus, JSCalendarProperty, JSCalendarRelativeTo, JSCalendarValue,
         JSCalendarVirtualLocationFeature, import::ICalendarParams,
     },
@@ -29,10 +29,10 @@ pub(super) trait ExtractParams {
     ) -> Option<String>;
 }
 
-impl ExtractParams
+impl<I: JSCalendarId> ExtractParams
     for AHashMap<
-        Key<'static, JSCalendarProperty>,
-        Value<'static, JSCalendarProperty, JSCalendarValue>,
+        Key<'static, JSCalendarProperty<I>>,
+        Value<'static, JSCalendarProperty<I>, JSCalendarValue<I>>,
     >
 {
     fn extract_params(
@@ -346,10 +346,10 @@ impl ExtractParams
     }
 }
 
-impl ICalendarParams {
+impl<I: JSCalendarId> ICalendarParams<I> {
     pub(super) fn into_jscalendar_value(
         self,
-    ) -> Option<Map<'static, JSCalendarProperty, JSCalendarValue>> {
+    ) -> Option<Map<'static, JSCalendarProperty<I>, JSCalendarValue<I>>> {
         if !self.0.is_empty() {
             let mut obj = Map::from(Vec::with_capacity(self.0.len()));
 
@@ -369,10 +369,10 @@ impl ICalendarParams {
 }
 
 impl ICalendarValue {
-    pub(super) fn into_jscalendar_value(
+    pub(super) fn into_jscalendar_value<I: JSCalendarId>(
         self,
         value_type: Option<&IanaType<ICalendarValueType, String>>,
-    ) -> Value<'static, JSCalendarProperty, JSCalendarValue> {
+    ) -> Value<'static, JSCalendarProperty<I>, JSCalendarValue<I>> {
         match self {
             ICalendarValue::Text(v) => Value::Str(v.into()),
             ICalendarValue::Integer(v) => Value::Number(v.into()),

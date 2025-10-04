@@ -7,7 +7,7 @@
 use crate::{
     common::timezone::Tz,
     icalendar::ICalendarComponentType,
-    jscalendar::{JSCalendarProperty, JSCalendarValue},
+    jscalendar::{JSCalendarId, JSCalendarProperty, JSCalendarValue},
 };
 use chrono::DateTime;
 use jmap_tools::{Key, Map, Value};
@@ -16,8 +16,8 @@ pub mod convert;
 pub mod params;
 pub mod props;
 
-struct State<'x> {
-    entries: Map<'x, JSCalendarProperty, JSCalendarValue>,
+struct State<'x, I: JSCalendarId> {
+    entries: Map<'x, JSCalendarProperty<I>, JSCalendarValue<I>>,
     default_component_type: ICalendarComponentType,
     uid: Option<&'x str>,
     tz: Option<Tz>,
@@ -28,13 +28,13 @@ struct State<'x> {
 }
 
 #[allow(clippy::type_complexity)]
-struct ConvertedComponent<'x> {
+struct ConvertedComponent<'x, I: JSCalendarId> {
     pub(super) name: ICalendarComponentType,
     pub(super) converted_props: Vec<(
-        Vec<Key<'x, JSCalendarProperty>>,
-        Value<'x, JSCalendarProperty, JSCalendarValue>,
+        Vec<Key<'x, JSCalendarProperty<I>>>,
+        Value<'x, JSCalendarProperty<I>, JSCalendarValue<I>>,
     )>,
     pub(super) converted_props_count: usize,
-    pub(super) properties: Vec<Value<'x, JSCalendarProperty, JSCalendarValue>>,
-    pub(super) components: Vec<Value<'x, JSCalendarProperty, JSCalendarValue>>,
+    pub(super) properties: Vec<Value<'x, JSCalendarProperty<I>, JSCalendarValue<I>>>,
+    pub(super) components: Vec<Value<'x, JSCalendarProperty<I>, JSCalendarValue<I>>>,
 }

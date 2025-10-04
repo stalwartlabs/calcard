@@ -7,11 +7,11 @@
 use crate::jscalendar::*;
 use std::str::FromStr;
 
-impl FromStr for JSCalendarProperty {
+impl<I: JSCalendarId> FromStr for JSCalendarProperty<I> {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        hashify::map!(s.as_bytes(), JSCalendarProperty,
+        hashify::tiny_map!(s.as_bytes(),
             "@type" => JSCalendarProperty::Type,
             "acknowledged" => JSCalendarProperty::Acknowledged,
             "action" => JSCalendarProperty::Action,
@@ -127,12 +127,11 @@ impl FromStr for JSCalendarProperty {
             "parameters" => JSCalendarProperty::Parameters,
             "iCalComponent" => JSCalendarProperty::ICalComponent,
         )
-        .cloned()
         .ok_or(())
     }
 }
 
-impl JSCalendarProperty {
+impl<I: JSCalendarId> JSCalendarProperty<I> {
     pub fn to_string(&self) -> Cow<'static, str> {
         match self {
             JSCalendarProperty::Type => "@type",
@@ -256,6 +255,8 @@ impl JSCalendarProperty {
             JSCalendarProperty::LinkRelation(v) => return v.as_str().to_string().into(),
             JSCalendarProperty::DateTime(dt) => return dt.to_rfc3339().into(),
             JSCalendarProperty::Pointer(pointer) => return Cow::Owned(pointer.to_string()),
+            JSCalendarProperty::IdValue(id) => return id.to_string().into(),
+            JSCalendarProperty::IdReference(s) => return format!("#{}", s).into(),
         }
         .into()
     }

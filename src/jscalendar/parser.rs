@@ -5,14 +5,14 @@
  */
 
 use crate::{
-    common::{IanaParse, IanaString, LinkRelation},
+    common::{IanaParse, IanaString, IdReference, LinkRelation},
     icalendar::{
         ICalendarDuration, ICalendarFrequency, ICalendarMethod, ICalendarMonth, ICalendarSkip,
         ICalendarWeekday,
     },
     jscalendar::{
         JSCalendar, JSCalendarAlertAction, JSCalendarDateTime, JSCalendarEventStatus,
-        JSCalendarFreeBusyStatus, JSCalendarLinkDisplay, JSCalendarParticipantKind,
+        JSCalendarFreeBusyStatus, JSCalendarId, JSCalendarLinkDisplay, JSCalendarParticipantKind,
         JSCalendarParticipantRole, JSCalendarParticipationStatus, JSCalendarPrivacy,
         JSCalendarProgress, JSCalendarProperty, JSCalendarRelation, JSCalendarRelativeTo,
         JSCalendarScheduleAgent, JSCalendarType, JSCalendarValue, JSCalendarVirtualLocationFeature,
@@ -22,7 +22,7 @@ use jmap_tools::{Element, JsonPointer, JsonPointerItem, Key, Value};
 use mail_parser::DateTime;
 use std::{borrow::Cow, str::FromStr};
 
-impl<'x> JSCalendar<'x> {
+impl<'x, I: JSCalendarId> JSCalendar<'x, I> {
     pub fn parse(json: &'x str) -> Result<Self, String> {
         Value::parse_json(json).map(JSCalendar)
     }
@@ -32,8 +32,8 @@ impl<'x> JSCalendar<'x> {
     }
 }
 
-impl Element for JSCalendarValue {
-    type Property = JSCalendarProperty;
+impl<I: JSCalendarId> Element for JSCalendarValue<I> {
+    type Property = JSCalendarProperty<I>;
 
     fn try_parse<P>(key: &Key<'_, Self::Property>, value: &str) -> Option<Self> {
         if let Key::Property(prop) = key {
@@ -45,7 +45,9 @@ impl Element for JSCalendarValue {
                 | JSCalendarProperty::Updated
                 | JSCalendarProperty::Acknowledged
                 | JSCalendarProperty::ScheduleUpdated
-                | JSCalendarProperty::When => DateTime::parse_rfc3339(value).map(|dt| {
+                | JSCalendarProperty::When
+                | JSCalendarProperty::UtcStart
+                | JSCalendarProperty::UtcEnd => DateTime::parse_rfc3339(value).map(|dt| {
                     JSCalendarValue::DateTime(JSCalendarDateTime {
                         timestamp: dt.to_timestamp_local(),
                         is_local: false,
@@ -112,6 +114,13 @@ impl Element for JSCalendarValue {
                 JSCalendarProperty::Method => {
                     ICalendarMethod::parse(value.as_bytes()).map(JSCalendarValue::Method)
                 }
+                JSCalendarProperty::Id | JSCalendarProperty::BaseEventId => {
+                    match IdReference::parse(value) {
+                        IdReference::Value(value) => JSCalendarValue::Id(value).into(),
+                        IdReference::Reference(value) => JSCalendarValue::IdReference(value).into(),
+                        IdReference::Error => None,
+                    }
+                }
                 _ => None,
             }
         } else {
@@ -140,11 +149,13 @@ impl Element for JSCalendarValue {
             JSCalendarValue::Weekday(v) => v.as_js_str().into(),
             JSCalendarValue::Month(v) => v.to_string().into(),
             JSCalendarValue::Method(v) => v.as_js_str().into(),
+            JSCalendarValue::Id(v) => v.to_string().into(),
+            JSCalendarValue::IdReference(s) => format!("#{}", s).into(),
         }
     }
 }
 
-impl jmap_tools::Property for JSCalendarProperty {
+impl<I: JSCalendarId> jmap_tools::Property for JSCalendarProperty<I> {
     fn try_parse(key: Option<&Key<'_, Self>>, value: &str) -> Option<Self> {
         match key {
             Some(Key::Property(key)) => match key.patch_or_prop() {
@@ -174,6 +185,11 @@ impl jmap_tools::Property for JSCalendarProperty {
                 JSCalendarProperty::DateTime(_) if value.contains('/') => {
                     JSCalendarProperty::Pointer(JsonPointer::parse(value)).into()
                 }
+                JSCalendarProperty::CalendarIds => match IdReference::parse(value) {
+                    IdReference::Value(value) => JSCalendarProperty::IdValue(value).into(),
+                    IdReference::Reference(value) => JSCalendarProperty::IdReference(value).into(),
+                    IdReference::Error => None,
+                },
                 _ => JSCalendarProperty::from_str(value).ok(),
             },
             None if value.contains('/') => {
@@ -188,8 +204,8 @@ impl jmap_tools::Property for JSCalendarProperty {
     }
 }
 
-impl JSCalendarProperty {
-    fn patch_or_prop(&self) -> &JSCalendarProperty {
+impl<I: JSCalendarId> JSCalendarProperty<I> {
+    fn patch_or_prop(&self) -> &JSCalendarProperty<I> {
         if let JSCalendarProperty::Pointer(ptr) = self
             && let Some(JsonPointerItem::Key(Key::Property(prop))) = ptr.last()
         {
