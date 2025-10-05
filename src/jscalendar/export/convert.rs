@@ -17,7 +17,7 @@ use chrono::{TimeDelta, TimeZone};
 use jmap_tools::{JsonPointer, JsonPointerHandler, JsonPointerItem, Key, Map, Value};
 use std::str::FromStr;
 
-impl<I: JSCalendarId> JSCalendar<'_, I> {
+impl<'x, I: JSCalendarId> JSCalendar<'x, I> {
     pub fn into_icalendar(self) -> Option<ICalendar> {
         self.0.into_object().map(|entries| {
             let mut ical = ICalendar::default();
@@ -38,6 +38,10 @@ impl<I: JSCalendarId> JSCalendar<'_, I> {
 
             ical
         })
+    }
+
+    pub fn into_inner(self) -> Value<'x, JSCalendarProperty<I>, JSCalendarValue<I>> {
+        self.0
     }
 }
 

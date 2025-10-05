@@ -8,9 +8,9 @@ use super::DateTimeResult;
 use crate::common::PartialDateTime;
 use chrono::{DateTime, FixedOffset, NaiveDate, Offset, TimeZone, Utc};
 use hashify::tiny_map;
-use std::{borrow::Cow, str::FromStr};
+use std::{borrow::Cow, hash::Hash, str::FromStr};
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Eq)]
 pub enum Tz {
     #[default]
     Floating,
@@ -645,6 +645,24 @@ impl From<Utc> for Tz {
 impl From<chrono_tz::Tz> for Tz {
     fn from(tz: chrono_tz::Tz) -> Self {
         Self::Tz(tz)
+    }
+}
+
+impl PartialOrd for Tz {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Tz {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_id().cmp(&other.as_id())
+    }
+}
+
+impl Hash for Tz {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.as_id().hash(state);
     }
 }
 

@@ -80,6 +80,9 @@ pub enum JSCalendarProperty<I: JSCalendarId> {
     UtcStart,
     UtcEnd,
     UseDefaultAlerts,
+    MayInviteSelf,
+    MayInviteOthers,
+    HideAttendees,
 
     // JSCalendar Properties
     #[default]
@@ -120,7 +123,6 @@ pub enum JSCalendarProperty<I: JSCalendarId> {
     FirstDayOfWeek,
     FreeBusyStatus,
     Frequency,
-    HideAttendees,
     Href,
     Interval,
     InvitedBy,
@@ -130,8 +132,6 @@ pub enum JSCalendarProperty<I: JSCalendarId> {
     Locale,
     Locations,
     LocationTypes,
-    MayInviteOthers,
-    MayInviteSelf,
     MemberOf,
     Method,
     Name,
@@ -203,6 +203,24 @@ pub enum JSCalendarProperty<I: JSCalendarId> {
 impl<T> JSCalendarId for T where
     T: FromStr + Sized + Serialize + Display + Clone + Eq + Hash + Ord + Debug + Default
 {
+}
+
+impl<I: JSCalendarId> From<I> for JSCalendarProperty<I> {
+    fn from(id: I) -> Self {
+        JSCalendarProperty::IdValue(id)
+    }
+}
+
+impl<I: JSCalendarId> From<I> for JSCalendarValue<I> {
+    fn from(id: I) -> Self {
+        JSCalendarValue::Id(id)
+    }
+}
+
+impl<'x, I: JSCalendarId> Default for JSCalendar<'x, I> {
+    fn default() -> Self {
+        Self(Value::Object(jmap_tools::Map::new()))
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
