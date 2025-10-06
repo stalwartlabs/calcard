@@ -23,10 +23,10 @@ use chrono::{DateTime, NaiveDateTime, TimeZone};
 use jmap_tools::{Key, Value};
 
 impl ICalendarEntry {
-    pub(super) fn import_converted<I: JSCalendarId>(
+    pub(super) fn import_converted<I: JSCalendarId, B: JSCalendarId>(
         mut self,
         path: &[JSCalendarProperty<I>],
-        conversions: &mut Option<ConvertedComponent<'_, I>>,
+        conversions: &mut Option<ConvertedComponent<'_, I, B>>,
     ) -> Self {
         let Some(conversions) = conversions
             .as_mut()
@@ -100,9 +100,9 @@ impl ICalendarEntry {
         self
     }
 
-    pub(super) fn import_converted_properties<I: JSCalendarId>(
+    pub(super) fn import_converted_properties<I: JSCalendarId, B: JSCalendarId>(
         &mut self,
-        props: Value<'_, JSCalendarProperty<I>, JSCalendarValue<I>>,
+        props: Value<'_, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
     ) {
         for (key, value) in props.into_expanded_object() {
             match key {
@@ -120,9 +120,9 @@ impl ICalendarEntry {
         }
     }
 
-    pub(super) fn import_jcal_params<I: JSCalendarId>(
+    pub(super) fn import_jcal_params<I: JSCalendarId, B: JSCalendarId>(
         &mut self,
-        params: Value<'_, JSCalendarProperty<I>, JSCalendarValue<I>>,
+        params: Value<'_, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
     ) {
         for (key, value) in params.into_expanded_object() {
             let mut values = match value {

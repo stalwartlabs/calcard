@@ -29,7 +29,7 @@ where
     I: JSContactId,
     B: JSContactId,
 {
-    pub(super) fn new(vcard: &mut VCard) -> Self {
+    pub(super) fn new(vcard: &mut VCard, include_vcard_converted: bool) -> Self {
         let mut entries = AHashMap::with_capacity(vcard.entries.len());
 
         entries.extend([
@@ -132,6 +132,7 @@ where
             has_n_localization: false,
             has_fn_localization: false,
             has_gram_gender: false,
+            include_vcard_converted,
         }
     }
 
@@ -410,71 +411,73 @@ where
     }
 
     pub(super) fn add_conversion_props(&mut self, mut entry: EntryState) {
-        if let Some(converted_to) = entry.converted_to.take() {
-            if entry.map_name || !entry.entry.params.is_empty() || entry.entry.group.is_some() {
-                let mut value_type = None;
+        if self.include_vcard_converted {
+            if let Some(converted_to) = entry.converted_to.take() {
+                if entry.map_name || !entry.entry.params.is_empty() || entry.entry.group.is_some() {
+                    let mut value_type = None;
 
-                match self.vcard_converted_properties.entry(converted_to) {
-                    Entry::Occupied(mut conv_prop) => {
-                        entry.jcal_parameters(&mut conv_prop.get_mut().params, &mut value_type);
-                    }
-                    Entry::Vacant(conv_prop) => {
-                        let mut params = VCardParams::default();
-                        entry.jcal_parameters(&mut params, &mut value_type);
-                        if let Some(value_type) = value_type {
-                            params.0.insert(
-                                VCardParameterName::Value,
-                                vec![Value::Str(value_type.into_string())],
-                            );
+                    match self.vcard_converted_properties.entry(converted_to) {
+                        Entry::Occupied(mut conv_prop) => {
+                            entry.jcal_parameters(&mut conv_prop.get_mut().params, &mut value_type);
                         }
-                        if !params.0.is_empty() || entry.map_name {
-                            conv_prop.insert(VCardConvertedProperty {
-                                name: if entry.map_name {
-                                    Some(entry.entry.name)
-                                } else {
-                                    None
-                                },
-                                params,
-                            });
+                        Entry::Vacant(conv_prop) => {
+                            let mut params = VCardParams::default();
+                            entry.jcal_parameters(&mut params, &mut value_type);
+                            if let Some(value_type) = value_type {
+                                params.0.insert(
+                                    VCardParameterName::Value,
+                                    vec![Value::Str(value_type.into_string())],
+                                );
+                            }
+                            if !params.0.is_empty() || entry.map_name {
+                                conv_prop.insert(VCardConvertedProperty {
+                                    name: if entry.map_name {
+                                        Some(entry.entry.name)
+                                    } else {
+                                        None
+                                    },
+                                    params,
+                                });
+                            }
                         }
                     }
                 }
-            }
-        } else {
-            let mut value_type = None;
-            let mut params = VCardParams::default();
-
-            entry.jcal_parameters(&mut params, &mut value_type);
-
-            let values = if entry.entry.values.len() == 1 {
-                entry
-                    .entry
-                    .values
-                    .into_iter()
-                    .next()
-                    .unwrap()
-                    .into_jscontact_value(value_type.as_ref())
             } else {
-                let mut values = Vec::with_capacity(entry.entry.values.len());
-                for value in entry.entry.values {
-                    values.push(value.into_jscontact_value(value_type.as_ref()));
-                }
-                Value::Array(values)
-            };
-            self.vcard_properties.push(Value::Array(vec![
-                Value::Str(entry.entry.name.as_str().to_string().into()),
-                Value::Object(
-                    params
-                        .into_jscontact_value()
-                        .unwrap_or(Map::from(Vec::new())),
-                ),
-                Value::Str(
-                    value_type
-                        .map(|v| v.into_string())
-                        .unwrap_or(Cow::Borrowed("unknown")),
-                ),
-                values,
-            ]));
+                let mut value_type = None;
+                let mut params = VCardParams::default();
+
+                entry.jcal_parameters(&mut params, &mut value_type);
+
+                let values = if entry.entry.values.len() == 1 {
+                    entry
+                        .entry
+                        .values
+                        .into_iter()
+                        .next()
+                        .unwrap()
+                        .into_jscontact_value(value_type.as_ref())
+                } else {
+                    let mut values = Vec::with_capacity(entry.entry.values.len());
+                    for value in entry.entry.values {
+                        values.push(value.into_jscontact_value(value_type.as_ref()));
+                    }
+                    Value::Array(values)
+                };
+                self.vcard_properties.push(Value::Array(vec![
+                    Value::Str(entry.entry.name.as_str().to_string().into()),
+                    Value::Object(
+                        params
+                            .into_jscontact_value()
+                            .unwrap_or(Map::from(Vec::new())),
+                    ),
+                    Value::Str(
+                        value_type
+                            .map(|v| v.into_string())
+                            .unwrap_or(Cow::Borrowed("unknown")),
+                    ),
+                    values,
+                ]));
+            }
         }
     }
 

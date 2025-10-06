@@ -22,7 +22,7 @@ use jmap_tools::{Element, JsonPointer, JsonPointerItem, Key, Value};
 use mail_parser::DateTime;
 use std::{borrow::Cow, str::FromStr};
 
-impl<'x, I: JSCalendarId> JSCalendar<'x, I> {
+impl<'x, I: JSCalendarId, B: JSCalendarId> JSCalendar<'x, I, B> {
     pub fn parse(json: &'x str) -> Result<Self, String> {
         Value::parse_json(json).map(JSCalendar)
     }
@@ -32,7 +32,7 @@ impl<'x, I: JSCalendarId> JSCalendar<'x, I> {
     }
 }
 
-impl<I: JSCalendarId> Element for JSCalendarValue<I> {
+impl<I: JSCalendarId, B: JSCalendarId> Element for JSCalendarValue<I, B> {
     type Property = JSCalendarProperty<I>;
 
     fn try_parse<P>(key: &Key<'_, Self::Property>, value: &str) -> Option<Self> {
@@ -121,6 +121,11 @@ impl<I: JSCalendarId> Element for JSCalendarValue<I> {
                         IdReference::Error => None,
                     }
                 }
+                JSCalendarProperty::BlobId => match IdReference::parse(value) {
+                    IdReference::Value(value) => JSCalendarValue::BlobId(value).into(),
+                    IdReference::Reference(value) => JSCalendarValue::IdReference(value).into(),
+                    IdReference::Error => None,
+                },
                 _ => None,
             }
         } else {
@@ -150,6 +155,7 @@ impl<I: JSCalendarId> Element for JSCalendarValue<I> {
             JSCalendarValue::Month(v) => v.to_string().into(),
             JSCalendarValue::Method(v) => v.as_js_str().into(),
             JSCalendarValue::Id(v) => v.to_string().into(),
+            JSCalendarValue::BlobId(v) => v.to_string().into(),
             JSCalendarValue::IdReference(s) => format!("#{}", s).into(),
         }
     }

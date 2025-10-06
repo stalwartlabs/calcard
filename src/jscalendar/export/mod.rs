@@ -16,8 +16,8 @@ pub mod convert;
 pub mod params;
 pub mod props;
 
-struct State<'x, I: JSCalendarId> {
-    entries: Map<'x, JSCalendarProperty<I>, JSCalendarValue<I>>,
+struct State<'x, I: JSCalendarId, B: JSCalendarId> {
+    entries: Map<'x, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
     default_component_type: ICalendarComponentType,
     uid: Option<&'x str>,
     tz: Option<Tz>,
@@ -28,13 +28,13 @@ struct State<'x, I: JSCalendarId> {
 }
 
 #[allow(clippy::type_complexity)]
-struct ConvertedComponent<'x, I: JSCalendarId> {
+struct ConvertedComponent<'x, I: JSCalendarId, B: JSCalendarId> {
     pub(super) name: ICalendarComponentType,
     pub(super) converted_props: Vec<(
         Vec<Key<'x, JSCalendarProperty<I>>>,
-        Value<'x, JSCalendarProperty<I>, JSCalendarValue<I>>,
+        Value<'x, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
     )>,
     pub(super) converted_props_count: usize,
-    pub(super) properties: Vec<Value<'x, JSCalendarProperty<I>, JSCalendarValue<I>>>,
-    pub(super) components: Vec<Value<'x, JSCalendarProperty<I>, JSCalendarValue<I>>>,
+    pub(super) properties: Vec<Value<'x, JSCalendarProperty<I>, JSCalendarValue<I, B>>>,
+    pub(super) components: Vec<Value<'x, JSCalendarProperty<I>, JSCalendarValue<I, B>>>,
 }

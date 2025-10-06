@@ -12,7 +12,7 @@ use crate::{
 };
 use jmap_tools::{JsonPointer, JsonPointerItem, Key, Map, Value};
 
-impl<I: JSCalendarId> ConvertedComponent<'_, I> {
+impl<I: JSCalendarId, B: JSCalendarId> ConvertedComponent<'_, I, B> {
     pub(super) fn apply_conversions(
         self,
         mut component: ICalendarComponent,
@@ -72,9 +72,9 @@ impl<I: JSCalendarId> ConvertedComponent<'_, I> {
 }
 
 impl ICalendarComponent {
-    pub(super) fn import_properties<I: JSCalendarId>(
+    pub(super) fn import_properties<I: JSCalendarId, B: JSCalendarId>(
         &mut self,
-        props: Vec<Value<'_, JSCalendarProperty<I>, JSCalendarValue<I>>>,
+        props: Vec<Value<'_, JSCalendarProperty<I>, JSCalendarValue<I, B>>>,
     ) {
         for prop in props.into_iter().flat_map(|prop| prop.into_array()) {
             let mut prop = prop.into_iter();
@@ -126,10 +126,10 @@ impl ICalendarComponent {
     }
 }
 
-pub(super) fn convert_value<'x, I: JSCalendarId>(
-    value: Value<'x, JSCalendarProperty<I>, JSCalendarValue<I>>,
+pub(super) fn convert_value<'x, I: JSCalendarId, B: JSCalendarId>(
+    value: Value<'x, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
     value_type: &'_ ValueType,
-) -> Result<ICalendarValue, Value<'x, JSCalendarProperty<I>, JSCalendarValue<I>>> {
+) -> Result<ICalendarValue, Value<'x, JSCalendarProperty<I>, JSCalendarValue<I, B>>> {
     match value {
         Value::Element(e) => match e {
             JSCalendarValue::CalendarScale(v) => Ok(ICalendarValue::CalendarScale(v)),
@@ -152,6 +152,7 @@ pub(super) fn convert_value<'x, I: JSCalendarId>(
             | JSCalendarValue::LinkRelation(_)
             | JSCalendarValue::Type(_)
             | JSCalendarValue::Id(_)
+            | JSCalendarValue::BlobId(_)
             | JSCalendarValue::IdReference(_) => Err(Value::Element(e)),
         },
         Value::Str(s) => {
@@ -291,12 +292,12 @@ pub(super) fn convert_value<'x, I: JSCalendarId>(
     }
 }
 
-impl<'x, I: JSCalendarId> ConvertedComponent<'x, I> {
+impl<'x, I: JSCalendarId, B: JSCalendarId> ConvertedComponent<'x, I, B> {
     #[allow(clippy::type_complexity)]
     pub(super) fn try_from_object(
         obj: Vec<(
             Key<'x, JSCalendarProperty<I>>,
-            Value<'x, JSCalendarProperty<I>, JSCalendarValue<I>>,
+            Value<'x, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
         )>,
     ) -> Option<Self> {
         let mut converted = ConvertedComponent {
@@ -377,7 +378,7 @@ impl<'x, I: JSCalendarId> ConvertedComponent<'x, I> {
     }
 
     pub(super) fn build(
-        entries: &mut Map<'x, JSCalendarProperty<I>, JSCalendarValue<I>>,
+        entries: &mut Map<'x, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
     ) -> Option<Self> {
         for (property, value) in entries.as_mut_vec() {
             if let (Key::Property(JSCalendarProperty::ICalComponent), Value::Object(obj)) =

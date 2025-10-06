@@ -15,9 +15,21 @@ use crate::{
 use jmap_tools::{JsonPointer, Key, Map, Value};
 
 impl ICalendar {
-    pub fn into_jscalendar<I: JSCalendarId>(mut self) -> JSCalendar<'static, I> {
+    pub fn into_jscalendar<I: JSCalendarId, B: JSCalendarId>(
+        mut self,
+    ) -> JSCalendar<'static, I, B> {
         JSCalendar(
-            self.to_jscalendar(&self.build_owned_tz_resolver(), 0)
+            self.to_jscalendar(&self.build_owned_tz_resolver(), 0, true)
+                .into_object(),
+        )
+    }
+
+    pub fn into_jscalendar_with_params<I: JSCalendarId, B: JSCalendarId>(
+        mut self,
+        include_ical_converted: bool,
+    ) -> JSCalendar<'static, I, B> {
+        JSCalendar(
+            self.to_jscalendar(&self.build_owned_tz_resolver(), 0, include_ical_converted)
                 .into_object(),
         )
     }
@@ -25,12 +37,16 @@ impl ICalendar {
 
 impl ICalendar {
     #[allow(clippy::wrong_self_convention)]
-    pub(super) fn to_jscalendar<I: JSCalendarId>(
+    pub(super) fn to_jscalendar<I: JSCalendarId, B: JSCalendarId>(
         &mut self,
         tz_resolver: &TzResolver<String>,
         component_id: u32,
-    ) -> State<I> {
-        let mut state = State::default();
+        include_ical_converted: bool,
+    ) -> State<I, B> {
+        let mut state = State {
+            include_ical_converted,
+            ..Default::default()
+        };
 
         // Take component
         let Some(component) = self.components.get_mut(component_id as usize) else {
@@ -55,7 +71,11 @@ impl ICalendar {
                     ICalendarComponentType::VCalendar,
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
                 ) => {
-                    group_components.push(self.to_jscalendar(tz_resolver, component_id));
+                    group_components.push(self.to_jscalendar(
+                        tz_resolver,
+                        component_id,
+                        include_ical_converted,
+                    ));
                 }
                 (
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
@@ -70,7 +90,8 @@ impl ICalendar {
                         }
                         _ => unreachable!(),
                     });
-                    let mut subcomponent_state = self.to_jscalendar(tz_resolver, component_id);
+                    let mut subcomponent_state =
+                        self.to_jscalendar(tz_resolver, component_id, include_ical_converted);
                     let jsid = subcomponent_state.jsid.take();
                     let subcomponent = subcomponent_state.into_object();
                     entries.insert_named(jsid, subcomponent);
@@ -129,7 +150,8 @@ impl ICalendar {
                     .get_mut_object_or_insert(JSCalendarProperty::Alerts)
                     .insert_unchecked(
                         Key::from(jsid),
-                        self.to_jscalendar(tz_resolver, component_id).into_object(),
+                        self.to_jscalendar(tz_resolver, component_id, include_ical_converted)
+                            .into_object(),
                     );
             }
         }
@@ -179,7 +201,7 @@ impl ICalendar {
         }
 
         // Build unsupported component jcal
-        if !unsupported_component_ids.is_empty() {
+        if include_ical_converted && !unsupported_component_ids.is_empty() {
             let mut component_iter = unsupported_component_ids.into_iter();
             let mut component_stack = Vec::with_capacity(4);
             let mut components = vec![];
@@ -1461,7 +1483,7 @@ impl ICalendar {
                     | ICalendarComponentType::VTodo
                     | ICalendarComponentType::VAlarm,
                 ) => {
-                    let mut rels: Map<'_, JSCalendarProperty<I>, JSCalendarValue<I>> =
+                    let mut rels: Map<'_, JSCalendarProperty<I>, JSCalendarValue<I, B>> =
                         Map::from(vec![]);
                     for param in std::mem::take(&mut entry.entry.params) {
                         match (param.name, param.value) {

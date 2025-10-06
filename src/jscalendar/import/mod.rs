@@ -22,18 +22,18 @@ pub mod props;
 
 #[derive(Default)]
 #[allow(clippy::type_complexity)]
-struct State<I: JSCalendarId> {
+struct State<I: JSCalendarId, B: JSCalendarId> {
     component_type: ICalendarComponentType,
     entries: AHashMap<
         Key<'static, JSCalendarProperty<I>>,
-        Value<'static, JSCalendarProperty<I>, JSCalendarValue<I>>,
+        Value<'static, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
     >,
-    ical_converted_properties: AHashMap<String, ICalendarConvertedProperty<I>>,
-    ical_properties: Vec<Value<'static, JSCalendarProperty<I>, JSCalendarValue<I>>>,
-    ical_components: Option<Value<'static, JSCalendarProperty<I>, JSCalendarValue<I>>>,
+    ical_converted_properties: AHashMap<String, ICalendarConvertedProperty<I, B>>,
+    ical_properties: Vec<Value<'static, JSCalendarProperty<I>, JSCalendarValue<I, B>>>,
+    ical_components: Option<Value<'static, JSCalendarProperty<I>, JSCalendarValue<I, B>>>,
     patch_objects: Vec<(
         JsonPointer<JSCalendarProperty<I>>,
-        Value<'static, JSCalendarProperty<I>, JSCalendarValue<I>>,
+        Value<'static, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
     )>,
     jsid: Option<String>,
     uid: Option<String>,
@@ -43,20 +43,21 @@ struct State<I: JSCalendarId> {
     has_dates: bool,
     map_component: bool,
     is_recurrence_instance: bool,
+    include_ical_converted: bool,
 }
 
 #[derive(Debug, Default)]
-struct ICalendarConvertedProperty<I: JSCalendarId> {
+struct ICalendarConvertedProperty<I: JSCalendarId, B: JSCalendarId> {
     name: Option<ICalendarProperty>,
-    params: ICalendarParams<I>,
+    params: ICalendarParams<I, B>,
 }
 
 #[derive(Debug, Default)]
 #[allow(clippy::type_complexity)]
-struct ICalendarParams<I: JSCalendarId>(
+struct ICalendarParams<I: JSCalendarId, B: JSCalendarId>(
     AHashMap<
         ICalendarParameterName,
-        Vec<Value<'static, JSCalendarProperty<I>, JSCalendarValue<I>>>,
+        Vec<Value<'static, JSCalendarProperty<I>, JSCalendarValue<I, B>>>,
     >,
 );
 

@@ -51,6 +51,7 @@ where
     has_n: bool,
     has_n_localization: bool,
     has_gram_gender: bool,
+    include_vcard_converted: bool,
 }
 
 #[derive(Debug, Clone)]

@@ -354,6 +354,17 @@ impl ArchivedICalendarDuration {
 
         if self.neg { -secs } else { secs }
     }
+
+    pub fn to_native(&self) -> ICalendarDuration {
+        ICalendarDuration {
+            neg: self.neg,
+            weeks: self.weeks.to_native(),
+            days: self.days.to_native(),
+            hours: self.hours.to_native(),
+            minutes: self.minutes.to_native(),
+            seconds: self.seconds.to_native(),
+        }
+    }
 }
 
 impl ArchivedICalendarMonth {

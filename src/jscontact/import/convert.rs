@@ -17,12 +17,23 @@ use crate::{
 use jmap_tools::{JsonPointer, Key, Map, Property, Value};
 
 impl VCard {
-    pub fn into_jscontact<I, B>(mut self) -> JSContact<'static, I, B>
+    pub fn into_jscontact<I, B>(self) -> JSContact<'static, I, B>
     where
         I: JSContactId,
         B: JSContactId,
     {
-        let mut state = State::new(&mut self);
+        self.into_jscontact_with_params(true)
+    }
+
+    pub fn into_jscontact_with_params<I, B>(
+        mut self,
+        include_vcard_converted: bool,
+    ) -> JSContact<'static, I, B>
+    where
+        I: JSContactId,
+        B: JSContactId,
+    {
+        let mut state = State::new(&mut self, include_vcard_converted);
 
         for entry in self.entries {
             let mut entry = EntryState::new(entry);

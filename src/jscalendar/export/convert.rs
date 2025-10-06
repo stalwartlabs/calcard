@@ -17,7 +17,7 @@ use chrono::{TimeDelta, TimeZone};
 use jmap_tools::{JsonPointer, JsonPointerHandler, JsonPointerItem, Key, Map, Value};
 use std::str::FromStr;
 
-impl<'x, I: JSCalendarId> JSCalendar<'x, I> {
+impl<'x, I: JSCalendarId, B: JSCalendarId> JSCalendar<'x, I, B> {
     pub fn into_icalendar(self) -> Option<ICalendar> {
         self.0.into_object().map(|entries| {
             let mut ical = ICalendar::default();
@@ -40,16 +40,16 @@ impl<'x, I: JSCalendarId> JSCalendar<'x, I> {
         })
     }
 
-    pub fn into_inner(self) -> Value<'x, JSCalendarProperty<I>, JSCalendarValue<I>> {
+    pub fn into_inner(self) -> Value<'x, JSCalendarProperty<I>, JSCalendarValue<I, B>> {
         self.0
     }
 }
 
 impl ICalendar {
     #[allow(clippy::wrong_self_convention)]
-    pub(super) fn from_jscalendar<I: JSCalendarId>(
+    pub(super) fn from_jscalendar<I: JSCalendarId, B: JSCalendarId>(
         &mut self,
-        mut state: State<'_, I>,
+        mut state: State<'_, I, B>,
         mut parent_component: Option<&mut ICalendarComponent>,
     ) {
         let mut root_conversions = None;
@@ -366,7 +366,7 @@ impl ICalendar {
                                                 JSCalendarParticipantRole::Attendee,
                                             )) => {}
                                             key => {
-                                                component.insert_jsprop::<I>(
+                                                component.insert_jsprop::<I, B>(
                                                     &[
                                                         property.to_string().as_ref(),
                                                         name.to_string().as_ref(),
@@ -1479,7 +1479,7 @@ impl ICalendar {
                                 ),
                             );
                         } else {
-                            component.insert_jsprop::<I>(
+                            component.insert_jsprop::<I, B>(
                                 &[property.to_string().as_ref()],
                                 Value::Element(JSCalendarValue::Duration(duration)),
                             );
@@ -1882,10 +1882,10 @@ impl ICalendar {
 }
 
 impl ICalendarComponent {
-    fn import_links<I: JSCalendarId>(
+    fn import_links<I: JSCalendarId, B: JSCalendarId>(
         &mut self,
-        obj: Map<'_, JSCalendarProperty<I>, JSCalendarValue<I>>,
-        conversion: &mut Option<ConvertedComponent<'_, I>>,
+        obj: Map<'_, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
+        conversion: &mut Option<ConvertedComponent<'_, I, B>>,
     ) {
         for (name, value) in obj.into_vec() {
             let mut entry = ICalendarEntry::new(ICalendarProperty::Link);
@@ -1979,10 +1979,10 @@ impl ICalendarComponent {
         }
     }
 
-    fn import_relations<I: JSCalendarId>(
+    fn import_relations<I: JSCalendarId, B: JSCalendarId>(
         &mut self,
-        obj: Map<'_, JSCalendarProperty<I>, JSCalendarValue<I>>,
-        conversion: &mut Option<ConvertedComponent<'_, I>>,
+        obj: Map<'_, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
+        conversion: &mut Option<ConvertedComponent<'_, I, B>>,
     ) {
         for (name, value) in obj.into_vec() {
             let mut entry = ICalendarEntry::new(ICalendarProperty::RelatedTo);
@@ -2041,10 +2041,10 @@ impl ICalendarComponent {
         }
     }
 
-    fn insert_jsprop<I: JSCalendarId>(
+    fn insert_jsprop<I: JSCalendarId, B: JSCalendarId>(
         &mut self,
         path: &[&str],
-        value: Value<'_, JSCalendarProperty<I>, JSCalendarValue<I>>,
+        value: Value<'_, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
     ) {
         self.entries.push(
             ICalendarEntry::new(ICalendarProperty::Jsprop)

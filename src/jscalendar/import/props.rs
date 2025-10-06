@@ -19,7 +19,7 @@ use ahash::AHashMap;
 use jmap_tools::{JsonPointer, JsonPointerHandler, Key, Map, Property, Value};
 use std::{borrow::Cow, collections::hash_map::Entry};
 
-impl<I: JSCalendarId> State<I> {
+impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
     pub(super) fn map_named_entry(
         &mut self,
         entry: &mut EntryState,
@@ -28,7 +28,7 @@ impl<I: JSCalendarId> State<I> {
         values: impl IntoIterator<
             Item = (
                 Key<'static, JSCalendarProperty<I>>,
-                Value<'static, JSCalendarProperty<I>, JSCalendarValue<I>>,
+                Value<'static, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
             ),
         >,
     ) {
@@ -81,44 +81,46 @@ impl<I: JSCalendarId> State<I> {
     }
 
     pub(super) fn add_conversion_props(&mut self, mut entry: EntryState) {
-        if let Some(converted_to) = entry.converted_to.take() {
-            if entry.map_name || !entry.entry.params.is_empty() {
-                let mut value_type = None;
+        if self.include_ical_converted {
+            if let Some(converted_to) = entry.converted_to.take() {
+                if entry.map_name || !entry.entry.params.is_empty() {
+                    let mut value_type = None;
 
-                match self.ical_converted_properties.entry(converted_to) {
-                    Entry::Occupied(mut conv_prop) => {
-                        entry.jcal_parameters(&mut conv_prop.get_mut().params, &mut value_type);
-                    }
-                    Entry::Vacant(conv_prop) => {
-                        let mut params = ICalendarParams::default();
-                        entry.jcal_parameters(&mut params, &mut value_type);
-                        if let Some(value_type) = value_type {
-                            params.0.insert(
-                                ICalendarParameterName::Value,
-                                vec![Value::Str(value_type.into_string())],
-                            );
+                    match self.ical_converted_properties.entry(converted_to) {
+                        Entry::Occupied(mut conv_prop) => {
+                            entry.jcal_parameters(&mut conv_prop.get_mut().params, &mut value_type);
                         }
-                        if !params.0.is_empty() || entry.map_name {
-                            conv_prop.insert(ICalendarConvertedProperty {
-                                name: if entry.map_name {
-                                    Some(entry.entry.name)
-                                } else {
-                                    None
-                                },
-                                params,
-                            });
+                        Entry::Vacant(conv_prop) => {
+                            let mut params = ICalendarParams::default();
+                            entry.jcal_parameters(&mut params, &mut value_type);
+                            if let Some(value_type) = value_type {
+                                params.0.insert(
+                                    ICalendarParameterName::Value,
+                                    vec![Value::Str(value_type.into_string())],
+                                );
+                            }
+                            if !params.0.is_empty() || entry.map_name {
+                                conv_prop.insert(ICalendarConvertedProperty {
+                                    name: if entry.map_name {
+                                        Some(entry.entry.name)
+                                    } else {
+                                        None
+                                    },
+                                    params,
+                                });
+                            }
                         }
                     }
                 }
+            } else {
+                self.ical_properties.push(entry.into_jcal());
             }
-        } else {
-            self.ical_properties.push(entry.into_jcal());
         }
     }
 
     pub(super) fn into_object(
         mut self,
-    ) -> Value<'static, JSCalendarProperty<I>, JSCalendarValue<I>> {
+    ) -> Value<'static, JSCalendarProperty<I>, JSCalendarValue<I, B>> {
         let mut ical_obj = Map::from(Vec::new());
         if !self.ical_converted_properties.is_empty() {
             let mut converted_properties =
@@ -252,7 +254,7 @@ impl<I: JSCalendarId> State<I> {
     pub(super) fn get_mut_object_or_insert(
         &mut self,
         key: JSCalendarProperty<I>,
-    ) -> &mut Map<'static, JSCalendarProperty<I>, JSCalendarValue<I>> {
+    ) -> &mut Map<'static, JSCalendarProperty<I>, JSCalendarValue<I, B>> {
         self.entries
             .entry(Key::Property(key))
             .or_insert_with(|| Value::Object(Map::from(Vec::new())))
@@ -278,9 +280,9 @@ impl EntryState {
         self.map_name = true;
     }
 
-    pub(super) fn into_jcal<I: JSCalendarId>(
+    pub(super) fn into_jcal<I: JSCalendarId, B: JSCalendarId>(
         mut self,
-    ) -> Value<'static, JSCalendarProperty<I>, JSCalendarValue<I>> {
+    ) -> Value<'static, JSCalendarProperty<I>, JSCalendarValue<I, B>> {
         let mut value_type = None;
         let mut params = ICalendarParams::default();
 
@@ -316,9 +318,9 @@ impl EntryState {
         ])
     }
 
-    pub(super) fn jcal_parameters<I: JSCalendarId>(
+    pub(super) fn jcal_parameters<I: JSCalendarId, B: JSCalendarId>(
         &mut self,
-        params: &mut ICalendarParams<I>,
+        params: &mut ICalendarParams<I, B>,
         value_type: &mut Option<IanaType<ICalendarValueType, String>>,
     ) {
         if self.entry.params.is_empty() {
