@@ -781,6 +781,7 @@ impl IanaParse for ICalendarParticipationRole {
             "REQ-PARTICIPANT" => ICalendarParticipationRole::ReqParticipant,
             "OPT-PARTICIPANT" => ICalendarParticipationRole::OptParticipant,
             "NON-PARTICIPANT" => ICalendarParticipationRole::NonParticipant,
+            "OWNER" => ICalendarParticipationRole::Owner,
         )
     }
 }
@@ -792,6 +793,7 @@ impl IanaString for ICalendarParticipationRole {
             ICalendarParticipationRole::ReqParticipant => "REQ-PARTICIPANT",
             ICalendarParticipationRole::OptParticipant => "OPT-PARTICIPANT",
             ICalendarParticipationRole::NonParticipant => "NON-PARTICIPANT",
+            ICalendarParticipationRole::Owner => "OWNER",
         }
     }
 }

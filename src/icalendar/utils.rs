@@ -275,6 +275,13 @@ impl ICalendarEntry {
             .is_some_and(|v| matches!(v, ICalendarParameterValue::Bool(true)))
     }
 
+    pub fn calendar_address(&self) -> Option<&str> {
+        self.values
+            .first()
+            .and_then(|v| v.as_text())
+            .map(|v| v.strip_prefix("mailto:").unwrap_or(v))
+    }
+
     pub fn size(&self) -> usize {
         self.values.iter().map(|value| value.size()).sum::<usize>()
             + self

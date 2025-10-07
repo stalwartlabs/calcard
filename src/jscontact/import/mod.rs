@@ -20,6 +20,11 @@ pub mod entry;
 pub mod params;
 pub mod props;
 
+#[derive(Debug, Clone, Copy)]
+pub struct ConversionOptions {
+    pub include_vcard_parameters: bool,
+}
+
 #[allow(clippy::type_complexity)]
 struct State<I, B>
 where
@@ -146,5 +151,20 @@ where
             .or_insert_with(|| Value::Object(Map::from(Vec::new())))
             .as_object_mut()
             .unwrap()
+    }
+}
+
+impl Default for ConversionOptions {
+    fn default() -> Self {
+        Self {
+            include_vcard_parameters: true,
+        }
+    }
+}
+
+impl ConversionOptions {
+    pub fn include_vcard_parameters(mut self, include: bool) -> Self {
+        self.include_vcard_parameters = include;
+        self
     }
 }

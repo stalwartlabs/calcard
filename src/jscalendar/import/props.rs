@@ -81,7 +81,7 @@ impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
     }
 
     pub(super) fn add_conversion_props(&mut self, mut entry: EntryState) {
-        if self.include_ical_converted {
+        if self.include_ical_components {
             if let Some(converted_to) = entry.converted_to.take() {
                 if entry.map_name || !entry.entry.params.is_empty() {
                     let mut value_type = None;

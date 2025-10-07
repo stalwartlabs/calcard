@@ -20,6 +20,12 @@ pub mod convert;
 pub mod params;
 pub mod props;
 
+#[derive(Debug, Clone, Copy)]
+pub struct ConversionOptions {
+    pub include_ical_components: bool,
+    pub return_first: bool,
+}
+
 #[derive(Default)]
 #[allow(clippy::type_complexity)]
 struct State<I: JSCalendarId, B: JSCalendarId> {
@@ -43,7 +49,7 @@ struct State<I: JSCalendarId, B: JSCalendarId> {
     has_dates: bool,
     map_component: bool,
     is_recurrence_instance: bool,
-    include_ical_converted: bool,
+    include_ical_components: bool,
 }
 
 #[derive(Debug, Default)]
@@ -66,4 +72,25 @@ struct EntryState {
     entry: ICalendarEntry,
     converted_to: Option<String>,
     map_name: bool,
+}
+
+impl Default for ConversionOptions {
+    fn default() -> Self {
+        Self {
+            include_ical_components: true,
+            return_first: false,
+        }
+    }
+}
+
+impl ConversionOptions {
+    pub fn include_ical_components(mut self, include: bool) -> Self {
+        self.include_ical_components = include;
+        self
+    }
+
+    pub fn return_first(mut self, return_first: bool) -> Self {
+        self.return_first = return_first;
+        self
+    }
 }

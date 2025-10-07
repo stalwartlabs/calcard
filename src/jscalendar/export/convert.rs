@@ -343,7 +343,8 @@ impl ICalendar {
                                                 role @ (JSCalendarParticipantRole::Optional
                                                 | JSCalendarParticipantRole::Informational
                                                 | JSCalendarParticipantRole::Chair
-                                                | JSCalendarParticipantRole::Required),
+                                                | JSCalendarParticipantRole::Required
+                                                | JSCalendarParticipantRole::Owner),
                                             )) => {
                                                 let role = match role {
                                                     JSCalendarParticipantRole::Optional => {
@@ -357,6 +358,9 @@ impl ICalendar {
                                                     }
                                                     JSCalendarParticipantRole::Required => {
                                                         ICalendarParticipationRole::ReqParticipant
+                                                    }
+                                                    JSCalendarParticipantRole::Owner => {
+                                                        ICalendarParticipationRole::Owner
                                                     }
                                                     _ => unreachable!(),
                                                 };

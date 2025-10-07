@@ -173,6 +173,9 @@ impl<I: JSCalendarId, B: JSCalendarId> ExtractParams
                                 ICalendarParticipationRole::NonParticipant => {
                                     JSCalendarParticipantRole::Informational
                                 }
+                                ICalendarParticipationRole::Owner => {
+                                    JSCalendarParticipantRole::Owner
+                                }
                             }))
                         }
                         ICalendarParameterValue::Text(value) => Key::Owned(value),

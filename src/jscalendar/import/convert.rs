@@ -8,7 +8,7 @@ use crate::{
     common::timezone::TzTimestamp,
     icalendar::{timezone::TzResolver, *},
     jscalendar::{
-        import::{EntryState, State, params::ExtractParams},
+        import::{ConversionOptions, EntryState, State, params::ExtractParams},
         *,
     },
 };
@@ -19,17 +19,21 @@ impl ICalendar {
         mut self,
     ) -> JSCalendar<'static, I, B> {
         JSCalendar(
-            self.to_jscalendar(&self.build_owned_tz_resolver(), 0, true)
-                .into_object(),
+            self.to_jscalendar(
+                &self.build_owned_tz_resolver(),
+                0,
+                &ConversionOptions::default(),
+            )
+            .into_object(),
         )
     }
 
-    pub fn into_jscalendar_with_params<I: JSCalendarId, B: JSCalendarId>(
+    pub fn into_jscalendar_with_opt<I: JSCalendarId, B: JSCalendarId>(
         mut self,
-        include_ical_converted: bool,
+        options: ConversionOptions,
     ) -> JSCalendar<'static, I, B> {
         JSCalendar(
-            self.to_jscalendar(&self.build_owned_tz_resolver(), 0, include_ical_converted)
+            self.to_jscalendar(&self.build_owned_tz_resolver(), 0, &options)
                 .into_object(),
         )
     }
@@ -41,10 +45,10 @@ impl ICalendar {
         &mut self,
         tz_resolver: &TzResolver<String>,
         component_id: u32,
-        include_ical_converted: bool,
+        options: &ConversionOptions,
     ) -> State<I, B> {
         let mut state = State {
-            include_ical_converted,
+            include_ical_components: options.include_ical_components,
             ..Default::default()
         };
 
@@ -71,11 +75,7 @@ impl ICalendar {
                     ICalendarComponentType::VCalendar,
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
                 ) => {
-                    group_components.push(self.to_jscalendar(
-                        tz_resolver,
-                        component_id,
-                        include_ical_converted,
-                    ));
+                    group_components.push(self.to_jscalendar(tz_resolver, component_id, options));
                 }
                 (
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
@@ -91,7 +91,7 @@ impl ICalendar {
                         _ => unreachable!(),
                     });
                     let mut subcomponent_state =
-                        self.to_jscalendar(tz_resolver, component_id, include_ical_converted);
+                        self.to_jscalendar(tz_resolver, component_id, options);
                     let jsid = subcomponent_state.jsid.take();
                     let subcomponent = subcomponent_state.into_object();
                     entries.insert_named(jsid, subcomponent);
@@ -150,7 +150,7 @@ impl ICalendar {
                     .get_mut_object_or_insert(JSCalendarProperty::Alerts)
                     .insert_unchecked(
                         Key::from(jsid),
-                        self.to_jscalendar(tz_resolver, component_id, include_ical_converted)
+                        self.to_jscalendar(tz_resolver, component_id, options)
                             .into_object(),
                     );
             }
@@ -196,12 +196,17 @@ impl ICalendar {
                             );
                     }
                 }
-                group_objects.push(component.into_object());
+
+                if !options.return_first {
+                    group_objects.push(component.into_object());
+                } else {
+                    return component;
+                }
             }
         }
 
         // Build unsupported component jcal
-        if include_ical_converted && !unsupported_component_ids.is_empty() {
+        if options.include_ical_components && !unsupported_component_ids.is_empty() {
             let mut component_iter = unsupported_component_ids.into_iter();
             let mut component_stack = Vec::with_capacity(4);
             let mut components = vec![];

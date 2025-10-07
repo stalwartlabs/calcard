@@ -491,6 +491,7 @@ impl ArchivedICalendarParticipationRole {
             ArchivedICalendarParticipationRole::ReqParticipant => "REQ-PARTICIPANT",
             ArchivedICalendarParticipationRole::OptParticipant => "OPT-PARTICIPANT",
             ArchivedICalendarParticipationRole::NonParticipant => "NON-PARTICIPANT",
+            ArchivedICalendarParticipationRole::Owner => "OWNER",
         }
     }
 }

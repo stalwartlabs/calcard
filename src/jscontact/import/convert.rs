@@ -7,7 +7,7 @@
 use crate::{
     jscontact::{
         JSContact, JSContactId, JSContactKind, JSContactProperty, JSContactValue,
-        import::{EntryState, GetObjectOrCreate, State},
+        import::{ConversionOptions, EntryState, GetObjectOrCreate, State},
     },
     vcard::{
         Jscomp, VCard, VCardParameter, VCardParameterName, VCardParameterValue, VCardProperty,
@@ -22,18 +22,18 @@ impl VCard {
         I: JSContactId,
         B: JSContactId,
     {
-        self.into_jscontact_with_params(true)
+        self.into_jscontact_with_options(ConversionOptions::default())
     }
 
-    pub fn into_jscontact_with_params<I, B>(
+    pub fn into_jscontact_with_options<I, B>(
         mut self,
-        include_vcard_converted: bool,
+        options: ConversionOptions,
     ) -> JSContact<'static, I, B>
     where
         I: JSContactId,
         B: JSContactId,
     {
-        let mut state = State::new(&mut self, include_vcard_converted);
+        let mut state = State::new(&mut self, options.include_vcard_parameters);
 
         for entry in self.entries {
             let mut entry = EntryState::new(entry);
