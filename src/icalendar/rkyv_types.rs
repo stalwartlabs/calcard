@@ -404,16 +404,6 @@ impl ArchivedICalendarComponentType {
             ArchivedICalendarComponentType::Other(name) => name.as_str(),
         }
     }
-
-    pub fn has_time_ranges(&self) -> bool {
-        matches!(
-            self,
-            ArchivedICalendarComponentType::VEvent
-                | ArchivedICalendarComponentType::VTodo
-                | ArchivedICalendarComponentType::VJournal
-                | ArchivedICalendarComponentType::VFreebusy
-        )
-    }
 }
 
 impl ArchivedICalendarDisplayType {

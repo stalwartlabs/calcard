@@ -16,7 +16,7 @@ use crate::{
         ICalendarMonth, ICalendarSkip, ICalendarWeekday,
     },
 };
-use jmap_tools::{JsonPointer, Value};
+use jmap_tools::{JsonPointer, Key, Map, Value};
 use mail_parser::DateTime;
 use serde::Serialize;
 use std::{borrow::Cow, fmt::Debug, fmt::Display, hash::Hash, str::FromStr};
@@ -221,7 +221,16 @@ impl<I: JSCalendarId, B: JSCalendarId> From<I> for JSCalendarValue<I, B> {
 
 impl<'x, I: JSCalendarId, B: JSCalendarId> Default for JSCalendar<'x, I, B> {
     fn default() -> Self {
-        Self(Value::Object(jmap_tools::Map::new()))
+        Self(Value::Object(Map::from(vec![
+            (
+                Key::Property(JSCalendarProperty::Type),
+                Value::Element(JSCalendarValue::Type(JSCalendarType::Group)),
+            ),
+            (
+                Key::Property(JSCalendarProperty::Entries),
+                Value::Array(vec![]),
+            ),
+        ])))
     }
 }
 
@@ -327,7 +336,6 @@ pub enum JSCalendarProgress {
     InProcess,
     Completed,
     Failed,
-    Cancelled,
 }
 
 // JSCalendar Enum Values for relation (Context: Relation)

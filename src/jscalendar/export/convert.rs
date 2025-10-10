@@ -496,9 +496,6 @@ impl ICalendar {
                                         JSCalendarProgress::Failed => {
                                             ICalendarParticipationStatus::Failed
                                         }
-                                        JSCalendarProgress::Cancelled => {
-                                            ICalendarParticipationStatus::Declined
-                                        }
                                     }));
                             }
                             (Some(status), _) => {
@@ -1605,7 +1602,6 @@ impl ICalendar {
                                 JSCalendarProgress::InProcess => ICalendarStatus::InProcess,
                                 JSCalendarProgress::Completed => ICalendarStatus::Completed,
                                 JSCalendarProgress::Failed => ICalendarStatus::Failed,
-                                JSCalendarProgress::Cancelled => ICalendarStatus::Cancelled,
                             })
                             .import_converted(
                                 &[JSCalendarProperty::Progress],

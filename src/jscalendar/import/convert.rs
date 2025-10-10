@@ -1608,9 +1608,6 @@ impl ICalendar {
                     state.entries.insert(
                         Key::Property(JSCalendarProperty::Progress),
                         match value {
-                            ICalendarStatus::Cancelled => Value::Element(
-                                JSCalendarValue::Progress(JSCalendarProgress::Cancelled),
-                            ),
                             ICalendarStatus::NeedsAction => Value::Element(
                                 JSCalendarValue::Progress(JSCalendarProgress::NeedsAction),
                             ),

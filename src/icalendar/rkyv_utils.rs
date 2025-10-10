@@ -367,6 +367,63 @@ impl ArchivedICalendarDuration {
     }
 }
 
+impl ArchivedICalendarComponentType {
+    pub fn has_time_ranges(&self) -> bool {
+        matches!(
+            self,
+            ArchivedICalendarComponentType::VEvent
+                | ArchivedICalendarComponentType::VTodo
+                | ArchivedICalendarComponentType::VJournal
+                | ArchivedICalendarComponentType::VFreebusy
+        )
+    }
+
+    pub fn is_scheduling_object(&self) -> bool {
+        matches!(
+            self,
+            ArchivedICalendarComponentType::VEvent
+                | ArchivedICalendarComponentType::VTodo
+                | ArchivedICalendarComponentType::VJournal
+                | ArchivedICalendarComponentType::VFreebusy
+        )
+    }
+
+    pub fn is_event(&self) -> bool {
+        matches!(self, ArchivedICalendarComponentType::VEvent)
+    }
+
+    pub fn is_todo(&self) -> bool {
+        matches!(self, ArchivedICalendarComponentType::VTodo)
+    }
+
+    pub fn is_event_or_todo(&self) -> bool {
+        matches!(
+            self,
+            ArchivedICalendarComponentType::VEvent | ArchivedICalendarComponentType::VTodo
+        )
+    }
+
+    pub fn is_journal(&self) -> bool {
+        matches!(self, ArchivedICalendarComponentType::VJournal)
+    }
+
+    pub fn is_freebusy(&self) -> bool {
+        matches!(self, ArchivedICalendarComponentType::VFreebusy)
+    }
+
+    pub fn is_location(&self) -> bool {
+        matches!(self, ArchivedICalendarComponentType::VLocation)
+    }
+
+    pub fn is_alarm(&self) -> bool {
+        matches!(self, ArchivedICalendarComponentType::VAlarm)
+    }
+
+    pub fn is_participant(&self) -> bool {
+        matches!(self, ArchivedICalendarComponentType::Participant)
+    }
+}
+
 impl ArchivedICalendarMonth {
     pub fn is_leap(&self) -> bool {
         self.0 < 0
