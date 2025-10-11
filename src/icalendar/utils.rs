@@ -403,6 +403,13 @@ impl ICalendarComponentType {
         matches!(self, ICalendarComponentType::VTodo)
     }
 
+    pub fn is_event_or_todo(&self) -> bool {
+        matches!(
+            self,
+            ICalendarComponentType::VEvent | ICalendarComponentType::VTodo
+        )
+    }
+
     pub fn is_journal(&self) -> bool {
         matches!(self, ICalendarComponentType::VJournal)
     }
