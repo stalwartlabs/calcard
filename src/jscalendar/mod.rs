@@ -451,3 +451,9 @@ pub(crate) fn uuid5(text: impl AsRef<[u8]>) -> String {
         .hyphenated()
         .to_string()
 }
+
+impl<I: JSCalendarId> Display for JSCalendarProperty<I> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.to_string().as_ref())
+    }
+}

@@ -1,3 +1,8 @@
+calcard 0.3.0
+================================
+- JMAP for Calendars support.
+- JMAP for Contacts support.
+
 calcard 0.2.0
 ================================
 - JSCalendar parsing and conversion to iCalendar format.
