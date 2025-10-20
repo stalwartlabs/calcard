@@ -1,3 +1,8 @@
+calcard 0.3.1
+================================
+- Fixed jcal implementation to use lowercase property and component names.
+- Updated conversion rules according to the latest JSCalendar-bis specification.
+
 calcard 0.3.0
 ================================
 - JMAP for Calendars support.

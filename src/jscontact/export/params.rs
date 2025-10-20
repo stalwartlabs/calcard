@@ -161,7 +161,7 @@ where
             let mut prop = prop.into_iter();
             let Some(name) = prop.next().and_then(|v| v.into_string()).map(|name| {
                 VCardProperty::parse(name.as_bytes())
-                    .unwrap_or(VCardProperty::Other(name.into_owned()))
+                    .unwrap_or(VCardProperty::Other(name.to_ascii_uppercase()))
             }) else {
                 continue;
             };
@@ -171,7 +171,7 @@ where
             let Some(value_type) = prop.next().and_then(|v| v.into_string()).map(|v| {
                 match VCardValueType::parse(v.as_bytes()) {
                     Some(v) => IanaType::Iana(v),
-                    None => IanaType::Other(v.into_owned()),
+                    None => IanaType::Other(v.to_ascii_uppercase()),
                 }
             }) else {
                 continue;

@@ -594,7 +594,7 @@ pub enum ICalendarParticipationRole {
     ReqParticipant, // [RFC5545, Section 3.2.16]
     OptParticipant, // [RFC5545, Section 3.2.16]
     NonParticipant, // [RFC5545, Section 3.2.16]
-    Owner,          // JSCalendar, not defined in RFC5545
+    Owner,          // JSCalendar
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

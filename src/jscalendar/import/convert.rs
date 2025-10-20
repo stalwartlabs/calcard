@@ -221,7 +221,12 @@ impl ICalendar {
                     }
 
                     components.push(Value::Array(vec![
-                        Value::Str(std::mem::take(&mut component.component_type).into_string()),
+                        Value::Str(
+                            std::mem::take(&mut component.component_type)
+                                .into_string()
+                                .to_ascii_lowercase()
+                                .into(),
+                        ),
                         Value::Array(entries),
                         Value::Array(vec![]),
                     ]));
@@ -264,10 +269,12 @@ impl ICalendar {
             ICalendarProperty::Dtend
             | ICalendarProperty::Due
             | ICalendarProperty::Location
-            | ICalendarProperty::Name => 2,
+            | ICalendarProperty::Name
+            | ICalendarProperty::Attendee => 2,
             _ => 3,
         });
         let mut start_date = None;
+        let mut has_owner = false;
 
         for entry in entries {
             let mut entry = EntryState::new(entry);
@@ -441,6 +448,9 @@ impl ICalendar {
                                     Value::Element(JSCalendarValue::Progress(status)),
                                 ));
                             }
+                            (ICalendarParameterName::Role, ICalendarParameterValue::Role(role)) => {
+                                has_owner |= matches!(role, ICalendarParticipationRole::Owner);
+                            }
                             _ => {}
                         }
                     }
@@ -471,15 +481,6 @@ impl ICalendar {
                                 Value::Element(JSCalendarValue::Type(JSCalendarType::Participant)),
                             )),
                             progress,
-                            Some((
-                                Key::Property(JSCalendarProperty::Roles),
-                                Value::Object(Map::from(vec![(
-                                    Key::Property(JSCalendarProperty::ParticipantRole(
-                                        JSCalendarParticipantRole::Attendee,
-                                    )),
-                                    Value::Bool(true),
-                                )])),
-                            )),
                         ]
                         .into_iter()
                         .flatten(),
@@ -494,21 +495,50 @@ impl ICalendar {
                         Key::Property(JSCalendarProperty::OrganizerCalendarAddress),
                         Value::Str(uri.clone().into()),
                     );
-                    state.map_named_entry(
-                        &mut entry,
-                        &[ICalendarParameterName::Cn, ICalendarParameterName::Jsid],
-                        JSCalendarProperty::Participants,
-                        [
-                            (
-                                Key::Property(JSCalendarProperty::CalendarAddress),
-                                Value::Str(uri.to_string().into()),
-                            ),
-                            (
-                                Key::Property(JSCalendarProperty::Type),
-                                Value::Element(JSCalendarValue::Type(JSCalendarType::Participant)),
-                            ),
-                        ],
-                    );
+
+                    /*
+                     It also converts to a Participant object in the "participants" property,
+                     if any of its parameters convert to a Participant object property, or
+                     if none of the ATTENDEE properties in the iCalendar component have
+                     the ROLE parameter set to "OWNER"
+                    */
+
+                    if !has_owner
+                        || entry.entry.params.iter().any(|p| {
+                            matches!(
+                                p.name,
+                                ICalendarParameterName::Cn
+                                    | ICalendarParameterName::Email
+                                    | ICalendarParameterName::SentBy
+                                    | ICalendarParameterName::Jsid
+                            )
+                        })
+                    {
+                        state.map_named_entry(
+                            &mut entry,
+                            &[
+                                ICalendarParameterName::Cn,
+                                ICalendarParameterName::Email,
+                                ICalendarParameterName::SentBy,
+                                ICalendarParameterName::Jsid,
+                            ],
+                            JSCalendarProperty::Participants,
+                            [
+                                (
+                                    Key::Property(JSCalendarProperty::CalendarAddress),
+                                    Value::Str(uri.to_string().into()),
+                                ),
+                                (
+                                    Key::Property(JSCalendarProperty::Type),
+                                    Value::Element(JSCalendarValue::Type(
+                                        JSCalendarType::Participant,
+                                    )),
+                                ),
+                            ],
+                        );
+                    } else {
+                        continue;
+                    }
                 }
                 (
                     ICalendarProperty::CalendarAddress,

@@ -359,7 +359,6 @@ pub enum JSCalendarRelativeTo {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum JSCalendarParticipantRole {
     Owner,
-    Attendee,
     Optional,
     Informational,
     Chair,

@@ -588,7 +588,6 @@ impl FromStr for JSCalendarParticipantRole {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         hashify::tiny_map!(s.as_bytes(),
             "owner" => JSCalendarParticipantRole::Owner,
-            "attendee" => JSCalendarParticipantRole::Attendee,
             "optional" => JSCalendarParticipantRole::Optional,
             "informational" => JSCalendarParticipantRole::Informational,
             "chair" => JSCalendarParticipantRole::Chair,
@@ -602,7 +601,6 @@ impl JSCalendarParticipantRole {
     pub fn as_str(&self) -> &'static str {
         match self {
             JSCalendarParticipantRole::Owner => "owner",
-            JSCalendarParticipantRole::Attendee => "attendee",
             JSCalendarParticipantRole::Optional => "optional",
             JSCalendarParticipantRole::Informational => "informational",
             JSCalendarParticipantRole::Chair => "chair",

@@ -340,11 +340,7 @@ impl ICalendar {
                                     for key in obj.into_expanded_boolean_set() {
                                         match key {
                                             Key::Property(JSCalendarProperty::ParticipantRole(
-                                                role @ (JSCalendarParticipantRole::Optional
-                                                | JSCalendarParticipantRole::Informational
-                                                | JSCalendarParticipantRole::Chair
-                                                | JSCalendarParticipantRole::Required
-                                                | JSCalendarParticipantRole::Owner),
+                                                role,
                                             )) => {
                                                 let role = match role {
                                                     JSCalendarParticipantRole::Optional => {
@@ -362,13 +358,9 @@ impl ICalendar {
                                                     JSCalendarParticipantRole::Owner => {
                                                         ICalendarParticipationRole::Owner
                                                     }
-                                                    _ => unreachable!(),
                                                 };
                                                 entry.params.push(ICalendarParameter::role(role));
                                             }
-                                            Key::Property(JSCalendarProperty::ParticipantRole(
-                                                JSCalendarParticipantRole::Attendee,
-                                            )) => {}
                                             key => {
                                                 component.insert_jsprop::<I, B>(
                                                     &[

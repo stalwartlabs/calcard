@@ -292,7 +292,7 @@ where
                 if is_context && typ.eq_ignore_ascii_case("private") {
                     types.push(IanaType::Iana(VCardType::Home));
                 } else {
-                    types.push(IanaType::Other(typ.into_owned()));
+                    types.push(IanaType::Other(typ.to_ascii_uppercase()));
                 }
             }
         }
@@ -347,7 +347,7 @@ where
             }
             Value::Str(text) => match VCardPhonetic::parse(text.as_ref().as_bytes()) {
                 Some(phonetic) => Ok(IanaType::Iana(phonetic)),
-                None => Ok(IanaType::Other(text.into_owned())),
+                None => Ok(IanaType::Other(text.to_ascii_uppercase())),
             },
             _ => Err(()),
         }
@@ -373,7 +373,7 @@ where
             })),
             Value::Str(text) => match VCardLevel::parse(text.as_ref().as_bytes()) {
                 Some(level) => Ok(IanaType::Iana(level)),
-                None => Ok(IanaType::Other(text.into_owned())),
+                None => Ok(IanaType::Other(text.to_ascii_uppercase())),
             },
             _ => Err(()),
         }

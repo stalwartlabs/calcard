@@ -464,7 +464,7 @@ where
                     Value::Array(values)
                 };
                 self.vcard_properties.push(Value::Array(vec![
-                    Value::Str(entry.entry.name.as_str().to_string().into()),
+                    Value::Str(entry.entry.name.as_str().to_ascii_lowercase().into()),
                     Value::Object(
                         params
                             .into_jscontact_value()
@@ -561,7 +561,7 @@ where
                 if let Some(name) = props.name {
                     obj.insert(
                         Key::Property(JSContactProperty::Name),
-                        Value::Str(name.as_str().to_string().into()),
+                        Value::Str(name.as_str().to_ascii_lowercase().into()),
                     );
                 }
 

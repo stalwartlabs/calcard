@@ -41,7 +41,7 @@ impl<I: JSCalendarId, B: JSCalendarId> ConvertedComponent<'_, I, B> {
                         // Process the component
                         let mut sub_component = ICalendarComponent::new(
                             ICalendarComponentType::parse(name.as_bytes()).unwrap_or_else(|| {
-                                ICalendarComponentType::Other(name.into_owned())
+                                ICalendarComponentType::Other(name.to_ascii_uppercase())
                             }),
                         );
                         sub_component.import_properties(properties);
@@ -80,7 +80,7 @@ impl ICalendarComponent {
             let mut prop = prop.into_iter();
             let Some(name) = prop.next().and_then(|v| v.into_string()).map(|name| {
                 ICalendarProperty::parse(name.as_bytes())
-                    .unwrap_or(ICalendarProperty::Other(name.into_owned()))
+                    .unwrap_or(ICalendarProperty::Other(name.to_ascii_uppercase()))
             }) else {
                 continue;
             };
@@ -92,7 +92,7 @@ impl ICalendarComponent {
                     .and_then(|v| v.into_string())
                     .map(|v| match ICalendarValueType::parse(v.as_bytes()) {
                         Some(v) => IanaType::Iana(v),
-                        None => IanaType::Other(v.into_owned()),
+                        None => IanaType::Other(v.to_ascii_uppercase()),
                     })
             else {
                 continue;
@@ -356,8 +356,10 @@ impl<'x, I: JSCalendarId, B: JSCalendarId> ConvertedComponent<'x, I, B> {
                     converted.components = array;
                 }
                 (Key::Property(JSCalendarProperty::Name), Value::Str(text)) => {
-                    converted.name = ICalendarComponentType::parse(text.as_bytes())
-                        .unwrap_or_else(|| ICalendarComponentType::Other(text.into_owned()));
+                    converted.name =
+                        ICalendarComponentType::parse(text.as_bytes()).unwrap_or_else(|| {
+                            ICalendarComponentType::Other(text.to_ascii_uppercase())
+                        });
                     has_name = true;
                 }
                 _ => {}

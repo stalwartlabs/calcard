@@ -30,7 +30,7 @@ impl VCardEntry {
                 Key::Property(JSContactProperty::Name) => {
                     if let Some(name) = value.into_string() {
                         self.name = VCardProperty::parse(name.as_bytes())
-                            .unwrap_or(VCardProperty::Other(name.into_owned()));
+                            .unwrap_or(VCardProperty::Other(name.to_ascii_uppercase()));
                     }
                 }
                 Key::Property(JSContactProperty::Parameters) => {
@@ -67,7 +67,7 @@ impl VCardEntry {
 
                 for value in values {
                     self.params.push(VCardParameter {
-                        name: VCardParameterName::Other(key.clone()),
+                        name: VCardParameterName::Other(key.to_ascii_uppercase()),
                         value: value.into_string().into_owned().into(),
                     });
                 }

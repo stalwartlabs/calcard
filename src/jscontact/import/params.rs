@@ -270,7 +270,7 @@ impl<I: JSContactId, B: JSContactId> VCardParams<I, B> {
                 } else {
                     value.into_iter().next().unwrap()
                 };
-                obj.insert_unchecked(Key::from(param.into_string()), value);
+                obj.insert_unchecked(Key::Owned(param.into_string().to_ascii_lowercase()), value);
             }
             Some(obj)
         } else {

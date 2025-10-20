@@ -137,7 +137,7 @@ impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
                 if let Some(name) = props.name {
                     obj.insert(
                         Key::Property(JSCalendarProperty::Name),
-                        Value::Str(name.into_string()),
+                        Value::Str(name.into_string().to_ascii_lowercase().into()),
                     );
                 }
 
@@ -303,7 +303,7 @@ impl EntryState {
             Value::Array(values)
         };
         Value::Array(vec![
-            Value::Str(self.entry.name.as_str().to_string().into()),
+            Value::Str(self.entry.name.as_str().to_ascii_lowercase().into()),
             Value::Object(
                 params
                     .into_jscalendar_value()

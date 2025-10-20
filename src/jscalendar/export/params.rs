@@ -109,7 +109,7 @@ impl ICalendarEntry {
                 Key::Property(JSCalendarProperty::Name) => {
                     if let Some(name) = value.into_string() {
                         self.name = ICalendarProperty::parse(name.as_bytes())
-                            .unwrap_or(ICalendarProperty::Other(name.into_owned()));
+                            .unwrap_or(ICalendarProperty::Other(name.to_ascii_uppercase()));
                     }
                 }
                 Key::Property(JSCalendarProperty::Parameters) => {
@@ -143,7 +143,7 @@ impl ICalendarEntry {
 
                 for value in values {
                     self.params.push(ICalendarParameter {
-                        name: ICalendarParameterName::Other(key.clone()),
+                        name: ICalendarParameterName::Other(key.to_ascii_uppercase()),
                         value: value.into_string().into_owned().into(),
                     });
                 }
