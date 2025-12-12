@@ -383,7 +383,7 @@ impl<'x, I: JSCalendarId, B: JSCalendarId> ConvertedComponent<'x, I, B> {
         entries: &mut Map<'x, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
     ) -> Option<Self> {
         for (property, value) in entries.as_mut_vec() {
-            if let (Key::Property(JSCalendarProperty::ICalComponent), Value::Object(obj)) =
+            if let (Key::Property(JSCalendarProperty::ICalendar), Value::Object(obj)) =
                 (property, value)
             {
                 return Self::try_from_object(std::mem::take(obj.as_mut_vec()));

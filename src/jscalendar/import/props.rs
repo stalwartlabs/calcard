@@ -167,7 +167,7 @@ impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
                 Value::Str(self.component_type.as_str().to_ascii_lowercase().into()),
             );
             self.entries.insert(
-                Key::Property(JSCalendarProperty::ICalComponent),
+                Key::Property(JSCalendarProperty::ICalendar),
                 Value::Object(ical_obj),
             );
         }

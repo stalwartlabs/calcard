@@ -125,7 +125,7 @@ impl<I: JSCalendarId> FromStr for JSCalendarProperty<I> {
             "valueType" => JSCalendarProperty::ValueType,
             "convertedProperties" => JSCalendarProperty::ConvertedProperties,
             "parameters" => JSCalendarProperty::Parameters,
-            "iCalComponent" => JSCalendarProperty::ICalComponent,
+            "iCalendar" => JSCalendarProperty::ICalendar,
             "blobId" => JSCalendarProperty::BlobId,
         )
         .ok_or(())
@@ -248,7 +248,7 @@ impl<I: JSCalendarId> JSCalendarProperty<I> {
             JSCalendarProperty::ValueType => "valueType",
             JSCalendarProperty::ConvertedProperties => "convertedProperties",
             JSCalendarProperty::Parameters => "parameters",
-            JSCalendarProperty::ICalComponent => "iCalComponent",
+            JSCalendarProperty::ICalendar => "iCalendar",
             JSCalendarProperty::BlobId => "blobId",
             JSCalendarProperty::LinkDisplay(v) => v.as_str(),
             JSCalendarProperty::VirtualLocationFeature(v) => v.as_str(),

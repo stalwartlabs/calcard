@@ -65,7 +65,7 @@ impl ICalendar {
 
         for (key, value) in state.entries.as_mut_vec() {
             match (key, value) {
-                (Key::Property(JSCalendarProperty::ICalComponent), Value::Object(obj)) => {
+                (Key::Property(JSCalendarProperty::ICalendar), Value::Object(obj)) => {
                     root_conversions =
                         ConvertedComponent::try_from_object(std::mem::take(obj.as_mut_vec()));
                 }
@@ -412,8 +412,7 @@ impl ICalendar {
                                 }
                                 (
                                     Key::Property(
-                                        JSCalendarProperty::Type
-                                        | JSCalendarProperty::ICalComponent,
+                                        JSCalendarProperty::Type | JSCalendarProperty::ICalendar,
                                     ),
                                     _,
                                 ) => {}
@@ -608,8 +607,7 @@ impl ICalendar {
                             match (sub_property, value) {
                                 (
                                     Key::Property(
-                                        JSCalendarProperty::Type
-                                        | JSCalendarProperty::ICalComponent,
+                                        JSCalendarProperty::Type | JSCalendarProperty::ICalendar,
                                     ),
                                     _,
                                 ) => {}
@@ -915,8 +913,7 @@ impl ICalendar {
                                 }
                                 (
                                     Key::Property(
-                                        JSCalendarProperty::Type
-                                        | JSCalendarProperty::ICalComponent,
+                                        JSCalendarProperty::Type | JSCalendarProperty::ICalendar,
                                     ),
                                     _,
                                 ) => {}
@@ -1131,8 +1128,7 @@ impl ICalendar {
                                 }
                                 (
                                     Key::Property(
-                                        JSCalendarProperty::Type
-                                        | JSCalendarProperty::ICalComponent,
+                                        JSCalendarProperty::Type | JSCalendarProperty::ICalendar,
                                     ),
                                     _,
                                 ) => {}
@@ -1353,7 +1349,7 @@ impl ICalendar {
                             ) => {
                                 rrule.skip = Some(value);
                             }
-                            (JSCalendarProperty::Type | JSCalendarProperty::ICalComponent, _) => {}
+                            (JSCalendarProperty::Type | JSCalendarProperty::ICalendar, _) => {}
                             (key, value) => {
                                 component.insert_jsprop(
                                     &[
@@ -1688,7 +1684,7 @@ impl ICalendar {
                 // Skip previously processed properties
                 (
                     JSCalendarProperty::Type
-                    | JSCalendarProperty::ICalComponent
+                    | JSCalendarProperty::ICalendar
                     | JSCalendarProperty::Uid
                     | JSCalendarProperty::MainLocationId
                     | JSCalendarProperty::Start
@@ -1888,7 +1884,7 @@ impl ICalendarComponent {
             for (sub_property, value) in value.into_expanded_object() {
                 match (sub_property, value) {
                     (
-                        Key::Property(JSCalendarProperty::Type | JSCalendarProperty::ICalComponent),
+                        Key::Property(JSCalendarProperty::Type | JSCalendarProperty::ICalendar),
                         _,
                     ) => {}
                     (Key::Property(JSCalendarProperty::Href), Value::Str(text)) => {
@@ -2009,7 +2005,7 @@ impl ICalendarComponent {
                         }
                     }
                     (
-                        Key::Property(JSCalendarProperty::Type | JSCalendarProperty::ICalComponent),
+                        Key::Property(JSCalendarProperty::Type | JSCalendarProperty::ICalendar),
                         _,
                     ) => {}
                     (sub_property, value) => {

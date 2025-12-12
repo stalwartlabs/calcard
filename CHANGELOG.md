@@ -1,3 +1,8 @@
+calcard 0.3.2
+================================
+- Fixed vCard `CELL` to JSContact `mobile` mapping (#15).
+- Updated JSCalendar conversion rules according to `draft-ietf-calext-jscalendar-icalendar-21`.
+
 calcard 0.3.1
 ================================
 - Fixed jcal implementation to use lowercase property and component names.

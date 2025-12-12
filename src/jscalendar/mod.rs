@@ -185,7 +185,7 @@ pub enum JSCalendarProperty<I: JSCalendarId> {
     MainLocationId,
     OrganizerCalendarAddress,
     RecurrenceRule,
-    ICalComponent,
+    ICalendar,
     Properties,
     Parameters,
     ConvertedProperties,
