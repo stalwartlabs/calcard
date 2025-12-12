@@ -291,6 +291,8 @@ where
             None => {
                 if is_context && typ.eq_ignore_ascii_case("private") {
                     types.push(IanaType::Iana(VCardType::Home));
+                } else if !is_context && typ.eq_ignore_ascii_case("mobile") {
+                    types.push(IanaType::Iana(VCardType::Cell));
                 } else {
                     types.push(IanaType::Other(typ.to_ascii_uppercase()));
                 }

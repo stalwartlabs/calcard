@@ -79,10 +79,10 @@ impl ExtractedParams {
                     contexts.get_or_insert_default()
                 }
                 .push((
-                    if !matches!(typ, IanaType::Iana(VCardType::Home)) {
-                        Key::Owned(typ.into_string().to_ascii_lowercase())
-                    } else {
-                        Key::Borrowed("private")
+                    match typ {
+                        IanaType::Iana(VCardType::Home) => Key::Borrowed("private"),
+                        IanaType::Iana(VCardType::Cell) => Key::Borrowed("mobile"),
+                        _ => Key::Owned(typ.into_string().to_ascii_lowercase()),
                     },
                     Value::Bool(true),
                 ));
