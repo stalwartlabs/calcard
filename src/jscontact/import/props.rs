@@ -248,6 +248,50 @@ where
             }
 
             self.track_prop(&entry.entry, top_property_name, alt_id, prop_id);
+        } else {
+            // Handle entries with no value but meaningful parameters.
+            // SOCIALPROFILE/IMPP entries may have SERVICE-TYPE and USERNAME as
+            // parameters with an empty URI value. The uri field is optional in
+            // JSContact OnlineService (RFC 9553 Section 2.4.3), so these entries
+            // are valid and should not be silently dropped.
+            let mut params = self.extract_params(&mut entry.entry.params, extract);
+            if !params.has_service_info() {
+                return;
+            }
+
+            let prop_id = params.prop_id();
+            let alt_id = params.alt_id();
+            let sub_property = top_property_name.sub_property();
+
+            let mut entries = self.get_mut_object_or_insert(top_property_name.clone());
+            if let Some(sub_property) = sub_property.clone() {
+                entries = entries
+                    .insert_or_get_mut(sub_property, Value::Object(Map::from(vec![])))
+                    .as_object_mut()
+                    .unwrap();
+            }
+
+            let mut obj = Vec::new();
+            obj.extend(extra_properties);
+            obj.extend(params.into_iter(&entry.entry.name));
+            let prop_id = entries.insert_named(prop_id, Value::Object(Map::from(obj)));
+
+            if let Some(sub_property) = sub_property {
+                entry.set_converted_to::<I>(&[
+                    top_property_name.to_cow().as_ref(),
+                    sub_property.to_cow().as_ref(),
+                    prop_id.as_str(),
+                    value_property_name.to_cow().as_ref(),
+                ]);
+            } else {
+                entry.set_converted_to::<I>(&[
+                    top_property_name.to_cow().as_ref(),
+                    prop_id.as_str(),
+                    value_property_name.to_cow().as_ref(),
+                ]);
+            }
+
+            self.track_prop(&entry.entry, top_property_name, alt_id, prop_id);
         }
     }
 

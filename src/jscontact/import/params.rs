@@ -16,6 +16,12 @@ use crate::{
 use jmap_tools::{Key, Map, Value};
 
 impl ExtractedParams {
+    /// Returns true if this entry has online service parameters (SERVICE-TYPE or USERNAME)
+    /// that carry meaningful data even when the vCard entry value (URI) is empty.
+    pub(super) fn has_service_info(&self) -> bool {
+        self.service_type.is_some() || self.username.is_some()
+    }
+
     pub(super) fn prop_id(&mut self) -> Option<String> {
         self.prop_id.take()
     }
