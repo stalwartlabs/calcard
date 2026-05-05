@@ -64,7 +64,7 @@ impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
             .as_object_mut()
             .unwrap();
 
-        for (key, value) in values.chain(parameters.into_iter()) {
+        for (key, value) in values.chain(parameters) {
             if let Some(current_value) = obj.get_mut(&key) {
                 match (value, current_value) {
                     (Value::Object(new_obj), Value::Object(existing_obj)) => {
