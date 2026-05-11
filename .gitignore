@@ -2,3 +2,6 @@ _ignore
 Cargo.lock
 target
 .DS_Store
+*.md
+!CHANGELOG.md
+!README.md

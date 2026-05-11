@@ -1,5 +1,6 @@
 calcard 0.3.3
 ================================
+- Support `STATUS:CANCELLED` mapping from `VTODO` to JSCalendar (#20).
 - Fixed duration parsing for zero duration `PT0S`.
 
 calcard 0.3.2

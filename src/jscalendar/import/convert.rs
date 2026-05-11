@@ -1650,6 +1650,9 @@ impl ICalendar {
                             ICalendarStatus::Failed => Value::Element(JSCalendarValue::Progress(
                                 JSCalendarProgress::Failed,
                             )),
+                            ICalendarStatus::Cancelled => Value::Element(
+                                JSCalendarValue::Progress(JSCalendarProgress::Cancelled),
+                            ),
                             other => Value::Str(other.as_str().into()),
                         },
                     );

@@ -472,22 +472,27 @@ impl ICalendar {
                                 Some(JSCalendarParticipationStatus::Accepted) | None,
                                 Some(progress),
                             ) => {
-                                entry
-                                    .params
-                                    .push(ICalendarParameter::partstat(match progress {
-                                        JSCalendarProgress::NeedsAction => {
-                                            ICalendarParticipationStatus::NeedsAction
-                                        }
-                                        JSCalendarProgress::InProcess => {
-                                            ICalendarParticipationStatus::InProcess
-                                        }
-                                        JSCalendarProgress::Completed => {
-                                            ICalendarParticipationStatus::Completed
-                                        }
-                                        JSCalendarProgress::Failed => {
-                                            ICalendarParticipationStatus::Failed
-                                        }
-                                    }));
+                                let partstat = match progress {
+                                    JSCalendarProgress::NeedsAction => {
+                                        Some(ICalendarParticipationStatus::NeedsAction)
+                                    }
+                                    JSCalendarProgress::InProcess => {
+                                        Some(ICalendarParticipationStatus::InProcess)
+                                    }
+                                    JSCalendarProgress::Completed => {
+                                        Some(ICalendarParticipationStatus::Completed)
+                                    }
+                                    JSCalendarProgress::Failed => {
+                                        Some(ICalendarParticipationStatus::Failed)
+                                    }
+                                    // Not a valid Participant progress value per
+                                    // draft-ietf-calext-jscalendarbis section 4.4.5,
+                                    // and no iCalendar PARTSTAT equivalent exists.
+                                    JSCalendarProgress::Cancelled => None,
+                                };
+                                if let Some(partstat) = partstat {
+                                    entry.params.push(ICalendarParameter::partstat(partstat));
+                                }
                             }
                             (Some(status), _) => {
                                 entry
@@ -1590,6 +1595,7 @@ impl ICalendar {
                                 JSCalendarProgress::InProcess => ICalendarStatus::InProcess,
                                 JSCalendarProgress::Completed => ICalendarStatus::Completed,
                                 JSCalendarProgress::Failed => ICalendarStatus::Failed,
+                                JSCalendarProgress::Cancelled => ICalendarStatus::Cancelled,
                             })
                             .import_converted(
                                 &[JSCalendarProperty::Progress],

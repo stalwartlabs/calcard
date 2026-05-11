@@ -336,6 +336,7 @@ pub enum JSCalendarProgress {
     InProcess,
     Completed,
     Failed,
+    Cancelled,
 }
 
 // JSCalendar Enum Values for relation (Context: Relation)

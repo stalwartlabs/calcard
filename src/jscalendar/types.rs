@@ -518,6 +518,7 @@ impl FromStr for JSCalendarProgress {
             "in-process" => JSCalendarProgress::InProcess,
             "completed" => JSCalendarProgress::Completed,
             "failed" => JSCalendarProgress::Failed,
+            "cancelled" => JSCalendarProgress::Cancelled,
         )
         .ok_or(())
     }
@@ -530,6 +531,7 @@ impl JSCalendarProgress {
             JSCalendarProgress::InProcess => "in-process",
             JSCalendarProgress::Completed => "completed",
             JSCalendarProgress::Failed => "failed",
+            JSCalendarProgress::Cancelled => "cancelled",
         }
     }
 }
