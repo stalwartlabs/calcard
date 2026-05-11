@@ -446,6 +446,14 @@ impl Display for ArchivedICalendarDuration {
             write!(f, "-")?;
         }
         write!(f, "P")?;
+        if self.weeks == 0
+            && self.days == 0
+            && self.hours == 0
+            && self.minutes == 0
+            && self.seconds == 0
+        {
+            return write!(f, "T0S");
+        }
         if self.weeks != 0 {
             write!(f, "{}W", self.weeks)?;
         }

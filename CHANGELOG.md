@@ -1,3 +1,7 @@
+calcard 0.3.3
+================================
+- Fixed duration parsing for zero duration `PT0S`.
+
 calcard 0.3.2
 ================================
 - Fixed vCard `CELL` to JSContact `mobile` mapping (#15).

@@ -455,6 +455,9 @@ impl Display for ICalendarDuration {
             write!(f, "-")?;
         }
         write!(f, "P")?;
+        if self.is_empty() {
+            return write!(f, "T0S");
+        }
         if self.weeks != 0 {
             write!(f, "{}W", self.weeks)?;
         }
