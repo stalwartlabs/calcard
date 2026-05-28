@@ -122,14 +122,28 @@ impl VCardEntry {
             }
         }
 
-        if !is_v4
-            && self
+        if !is_v4 {
+            if self
                 .values
                 .iter()
                 .any(|v| matches!(v, VCardValue::Binary(_)))
-        {
-            write!(out, ";ENCODING=b")?;
-            line_len += 11;
+            {
+                write!(out, ";ENCODING=b")?;
+                line_len += 11;
+            }
+
+            if self.values.iter().any(|v| match v {
+                VCardValue::Text(s) => !s.is_ascii(),
+                VCardValue::Component(items) => items.iter().any(|s| !s.is_ascii()),
+                _ => false,
+            }) {
+                if line_len + 14 > 75 {
+                    write!(out, "\r\n ")?;
+                    line_len = 1;
+                }
+                write!(out, ";CHARSET=UTF-8")?;
+                line_len += 14;
+            }
         }
 
         write!(out, ":")?;

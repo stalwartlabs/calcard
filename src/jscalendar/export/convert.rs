@@ -485,9 +485,7 @@ impl ICalendar {
                                     JSCalendarProgress::Failed => {
                                         Some(ICalendarParticipationStatus::Failed)
                                     }
-                                    // Not a valid Participant progress value per
-                                    // draft-ietf-calext-jscalendarbis section 4.4.5,
-                                    // and no iCalendar PARTSTAT equivalent exists.
+                                    // Not a valid Participant progress value per section 4.4.5
                                     JSCalendarProgress::Cancelled => None,
                                 };
                                 if let Some(partstat) = partstat {
