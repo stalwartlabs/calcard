@@ -128,14 +128,28 @@ impl ArchivedVCardEntry {
             }
         }
 
-        if !is_v4
-            && self
+        if !is_v4 {
+            if self
                 .values
                 .iter()
                 .any(|v| matches!(v, ArchivedVCardValue::Binary(_)))
-        {
-            write!(out, ";ENCODING=b")?;
-            line_len += 11;
+            {
+                write!(out, ";ENCODING=b")?;
+                line_len += 11;
+            }
+
+            if self.values.iter().any(|v| match v {
+                ArchivedVCardValue::Text(s) => !s.is_ascii(),
+                ArchivedVCardValue::Component(items) => items.iter().any(|s| !s.is_ascii()),
+                _ => false,
+            }) {
+                if line_len + 14 > 75 {
+                    write!(out, "\r\n ")?;
+                    line_len = 1;
+                }
+                write!(out, ";CHARSET=UTF-8")?;
+                line_len += 14;
+            }
         }
 
         write!(out, ":")?;

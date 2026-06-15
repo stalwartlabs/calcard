@@ -1,3 +1,7 @@
+calcard 0.3.5
+================================
+- Include 'ENCODING=' when exporting vCard v3.0 and below.
+
 calcard 0.3.4
 ================================
 - Include `CHARSET=UTF-8` when exporting vCard v3.0 and below.

@@ -102,7 +102,7 @@ impl ICalendarComponent {
             }
         }
 
-        tz_name.and_then(|name| tz_id.or(tz_lic).or(tz_cdo_id).map(|tz| (name, tz)))
+        tz_name.zip(tz_id.or(tz_lic).or(tz_cdo_id))
     }
 }
 
