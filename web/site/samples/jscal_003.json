@@ -1,0 +1,38 @@
+{
+    "@type": "Group",
+    "entries": [
+        {
+            "@type": "Event",
+            "title": "Live from Music Bowl: The Band",
+            "description": "Go see the biggest music event ever!",
+            "locale": "en",
+            "start": "2020-07-04T17:00:00",
+            "timeZone": "America/New_York",
+            "duration": "PT3H",
+            "mainLocationId": "c0503d30-8c50-4372-87b5-7657e8e0fedd",
+            "locations": {
+                "c0503d30-8c50-4372-87b5-7657e8e0fedd": {
+                    "@type": "Location",
+                    "name": "The Music Bowl",
+                    "description": "Music Bowl, Central Park, New York",
+                    "coordinates": "geo:40.7829,-73.9654"
+                },
+                "ee42e41e-1046-4489-9760-c0b85f0dc176": {
+                    "@type": "Location",
+                    "name": "BAZ Parking, 9 West 57th Street, New York",
+                    "coordinates": "geo:40.7637,-73.9748",
+                    "locationTypes": {
+                        "parking": true
+                    }
+                }
+            },
+            "virtualLocations": {
+                "vloc1": {
+                    "@type": "VirtualLocation",
+                    "name": "Free live Stream from Music Bowl",
+                    "uri": "https://stream.example.com/the_band_2020"
+                }
+            }
+        }
+    ]
+}

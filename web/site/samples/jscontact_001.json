@@ -1,0 +1,62 @@
+{
+  "@type": "Card",
+  "language": "zh-Hant",
+  "name": {
+    "full": "John Q. Public, Esq.",
+    "components": [
+      {
+        "kind": "surname",
+        "value": "孫"
+      },
+      {
+        "kind": "given",
+        "value": "中山"
+      },
+      {
+        "kind": "given2",
+        "value": "文"
+      },
+      {
+        "kind": "given2",
+        "value": "逸仙"
+      }
+    ]
+  },
+  "localizations": {
+    "yue": {
+      "name/phoneticSystem": "jyut",
+      "name/phoneticScript": "Latn",
+      "name/components/0/phonetic": "syun1",
+      "name/components/1/phonetic": "zung1saan1",
+      "name/components/2/phonetic": "man4",
+      "name/components/3/phonetic": "jat6sin1"
+    }
+  },
+  "speakToAs": {
+    "grammaticalGender": "neuter",
+    "pronouns": {
+      "k1": {
+        "pronouns": "they/them",
+        "pref": 2
+      },
+      "k2": {
+        "pronouns": "xe/xir",
+        "pref": 1
+      }
+    }
+  },
+  "personalInfo": {
+    "k1": {
+      "kind": "expertise",
+      "value": "Chinese literature",
+      "level": "low",
+      "listAs": 2
+    },
+    "k2": {
+      "kind": "expertise",
+      "value": "chemistry",
+      "level": "high",
+      "listAs": 1
+    }
+  }
+}

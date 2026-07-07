@@ -1,0 +1,331 @@
+:root {
+  color-scheme: light dark;
+  --bg: #0e1117;
+  --bg-elev: #161b24;
+  --bg-input: #0f141c;
+  --card: #161b24;
+  --line: #232a36;
+  --line-soft: #1c222d;
+  --fg: #e7ebf2;
+  --fg-muted: #97a1b2;
+  --fg-faint: #6b7585;
+  --accent: #4c8dff;
+  --accent-press: #3a78e6;
+  --radius: 14px;
+  --radius-sm: 9px;
+  --pass: #43c478;
+  --fail: #f76d6d;
+  --warn: #f0b54a;
+  --grey: #8a94a6;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, monospace;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f4f6fa;
+    --bg-elev: #ffffff;
+    --bg-input: #ffffff;
+    --card: #ffffff;
+    --line: #e2e7ef;
+    --line-soft: #eef1f6;
+    --fg: #1a2230;
+    --fg-muted: #5a6679;
+    --fg-faint: #93a0b3;
+    --shadow: 0 14px 40px rgba(40, 60, 100, 0.12);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.55 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------- masthead ---------------- */
+
+.masthead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+
+.masthead-inner {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 1.4rem 1.5rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+.brand h1 span {
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+
+.brand p {
+  margin: 0.25rem 0 0;
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+}
+
+.wasm-badge {
+  flex: none;
+  font: 500 0.72rem/1 var(--mono);
+  padding: 0.4rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+.wasm-badge[data-state="ok"] {
+  color: var(--pass);
+  border-color: color-mix(in srgb, var(--pass) 40%, transparent);
+}
+.wasm-badge[data-state="err"] {
+  color: var(--fail);
+  border-color: color-mix(in srgb, var(--fail) 40%, transparent);
+}
+
+/* ---------------- stage + cards ---------------- */
+
+.stage {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.4rem;
+  box-shadow: var(--shadow);
+}
+
+.card h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.card-sub {
+  margin: 0 0 1rem;
+  color: var(--fg-muted);
+  font-size: 0.88rem;
+}
+
+/* ---------------- inputs ---------------- */
+
+textarea {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--fg);
+  padding: 0.7rem 0.8rem;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  resize: vertical;
+  white-space: pre;
+  overflow-wrap: normal;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* ---------------- buttons ---------------- */
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
+  color: var(--fg);
+  font: 600 0.85rem var(--sans);
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.05s;
+}
+.btn:hover {
+  border-color: var(--accent);
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn.primary:hover {
+  background: var(--accent-press);
+}
+.btn.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn.ghost {
+  background: none;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  color: var(--fg-muted);
+}
+.btn.sample {
+  background: none;
+  color: var(--fg-muted);
+}
+
+/* ---------------- outputs ---------------- */
+
+.output-block {
+  margin-top: 1.1rem;
+}
+.output-block:first-of-type {
+  margin-top: 0;
+}
+.output-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+  margin-bottom: 0.35rem;
+}
+.output {
+  margin: 0;
+  background: var(--bg-input);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.8rem 0.9rem;
+  font: 0.78rem/1.55 var(--mono);
+  color: var(--fg);
+  white-space: pre;
+  overflow: auto;
+  max-height: 420px;
+}
+
+.error {
+  margin-top: 0.9rem;
+  background: color-mix(in srgb, var(--fail) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--fail) 45%, transparent);
+  color: var(--fail);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.8rem;
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+}
+
+/* ---------------- table ---------------- */
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.occ-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.occ-table th,
+.occ-table td {
+  text-align: left;
+  padding: 0.6rem 0.9rem;
+  white-space: nowrap;
+}
+.occ-table thead th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-faint);
+  border-bottom: 1px solid var(--line);
+}
+.occ-table tbody tr + tr td {
+  border-top: 1px solid var(--line-soft);
+}
+.occ-table tbody td {
+  font-family: var(--mono);
+  color: var(--fg);
+}
+
+/* ---------------- footer ---------------- */
+
+.footer {
+  max-width: 920px;
+  margin: 0.5rem auto 3rem;
+  padding: 0 1.5rem;
+  color: var(--fg-faint);
+  font-size: 0.8rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+.footer-links {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+.footer-links a {
+  text-decoration: none;
+}
+.footer-links a:hover {
+  text-decoration: underline;
+}

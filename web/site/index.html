@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>calcard playground</title>
+  <meta name="description"
+    content="Bidirectional conversion between iCalendar/JSCalendar and vCard/JSContact, entirely in your browser via WebAssembly." />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <div class="brand">
+        <h1>calcard <span>playground</span></h1>
+        <p>iCalendar &harr; JSCalendar and vCard &harr; JSContact, converted in your browser.</p>
+      </div>
+      <div class="wasm-badge" id="wasm-badge" data-state="loading">
+        loading wasm…
+      </div>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="card">
+      <h2>Paste a document</h2>
+      <p class="card-sub">
+        Drop in an iCalendar (.ics), vCard (.vcf), JSCalendar or JSContact document.
+        The format is detected automatically and converted to its counterpart, then
+        converted back so you can compare the round-trip.
+      </p>
+      <label class="sr-only" for="source">Source document</label>
+      <textarea id="source" rows="12" spellcheck="false" autocapitalize="off"
+        placeholder="Paste an iCalendar, JSCalendar, vCard or JSContact document here. Or click “Load sample” to try one."></textarea>
+      <div class="actions">
+        <button class="btn sample" id="load-sample" type="button">✨ Load sample</button>
+        <button class="btn primary" id="convert" type="button">Convert</button>
+      </div>
+      <div class="error" id="error" hidden></div>
+    </div>
+
+    <div class="card" id="result-card" hidden>
+      <h2>Conversion result</h2>
+      <p class="card-sub" id="result-sub"></p>
+      <div class="output-block">
+        <div class="output-head">
+          <span id="conversion-head"></span>
+          <button class="btn ghost copy" data-copy="conversion" type="button">Copy</button>
+        </div>
+        <pre class="output" id="conversion"></pre>
+      </div>
+      <div class="output-block">
+        <div class="output-head">
+          <span id="roundtrip-head"></span>
+          <button class="btn ghost copy" data-copy="roundtrip" type="button">Copy</button>
+        </div>
+        <pre class="output" id="roundtrip"></pre>
+      </div>
+    </div>
+
+    <div class="card" id="occ-card" hidden>
+      <h2>Calendar expansion</h2>
+      <p class="card-sub" id="occ-sub"></p>
+      <div class="table-wrap">
+        <table class="occ-table">
+          <thead>
+            <tr>
+              <th scope="col">From</th>
+              <th scope="col">To</th>
+            </tr>
+          </thead>
+          <tbody id="occ-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <span>Everything runs client-side via WebAssembly.</span>
+    <span class="footer-links">
+      <span id="version"></span>
+      <a href="https://github.com/stalwartlabs/calcard/issues/new" target="_blank" rel="noopener">Report a bug</a>
+      <a href="https://github.com/stalwartlabs/calcard/tree/main/web" target="_blank" rel="noopener">View source</a>
+    </span>
+  </footer>
+
+  <script type="module" src="./app.js"></script>
+</body>
+
+</html>

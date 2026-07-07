@@ -1,0 +1,83 @@
+{
+    "@type": "Card",
+    "name": {
+        "full": "Dr. John Philip Paul Stevenson, M.D., A.C.P., Jr.",
+        "components": [
+            {
+                "kind": "surname",
+                "value": "Stevenson"
+            },
+            {
+                "kind": "given",
+                "value": "John"
+            },
+            {
+                "kind": "given2",
+                "value": "Philip"
+            },
+            {
+                "kind": "given2",
+                "value": "Paul"
+            },
+            {
+                "kind": "title",
+                "value": "Dr."
+            },
+            {
+                "kind": "credential",
+                "value": "M.D."
+            },
+            {
+                "kind": "credential",
+                "value": "A.C.P."
+            },
+            {
+                "kind": "generation",
+                "value": "Jr."
+            }
+        ],
+        "sortAs": {
+            "surname": "Stevenson",
+            "given": "John Philip"
+        }
+    },
+    "nicknames": {
+        "k1": {
+            "name": "Johnny"
+        }
+    },
+    "addresses": {
+        "k1": {
+            "contexts": {
+                "work": true
+            },
+            "components": [
+                {
+                    "kind": "locality",
+                    "value": "Reston"
+                },
+                {
+                    "kind": "region",
+                    "value": "VA"
+                },
+                {
+                    "kind": "postcode",
+                    "value": "20190"
+                },
+                {
+                    "kind": "country",
+                    "value": "USA"
+                },
+                {
+                    "kind": "number",
+                    "value": "54321"
+                },
+                {
+                    "kind": "name",
+                    "value": "Oak St"
+                }
+            ],
+            "countryCode": "US"
+        }
+    }
+}
