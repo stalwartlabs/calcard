@@ -30,11 +30,7 @@ pub(crate) fn is_leap_year(year: i32) -> bool {
 
 #[inline(always)]
 pub(crate) fn get_year_len(year: i32) -> u16 {
-    if is_leap_year(year) {
-        366
-    } else {
-        365
-    }
+    if is_leap_year(year) { 366 } else { 365 }
 }
 
 pub(crate) trait DifferentSigns {
@@ -68,11 +64,7 @@ where
 {
     let r = a % b;
     // If r and b differ in sign, add b to wrap the result to the correct sign.
-    if T::different_sign(r, b) {
-        r + b
-    } else {
-        r
-    }
+    if T::different_sign(r, b) { r + b } else { r }
 }
 
 pub(crate) fn add_time_to_date(

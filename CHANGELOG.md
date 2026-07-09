@@ -1,3 +1,7 @@
+calcard 0.3.6
+================================
+- Fix: `FN` property not generated for vCard when `N` property is present (#22).
+
 calcard 0.3.5
 ================================
 - Include 'ENCODING=' when exporting vCard v3.0 and below.

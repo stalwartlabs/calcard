@@ -6,7 +6,7 @@
 
 use super::{
     checks,
-    error::{checked_add_u32, checked_mul_u32, RRuleError},
+    error::{RRuleError, checked_add_u32, checked_mul_u32},
     masks::MASKS,
     rrule::RRule,
     utils::is_leap_year,

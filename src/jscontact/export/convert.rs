@@ -164,6 +164,8 @@ where
         }
 
         // Localization maps
+        let mut has_fn = false;
+
         let has_localizations = !localized_properties.is_empty();
         let mut name_pos_map: [Option<usize>; 20] = [None; 20];
         let mut adr_pos_map: HashMap<String, [Option<usize>; 20]> = HashMap::new();
@@ -549,6 +551,7 @@ where
                                 }
                                 Key::Property(JSContactProperty::Full) => {
                                     if let Some(text) = value.into_string() {
+                                        has_fn = true;
                                         state.insert_vcard(
                                             &[JSContactProperty::Name, JSContactProperty::Full],
                                             VCardEntry::new(VCardProperty::Fn)
@@ -628,6 +631,46 @@ where
                                         value,
                                     );
                                 }
+                            }
+                        }
+
+                        if !has_fn {
+                            let default_separator = match jscomps.first() {
+                                Some(Jscomp::Separator(sep)) if !sep.is_empty() => sep.as_str(),
+                                _ => " ",
+                            };
+                            let mut full = String::new();
+                            let mut prev_value = false;
+                            for jscomp in jscomps.iter().skip(1) {
+                                match jscomp {
+                                    Jscomp::Entry { position, value } => {
+                                        if let Some(component) = parts
+                                            .get(*position as usize)
+                                            .and_then(|part| part.as_ref())
+                                            .and_then(|part| part.get(*value as usize))
+                                        {
+                                            if prev_value {
+                                                full.push_str(default_separator);
+                                            }
+                                            full.push_str(component);
+                                            prev_value = true;
+                                        }
+                                    }
+                                    Jscomp::Separator(sep) => {
+                                        full.push_str(sep);
+                                        prev_value = false;
+                                    }
+                                }
+                            }
+
+                            if !full.is_empty() {
+                                state.insert_vcard(
+                                    &[JSContactProperty::Name, JSContactProperty::Full],
+                                    VCardEntry::new(VCardProperty::Fn)
+                                        .with_param(VCardParameter::derived(true))
+                                        .with_value(full),
+                                );
+                                has_fn = true;
                             }
                         }
 
@@ -1893,6 +1936,15 @@ where
                     }
                 }
             }
+        }
+
+        if !has_fn {
+            state.insert_vcard(
+                &[JSContactProperty::Name, JSContactProperty::Full],
+                VCardEntry::new(VCardProperty::Fn)
+                    .with_param(VCardParameter::derived(true))
+                    .with_value(String::new()),
+            );
         }
 
         Some(state.into_vcard())

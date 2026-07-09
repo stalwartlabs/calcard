@@ -21,7 +21,7 @@ use ahash::AHashMap;
 use jmap_tools::{JsonPointerHandler, Key, Map, Property, Value};
 use std::{
     borrow::Cow,
-    collections::{HashMap, hash_map::Entry},
+    collections::{HashMap, HashSet, hash_map::Entry},
 };
 
 impl<I, B> State<I, B>
@@ -48,6 +48,7 @@ where
         let mut language_map: HashMap<String, usize> = HashMap::new();
         let mut language_count = 0;
         let mut language_first_found = None;
+        let mut langful_names: HashSet<&VCardProperty> = HashSet::new();
         let mut alt_ids: AHashMap<(&VCardProperty, &str), usize> = AHashMap::new();
         for entry in &vcard.entries {
             if let Some(lang) = entry.language() {
@@ -56,6 +57,7 @@ where
                     language_first_found = Some(lang);
                 }
                 language_count += 1;
+                langful_names.insert(&entry.name);
             }
 
             match &entry.name {
@@ -92,6 +94,14 @@ where
             && let Some((_, &min_count)) = language_map.iter().min_by_key(|&(_, count)| count)
             && let Some((mut lang, max_count)) =
                 language_map.into_iter().max_by_key(|&(_, count)| count)
+            && max_count
+                > vcard
+                    .entries
+                    .iter()
+                    .filter(|entry| {
+                        entry.language().is_none() && langful_names.contains(&entry.name)
+                    })
+                    .count()
         {
             if max_count == min_count {
                 lang = language_first_found.unwrap().to_ascii_lowercase();
