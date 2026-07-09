@@ -303,11 +303,9 @@ impl ArchivedICalendarPeriod {
             ArchivedICalendarPeriod::Duration { start, duration } => start
                 .to_date_time()
                 .and_then(|start| start.to_date_time_with_tz(tz))
-                .and_then(|start| {
-                    duration
-                        .to_time_delta()
-                        .and_then(|duration| start.checked_add_signed(duration))
-                        .map(|end| (start, end))
+                .zip(duration.to_time_delta())
+                .and_then(|(start, duration)| {
+                    start.checked_add_signed(duration).map(|end| (start, end))
                 }),
         }
     }
