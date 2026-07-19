@@ -1,6 +1,7 @@
 calcard 0.3.7
 ================================
 - Fix: JSCalendar `rscale` not converted to the iCalendar `RSCALE` rule part.
+- Fix: `mailto:` scheme not stripped from calendar addresses when uppercase or mixed case.
 
 calcard 0.3.6
 ================================

@@ -16,6 +16,13 @@ use crate::{
     icalendar::{ICalendarParameterValue, ICalendarValueType},
 };
 
+pub fn strip_mailto_scheme(value: &str) -> &str {
+    value
+        .split_once(':')
+        .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("mailto"))
+        .map_or(value, |(_, address)| address)
+}
+
 impl ICalendar {
     pub fn uids(&self) -> impl Iterator<Item = &str> {
         self.components
@@ -279,7 +286,7 @@ impl ICalendarEntry {
         self.values
             .first()
             .and_then(|v| v.as_text())
-            .map(|v| v.strip_prefix("mailto:").unwrap_or(v))
+            .map(strip_mailto_scheme)
     }
 
     pub fn size(&self) -> usize {
