@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     common::{
-        IanaString, PartialDateTime,
+        CalendarScale, IanaString, PartialDateTime,
         writer::{write_bytes, write_param_value, write_text},
     },
     icalendar::{
@@ -405,6 +405,8 @@ impl Display for ICalendarRecurrenceRule {
         }
         if let Some(rscale) = &self.rscale {
             write!(f, ";RSCALE={}", rscale.as_str())?;
+        } else if self.skip.is_some() {
+            write!(f, ";RSCALE={}", CalendarScale::Gregorian.as_str())?;
         }
         if let Some(skip) = &self.skip {
             write!(f, ";SKIP={}", skip.as_str())?;

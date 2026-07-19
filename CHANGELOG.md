@@ -1,3 +1,7 @@
+calcard 0.3.7
+================================
+- Fix: JSCalendar `rscale` not converted to the iCalendar `RSCALE` rule part.
+
 calcard 0.3.6
 ================================
 - Fix: `FN` property not generated for vCard when `N` property is present (#22).

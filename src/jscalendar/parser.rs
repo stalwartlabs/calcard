@@ -5,7 +5,7 @@
  */
 
 use crate::{
-    common::{IanaParse, IanaString, IdReference, LinkRelation},
+    common::{CalendarScale, IanaParse, IanaString, IdReference, LinkRelation},
     icalendar::{
         ICalendarDuration, ICalendarFrequency, ICalendarMethod, ICalendarMonth, ICalendarSkip,
         ICalendarWeekday,
@@ -107,6 +107,9 @@ impl<I: JSCalendarId, B: JSCalendarId> Element for JSCalendarValue<I, B> {
                 }
                 JSCalendarProperty::Skip => {
                     ICalendarSkip::parse(value.as_bytes()).map(JSCalendarValue::Skip)
+                }
+                JSCalendarProperty::Rscale => {
+                    CalendarScale::parse(value.as_bytes()).map(JSCalendarValue::CalendarScale)
                 }
                 JSCalendarProperty::ByMonth => {
                     ICalendarMonth::parse(value.as_bytes()).map(JSCalendarValue::Month)

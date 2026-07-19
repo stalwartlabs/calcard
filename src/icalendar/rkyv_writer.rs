@@ -7,7 +7,7 @@
 use super::*;
 use crate::{
     common::{
-        ArchivedPartialDateTime,
+        ArchivedPartialDateTime, CalendarScale,
         writer::{write_bytes, write_param_value, write_text},
     },
     icalendar::ValueSeparator,
@@ -396,6 +396,8 @@ impl Display for ArchivedICalendarRecurrenceRule {
         }
         if let Some(rscale) = self.rscale.as_ref() {
             write!(f, ";RSCALE={}", rscale.as_str())?;
+        } else if self.skip.is_some() {
+            write!(f, ";RSCALE={}", CalendarScale::Gregorian.as_str())?;
         }
         if let Some(skip) = self.skip.as_ref() {
             write!(f, ";SKIP={}", skip.as_str())?;
