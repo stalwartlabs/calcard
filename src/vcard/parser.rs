@@ -353,6 +353,10 @@ impl Parser<'_> {
                     }));
             }
 
+            if !is_v4 {
+                entry.normalize_legacy_media_type();
+            }
+
             vcard.entries.push(entry);
         }
 

@@ -12,7 +12,7 @@ use crate::{
     },
     vcard::{
         Jscomp, VCardLevel, VCardParameter, VCardParameterValue, VCardPhonetic, VCardType,
-        VCardValueType,
+        VCardValueType, media_type::media_type_from_legacy,
     },
 };
 use std::borrow::Cow;
@@ -97,6 +97,38 @@ impl VCardEntry {
             + self.name.as_str().len()
             + self.params.iter().map(|p| p.size()).sum::<usize>()
             + self.values.iter().map(|v| v.size()).sum::<usize>()
+    }
+
+    pub(crate) fn normalize_legacy_media_type(&mut self) {
+        if self
+            .values
+            .iter()
+            .any(|value| matches!(value, VCardValue::Binary(data) if data.content_type.is_none()))
+        {
+            let property = self.name.as_str();
+            let media_type =
+                self.params
+                    .iter()
+                    .find_map(|param| match (&param.name, &param.value) {
+                        (VCardParameterName::Mediatype, VCardParameterValue::Text(text)) => {
+                            Some(Cow::Owned(text.to_ascii_lowercase()))
+                        }
+                        (VCardParameterName::Type, VCardParameterValue::Text(text)) => {
+                            media_type_from_legacy(property, text)
+                        }
+                        _ => None,
+                    });
+
+            if let Some(media_type) = media_type {
+                for value in &mut self.values {
+                    if let VCardValue::Binary(data) = value
+                        && data.content_type.is_none()
+                    {
+                        data.content_type = Some(media_type.to_string());
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -195,14 +227,9 @@ impl VCardValue {
 impl Data {
     pub fn to_unwrapped_string(&self) -> String {
         use std::fmt::Write;
-        let mut out = String::with_capacity(
-            self.data.len().div_ceil(4) + self.content_type.as_ref().map_or(0, |ct| ct.len() + 5),
-        );
-        let _ = write!(&mut out, "data:");
-        if let Some(ct) = &self.content_type {
-            let _ = write!(&mut out, "{ct};");
-        }
-        let _ = write!(&mut out, "base64,");
+        let media_type = self.content_type.as_deref().unwrap_or_default();
+        let mut out = String::with_capacity(self.data.len().div_ceil(4) + media_type.len() + 14);
+        let _ = write!(&mut out, "data:{media_type};base64,");
         let _ = write_bytes(&mut out, None, &self.data);
         out
     }

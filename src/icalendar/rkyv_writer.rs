@@ -272,12 +272,9 @@ pub(crate) fn write_uri(
 ) -> std::fmt::Result {
     match value {
         ArchivedUri::Data(v) => {
-            write!(out, "data:")?;
-            *line_len += 5;
-            if let Some(ct) = v.content_type.as_ref() {
-                write!(out, "{ct};")?;
-                *line_len += ct.len() + 1;
-            }
+            let media_type = v.content_type.as_deref().unwrap_or_default();
+            write!(out, "data:{media_type};")?;
+            *line_len += media_type.len() + 6;
             if escape {
                 write!(out, "base64\\,")?;
             } else {
@@ -286,7 +283,7 @@ pub(crate) fn write_uri(
             *line_len += 8;
             write_bytes(out, Some(line_len), &v.data)
         }
-        ArchivedUri::Location(v) => write_text(out, line_len, v, true, true),
+        ArchivedUri::Location(v) => write_text(out, line_len, v, escape, escape),
     }
 }
 

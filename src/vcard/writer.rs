@@ -11,7 +11,10 @@ use crate::{
         parser::Timestamp,
         writer::{write_bytes, write_jscomps, write_param_value, write_text},
     },
-    vcard::{VCardParameterName, VCardParameterValue, VCardProperty, VCardValue, ValueSeparator},
+    vcard::{
+        VCardParameterName, VCardParameterValue, VCardProperty, VCardValue, ValueSeparator,
+        media_type::legacy_media_type,
+    },
 };
 use std::fmt::{Display, Write};
 
@@ -123,13 +126,27 @@ impl VCardEntry {
         }
 
         if !is_v4 {
-            if self
-                .values
-                .iter()
-                .any(|v| matches!(v, VCardValue::Binary(_)))
-            {
+            if let Some(data) = self.values.iter().find_map(|v| match v {
+                VCardValue::Binary(data) => Some(data),
+                _ => None,
+            }) {
                 write!(out, ";ENCODING=b")?;
                 line_len += 11;
+
+                if let Some(media_type) = data.content_type.as_deref()
+                    && !self
+                        .params
+                        .iter()
+                        .any(|param| param.name == VCardParameterName::Type)
+                    && let Some(token) = legacy_media_type(self.name.as_str(), media_type)
+                {
+                    if line_len + token.len() + 6 > 75 {
+                        write!(out, "\r\n ")?;
+                        line_len = 1;
+                    }
+                    write!(out, ";TYPE={token}")?;
+                    line_len += token.len() + 6;
+                }
             }
 
             if self.values.iter().any(|v| match v {
@@ -224,14 +241,9 @@ impl VCardEntry {
                 }
                 VCardValue::Binary(v) => {
                     if is_v4 {
-                        write!(out, "data:")?;
-                        line_len += 5;
-                        if let Some(ct) = &v.content_type {
-                            write!(out, "{ct};")?;
-                            line_len += ct.len() + 1;
-                        }
-                        write!(out, "base64\\,")?;
-                        line_len += 8;
+                        let media_type = v.content_type.as_deref().unwrap_or_default();
+                        write!(out, "data:{media_type};base64\\,")?;
+                        line_len += media_type.len() + 14;
                     }
                     write_bytes(out, Some(&mut line_len), &v.data)?;
                 }

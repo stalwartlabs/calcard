@@ -265,12 +265,9 @@ pub(crate) fn write_uri(
 ) -> std::fmt::Result {
     match value {
         Uri::Data(v) => {
-            write!(out, "data:")?;
-            *line_len += 5;
-            if let Some(ct) = &v.content_type {
-                write!(out, "{ct};")?;
-                *line_len += ct.len() + 1;
-            }
+            let media_type = v.content_type.as_deref().unwrap_or_default();
+            write!(out, "data:{media_type};")?;
+            *line_len += media_type.len() + 6;
             if escape {
                 write!(out, "base64\\,")?;
             } else {

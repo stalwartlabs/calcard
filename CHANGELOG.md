@@ -1,3 +1,14 @@
+calcard 0.3.8
+================================
+- Fix: binary values without a media type serialized as `data:base64,`, which is not a valid
+  `data` URL (RFC 2397).
+- Map the legacy vCard 3.0 `TYPE` parameter of `PHOTO`, `LOGO`, `SOUND` and `KEY` to the media
+  type of their binary value, so upgrading a v3.0 card to v4.0 yields `data:image/jpeg;base64,`
+  instead of a typeless `data` URL.
+- Include `TYPE=` when exporting binary values to vCard v3.0 and below.
+- Fix: archived iCalendar writer escaped `,` and `;` inside quoted URI parameter values such as
+  `DIR`.
+
 calcard 0.3.7
 ================================
 - Fix: JSCalendar `rscale` not converted to the iCalendar `RSCALE` rule part.

@@ -109,7 +109,7 @@ impl Data {
             for (idx, ch) in text.iter().enumerate() {
                 match ch {
                     b';' => {
-                        if idx > 0 {
+                        if idx > offset_start && bin.content_type.is_none() {
                             bin.content_type = Some(
                                 std::str::from_utf8(&text[offset_start..idx])
                                     .unwrap_or_default()
@@ -120,8 +120,13 @@ impl Data {
                     }
                     b',' => {
                         if idx != offset_start {
+                            static B64_LEN: usize = "base64".len();
+
                             let text = text.get(offset_start..idx).unwrap_or_default();
-                            if text.eq_ignore_ascii_case(b"base64") {
+                            if text.len() == B64_LEN && text.eq_ignore_ascii_case(b"base64")
+                                || text.len() == B64_LEN + 1
+                                    && text[..B64_LEN].eq_ignore_ascii_case(b"base64")
+                            {
                                 is_base64 = true;
                             } else if bin.content_type.is_none() {
                                 bin.content_type =

@@ -10,6 +10,7 @@ use crate::{
 };
 
 pub mod builder;
+pub(crate) mod media_type;
 pub mod parser;
 pub mod types;
 pub mod utils;
