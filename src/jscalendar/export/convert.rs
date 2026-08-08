@@ -5,7 +5,10 @@
  */
 
 use crate::{
-    common::{IanaParse, PartialDateTime, timezone::Tz},
+    common::{
+        IanaParse, PartialDateTime,
+        timezone::{Tz, TzTimestamp},
+    },
     icalendar::*,
     jscalendar::{
         export::{ConvertedComponent, State},
@@ -31,6 +34,7 @@ impl<'x, I: JSCalendarId, B: JSCalendarId> JSCalendar<'x, I, B> {
                     recurrence_id: Default::default(),
                     uid: Default::default(),
                     entries,
+                    is_date: false,
                     default_component_type: ICalendarComponentType::VCalendar,
                 },
                 None,
@@ -56,12 +60,18 @@ impl ICalendar {
         let mut locale = None;
         let mut uid = state.uid.map(Cow::Borrowed);
         let mut organizer_address = None;
-        let mut organizer_name = None;
+        let mut organizer_params: Vec<ICalendarParameter> = Vec::new();
+        let mut organizer_sent_by = None;
+        let mut organizer_participant_id = None;
+        let mut has_organizer_participant = false;
         let mut main_location_id = None;
         let mut start = None;
         let mut component_type = None;
         let mut description_content_type = None;
         let mut overrides = None;
+        let mut is_show_without_time = false;
+        let mut has_time_component = false;
+        let mut has_time_zone = false;
 
         for (key, value) in state.entries.as_mut_vec() {
             match (key, value) {
@@ -74,6 +84,7 @@ impl ICalendar {
                 }
                 (Key::Property(JSCalendarProperty::TimeZone), Value::Str(text)) => {
                     state.tz = Tz::from_str(text.as_ref()).ok();
+                    has_time_zone = true;
                 }
                 (Key::Property(JSCalendarProperty::EndTimeZone), Value::Str(text)) => {
                     state.tz_end = Tz::from_str(text.as_ref()).ok();
@@ -90,6 +101,9 @@ impl ICalendar {
                 (Key::Property(JSCalendarProperty::OrganizerCalendarAddress), Value::Str(text)) => {
                     organizer_address = Some(std::mem::take(text));
                 }
+                (Key::Property(JSCalendarProperty::SentBy), Value::Str(text)) => {
+                    organizer_sent_by = Some(std::mem::take(text));
+                }
                 (Key::Property(JSCalendarProperty::DescriptionContentType), Value::Str(text)) => {
                     description_content_type = Some(std::mem::take(text));
                 }
@@ -101,7 +115,33 @@ impl ICalendar {
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo
                 ) =>
                 {
+                    has_time_component |= !dt.is_start_of_day();
                     start = dt.to_naive_date_time();
+                }
+                (
+                    Key::Property(JSCalendarProperty::Due | JSCalendarProperty::RecurrenceId),
+                    Value::Element(JSCalendarValue::DateTime(dt)),
+                ) => {
+                    has_time_component |= !dt.is_start_of_day();
+                }
+                (
+                    Key::Property(
+                        JSCalendarProperty::Duration | JSCalendarProperty::EstimatedDuration,
+                    ),
+                    Value::Element(JSCalendarValue::Duration(duration)),
+                ) => {
+                    has_time_component |=
+                        duration.hours != 0 || duration.minutes != 0 || duration.seconds != 0;
+                }
+                (Key::Property(JSCalendarProperty::ShowWithoutTime), Value::Bool(value)) => {
+                    is_show_without_time = *value;
+                }
+                (Key::Property(JSCalendarProperty::RecurrenceRule), Value::Object(obj)) => {
+                    if let Some(Value::Element(JSCalendarValue::DateTime(dt))) =
+                        obj.get(&Key::Property(JSCalendarProperty::Until))
+                    {
+                        has_time_component |= !dt.is_start_of_day();
+                    }
                 }
                 (
                     Key::Property(JSCalendarProperty::Type),
@@ -115,6 +155,10 @@ impl ICalendar {
                         ICalendarComponentType::VEvent | ICalendarComponentType::VTodo
                     ) =>
                 {
+                    has_time_component |= obj.iter().any(|(key, _)| {
+                        matches!(key, Key::Property(JSCalendarProperty::DateTime(dt))
+                            if !dt.is_start_of_day())
+                    });
                     overrides = Some(std::mem::take(obj));
                 }
                 _ => (),
@@ -177,6 +221,18 @@ impl ICalendar {
             }
         }
 
+        /*
+         In the iCalendar component, the value data types of the DTSTART, DUE and
+         RECURRENCE-ID properties all MUST be of the same form, either DATE, or DATE WITH
+         LOCAL TIME, or DATE WITH UTC TIME. It MUST be DATE if the "showWithoutTime"
+         property value is "true", the "timeZone" property value is not set, and the time
+         component is zero in the values of the "start", "due", "duration",
+         "estimatedDuration", "recurrenceId" properties, and the RecurrenceRule object's
+         "until" property, and in any key of the "recurrenceOverrides" property value.
+        */
+
+        state.is_date |= is_show_without_time && !has_time_zone && !has_time_component;
+
         // Build component
         let mut component =
             ICalendarComponent::new(component_type.unwrap_or(state.default_component_type));
@@ -200,7 +256,7 @@ impl ICalendar {
             component.entries.push(
                 ICalendarEntry::new(ICalendarProperty::Dtstart)
                     .import_converted(&[JSCalendarProperty::Start], &mut root_conversions)
-                    .with_date_time(dt),
+                    .with_date(dt, state.is_date),
             );
         }
 
@@ -225,7 +281,9 @@ impl ICalendar {
                 (
                     JSCalendarProperty::Links,
                     Value::Object(obj),
-                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                    ICalendarComponentType::VEvent
+                    | ICalendarComponentType::VTodo
+                    | ICalendarComponentType::VCalendar,
                 ) => {
                     component.import_links(obj, &mut root_conversions);
                 }
@@ -519,8 +577,30 @@ impl ICalendar {
                         let has_component =
                             !participant.entries.is_empty() || item_conversions.is_some();
                         let has_entry = !entry.params.is_empty() || item_conversions.is_none();
-                        let is_organizer =
-                            organizer_address.is_some() && organizer_address == calendar_address;
+                        let is_organizer = organizer_address.is_some()
+                            && organizer_address == calendar_address
+                            && !has_organizer_participant;
+                        has_organizer_participant |= is_organizer;
+
+                        /*
+                         The "owner" role needs not convert to the ROLE parameter of the
+                         ATTENDEE property if the Participant object converts to both the
+                         ATTENDEE and ORGANIZER property.
+                        */
+
+                        if is_organizer {
+                            entry.params.retain(|param| {
+                                !matches!(
+                                    (&param.name, &param.value),
+                                    (
+                                        ICalendarParameterName::Role,
+                                        ICalendarParameterValue::Role(
+                                            ICalendarParticipationRole::Owner
+                                        )
+                                    )
+                                )
+                            });
+                        }
 
                         if let Some(calendar_address) = calendar_address {
                             let calendar_address =
@@ -538,9 +618,6 @@ impl ICalendar {
                         }
 
                         if let Some(participant_name) = participant_name {
-                            if is_organizer {
-                                organizer_name = Some(participant_name.clone());
-                            }
                             if has_component {
                                 participant.entries.push(
                                     ICalendarEntry::new(ICalendarProperty::Summary)
@@ -560,11 +637,57 @@ impl ICalendar {
 
                         debug_assert!(has_component || !entry.values.is_empty());
 
+                        /*
+                         The Participant object converts to an ATTENDEE property and PARTICIPANT
+                         component, unless it is fully represented by the ORGANIZER property:
+                         its "calendarAddress" property value matches the
+                         "organizerCalendarAddress" property value, it does not have any role
+                         but the "owner" role set, and it only has properties set that convert
+                         to ORGANIZER parameters.
+                        */
+
+                        let is_organizer_only = is_organizer
+                            && !has_component
+                            && entry.params.iter().all(|param| {
+                                matches!(
+                                    param.name,
+                                    ICalendarParameterName::Cn
+                                        | ICalendarParameterName::Email
+                                        | ICalendarParameterName::SentBy
+                                )
+                            });
+
+                        let participant_id = name.into_string();
+
+                        if is_organizer_only {
+                            organizer_params.append(&mut entry.params);
+                            if !is_uuid5_key {
+                                organizer_params
+                                    .push(ICalendarParameter::jsid(participant_id.clone()));
+                            }
+                            organizer_participant_id = Some(participant_id.clone());
+                        } else if is_organizer {
+                            organizer_params.extend(
+                                entry
+                                    .params
+                                    .iter()
+                                    .filter(|param| {
+                                        matches!(
+                                            param.name,
+                                            ICalendarParameterName::Cn
+                                                | ICalendarParameterName::Email
+                                                | ICalendarParameterName::SentBy
+                                        )
+                                    })
+                                    .cloned(),
+                            );
+                        }
+
                         if has_component {
                             if !is_uuid5_key {
                                 participant.entries.push(
                                     ICalendarEntry::new(ICalendarProperty::Jsid)
-                                        .with_value(name.to_string().into_owned()),
+                                        .with_value(participant_id.clone()),
                                 );
                             }
                             if let Some(item_conversions) = item_conversions {
@@ -575,16 +698,15 @@ impl ICalendar {
                                 .push(self.push_component(participant));
                         }
 
-                        if !entry.values.is_empty() && (!is_organizer || !entry.params.is_empty()) {
-                            let attendee = entry
-                                .with_param_opt(
-                                    (!is_uuid5_key)
-                                        .then(|| ICalendarParameter::jsid(name.into_string())),
-                                )
-                                .import_converted(
-                                    &[JSCalendarProperty::Participants],
-                                    &mut root_conversions,
-                                );
+                        if !entry.values.is_empty() && !is_organizer_only {
+                            let mut attendee = entry.import_converted_with_id(
+                                &[JSCalendarProperty::Participants],
+                                &mut root_conversions,
+                                Some(participant_id.as_str()),
+                            );
+                            if !is_uuid5_key {
+                                attendee.add_param(ICalendarParameter::jsid(participant_id));
+                            }
 
                             component.entries.push(attendee);
                         }
@@ -1248,7 +1370,15 @@ impl ICalendar {
                                             .from_local_datetime(&dt)
                                             .single()
                                     })
-                                    .map(|dt| PartialDateTime::from_utc_timestamp(dt.timestamp()));
+                                    .map(|dt| {
+                                        if state.is_date {
+                                            PartialDateTime::from_date_timestamp(
+                                                dt.to_naive_timestamp(),
+                                            )
+                                        } else {
+                                            PartialDateTime::from_utc_timestamp(dt.timestamp())
+                                        }
+                                    });
                             }
                             (JSCalendarProperty::Count, Value::Number(value)) => {
                                 rrule.count = Some(value.cast_to_u64() as u32);
@@ -1419,7 +1549,7 @@ impl ICalendar {
                         component.entries.push(
                             ICalendarEntry::new(ICalendarProperty::Due)
                                 .import_converted(&[JSCalendarProperty::Due], &mut root_conversions)
-                                .with_date_time(dt),
+                                .with_date(dt, state.is_date),
                         );
                     }
                 }
@@ -1443,7 +1573,7 @@ impl ICalendar {
                                     &[JSCalendarProperty::RecurrenceId],
                                     &mut root_conversions,
                                 )
-                                .with_date_time(dt),
+                                .with_date(dt, state.is_date),
                         );
                     }
                 }
@@ -1463,11 +1593,12 @@ impl ICalendar {
                             start.checked_add_signed(TimeDelta::seconds(duration.as_seconds()))
                         }) {
                             component.entries.push(
-                                entry.with_date_time(
+                                entry.with_date(
                                     state
                                         .tz_end
                                         .map(|tz_end| end.with_timezone(&tz_end))
                                         .unwrap_or(end),
+                                    state.is_date,
                                 ),
                             );
                         } else {
@@ -1677,6 +1808,7 @@ impl ICalendar {
                                     recurrence_id: None,
                                     uid: None,
                                     entries,
+                                    is_date: false,
                                     default_component_type: ICalendarComponentType::VEvent,
                                 },
                                 Some(&mut component),
@@ -1697,7 +1829,9 @@ impl ICalendar {
                     | JSCalendarProperty::RecurrenceIdTimeZone
                     | JSCalendarProperty::Locale
                     | JSCalendarProperty::OrganizerCalendarAddress
+                    | JSCalendarProperty::SentBy
                     | JSCalendarProperty::DescriptionContentType
+                    | JSCalendarProperty::Version
                     | JSCalendarProperty::RecurrenceOverrides,
                     _,
                     _,
@@ -1745,6 +1879,27 @@ impl ICalendar {
                     .as_ref()
                     .is_some_and(|props| props.contains(&jsdt));
 
+                // RDATE with value type PERIOD
+                if has_converted_prop
+                    && obj.len() == 1
+                    && let Some(Value::Element(JSCalendarValue::Duration(duration))) =
+                        obj.get(&Key::Property(JSCalendarProperty::Duration))
+                {
+                    let duration = duration.clone();
+                    let mut entry = ICalendarEntry::new(ICalendarProperty::Rdate)
+                        .import_converted(
+                            &[
+                                JSCalendarProperty::RecurrenceOverrides,
+                                JSCalendarProperty::DateTime(jsdt),
+                            ],
+                            &mut root_conversions,
+                        )
+                        .with_period(dt, duration);
+                    entry.name = ICalendarProperty::Rdate;
+                    component.entries.push(entry);
+                    continue;
+                }
+
                 if !obj.is_empty() {
                     if !obj.contains_key_value(
                         &Key::Property(JSCalendarProperty::Excluded),
@@ -1759,6 +1914,7 @@ impl ICalendar {
                                 recurrence_id: Some(dt),
                                 entries: obj,
                                 uid: uid.as_deref(),
+                                is_date: state.is_date,
                                 default_component_type: component.component_type.clone(),
                             },
                             parent_component.as_deref_mut(),
@@ -1775,7 +1931,7 @@ impl ICalendar {
                                         ],
                                         &mut root_conversions,
                                     )
-                                    .with_date_time(dt),
+                                    .with_date(dt, state.is_date),
                             );
                         } else {
                             exdates.push(dt);
@@ -1793,7 +1949,7 @@ impl ICalendar {
                                     ],
                                     &mut root_conversions,
                                 )
-                                .with_date_time(dt),
+                                .with_date(dt, state.is_date),
                         );
                     } else {
                         rdates.push(dt)
@@ -1808,17 +1964,36 @@ impl ICalendar {
                 if !values.is_empty() {
                     component
                         .entries
-                        .push(ICalendarEntry::new(prop).with_date_times(values));
+                        .push(ICalendarEntry::new(prop).with_dates(values, state.is_date));
                 }
             }
         }
 
         // Add organizer, if not present in participants
         if let Some(organizer_address) = organizer_address {
-            let mut organizer = ICalendarEntry::new(ICalendarProperty::Organizer).with_param_opt(
-                organizer_name.map(|name| ICalendarParameter::cn(name.into_owned())),
-            );
+            let mut organizer = ICalendarEntry::new(ICalendarProperty::Organizer);
+            if let Some(sent_by) = organizer_sent_by
+                && !organizer_params
+                    .iter()
+                    .any(|param| param.name == ICalendarParameterName::SentBy)
+            {
+                organizer_params.push(ICalendarParameter::sent_by(Uri::parse(
+                    sent_by.into_owned(),
+                )));
+            }
+            organizer.params = organizer_params;
             organizer.values = vec![ICalendarValue::Text(organizer_address.into_owned())];
+
+            // Restore the parameters of Participant objects that only convert to ORGANIZER
+            if let Some(participant_id) = organizer_participant_id {
+                organizer = organizer.import_converted_with_id(
+                    &[JSCalendarProperty::Participants],
+                    &mut root_conversions,
+                    Some(participant_id.as_str()),
+                );
+                organizer.name = ICalendarProperty::Organizer;
+            }
+
             component.entries.push(organizer);
         }
 
@@ -1827,7 +2002,7 @@ impl ICalendar {
             component.entries.push(
                 ICalendarEntry::new(ICalendarProperty::RecurrenceId)
                     .import_converted(&[JSCalendarProperty::RecurrenceId], &mut root_conversions)
-                    .with_date_time(dt),
+                    .with_date(dt, state.is_date),
             );
         }
 
@@ -1857,6 +2032,18 @@ impl ICalendar {
             component = root_conversions.apply_conversions(component, self);
         }
 
+        // The VERSION property is required by RFC 5545 and has no JSCalendar counterpart
+        if component.component_type == ICalendarComponentType::VCalendar
+            && !component
+                .entries
+                .iter()
+                .any(|entry| entry.name == ICalendarProperty::Version)
+        {
+            component.entries.push(
+                ICalendarEntry::new(ICalendarProperty::Version).with_value("2.0".to_string()),
+            );
+        }
+
         if let Some(parent_component) = parent_component {
             parent_component
                 .component_ids
@@ -1879,9 +2066,15 @@ impl ICalendarComponent {
         obj: Map<'_, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
         conversion: &mut Option<ConvertedComponent<'_, I, B>>,
     ) {
+        let mut has_url = self
+            .entries
+            .iter()
+            .any(|entry| entry.name == ICalendarProperty::Url);
+
         for (name, value) in obj.into_vec() {
             let mut entry = ICalendarEntry::new(ICalendarProperty::Link);
-            let mut has_link_rel = false;
+            let mut link_rel = None;
+            let mut title = None;
             let mut has_display = false;
             let mut is_uuid5_key = false;
 
@@ -1911,8 +2104,7 @@ impl ICalendarComponent {
                         Key::Property(JSCalendarProperty::Rel),
                         Value::Element(JSCalendarValue::LinkRelation(relation)),
                     ) => {
-                        entry.params.push(ICalendarParameter::linkrel(relation));
-                        has_link_rel = true;
+                        link_rel = Some(relation);
                     }
                     (Key::Property(JSCalendarProperty::Display), Value::Object(obj)) => {
                         has_display = true;
@@ -1940,9 +2132,7 @@ impl ICalendarComponent {
                         }
                     }
                     (Key::Property(JSCalendarProperty::Title), Value::Str(text)) => {
-                        entry
-                            .params
-                            .push(ICalendarParameter::label(text.into_owned()));
+                        title = Some(text.into_owned());
                     }
                     (sub_property, value) => {
                         self.insert_jsprop(
@@ -1957,17 +2147,75 @@ impl ICalendarComponent {
                 }
             }
 
-            if has_display {
-                entry.name = ICalendarProperty::Image;
-            } else if !has_link_rel {
-                entry.name = ICalendarProperty::Attach;
-            }
-            if !is_uuid5_key {
-                entry.add_param(ICalendarParameter::jsid(name.into_string()));
+            /*
+             Which iCalendar property to choose is implementation-specific. As a guideline,
+             stopping at the first matching criteria:
+
+             1. Choose ATTACH if the "rel" property value is "enclosure".
+             2. Choose IMAGE if the "rel" property value is "icon".
+             3. Choose URL if the "rel" property value is "describedby" and no URL property
+                is set in the iCalendar component.
+             4. Choose LINK otherwise.
+            */
+
+            entry.name = match link_rel {
+                Some(LinkRelation::Enclosure) => ICalendarProperty::Attach,
+                Some(LinkRelation::Icon) => ICalendarProperty::Image,
+                Some(LinkRelation::Describedby) => ICalendarProperty::Url,
+                None if has_display => ICalendarProperty::Image,
+                _ => ICalendarProperty::Link,
             };
 
-            self.entries
-                .push(entry.import_converted(&[JSCalendarProperty::Links], conversion));
+            let link_id = name.into_string();
+            let mut entry = entry.import_converted_with_id(
+                &[JSCalendarProperty::Links],
+                conversion,
+                Some(link_id.as_str()),
+            );
+            if !is_uuid5_key {
+                entry.add_param(ICalendarParameter::jsid(link_id));
+            };
+
+            // At most one URL property is allowed per component
+            if entry.name == ICalendarProperty::Url {
+                if !has_url {
+                    has_url = true;
+                } else {
+                    entry.name = ICalendarProperty::Link;
+                }
+            }
+
+            /*
+             The LINKREL parameter is not specified for the ATTACH, IMAGE and URL properties.
+             For interoperability, implementations SHOULD NOT set the LINKREL parameter on
+             these properties.
+            */
+
+            if let Some(relation) = link_rel
+                && entry.name == ICalendarProperty::Link
+            {
+                entry.add_param(ICalendarParameter::linkrel(relation));
+            }
+
+            /*
+             The "title" property converts to the FILENAME parameter for the ATTACH and IMAGE
+             properties. It converts to the LABEL parameter for the LINK and URL properties.
+            */
+
+            if let Some(title) = title {
+                entry.add_param(
+                    if matches!(
+                        entry.name,
+                        ICalendarProperty::Attach | ICalendarProperty::Image
+                    ) {
+                        ICalendarParameter::filename(title)
+                    } else {
+                        ICalendarParameter::label(title)
+                    },
+                );
+            }
+
+            self.entries.push(entry);
         }
     }
 

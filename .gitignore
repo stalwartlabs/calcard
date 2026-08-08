@@ -2,6 +2,7 @@ _ignore
 Cargo.lock
 target
 web/dist
+specs/
 .DS_Store
 *.md
 !CHANGELOG.md

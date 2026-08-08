@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use std::str::FromStr;
-
 use crate::{
     common::{
         IanaParse, LinkRelation, PartialDateTime,
@@ -21,12 +19,22 @@ use crate::{
 };
 use chrono::{DateTime, NaiveDateTime, TimeZone};
 use jmap_tools::{Key, Value};
+use std::str::FromStr;
 
 impl ICalendarEntry {
     pub(super) fn import_converted<I: JSCalendarId, B: JSCalendarId>(
+        self,
+        path: &[JSCalendarProperty<I>],
+        conversions: &mut Option<ConvertedComponent<'_, I, B>>,
+    ) -> Self {
+        self.import_converted_with_id(path, conversions, None)
+    }
+
+    pub(super) fn import_converted_with_id<I: JSCalendarId, B: JSCalendarId>(
         mut self,
         path: &[JSCalendarProperty<I>],
         conversions: &mut Option<ConvertedComponent<'_, I, B>>,
+        id: Option<&str>,
     ) -> Self {
         let Some(conversions) = conversions
             .as_mut()
@@ -40,7 +48,7 @@ impl ICalendarEntry {
         let jsid = if matches!(self.name, ICalendarProperty::RelatedTo) {
             value
         } else {
-            self.jsid()
+            id.or_else(|| self.jsid())
         };
 
         let mut matched_once = false;
@@ -275,8 +283,56 @@ impl ICalendarEntry {
 }
 
 impl ICalendarEntry {
+    /*
+     A DATE value has no time and no timezone: the TZID parameter MUST NOT be applied to
+     it (Section 3.2.19 of [RFC5545]).
+    */
+
+    pub(super) fn with_date(mut self, dt: DateTime<Tz>, is_date: bool) -> Self {
+        if !is_date {
+            return self.with_date_time(dt);
+        }
+
+        debug_assert!(self.values.is_empty());
+        if !self.has_parameter(&ICalendarParameterName::Value) {
+            self.params
+                .push(ICalendarParameter::value(ICalendarValueType::Date));
+        }
+        self.values
+            .push(PartialDateTime::from_date_timestamp(dt.to_naive_timestamp()).into());
+        self
+    }
+
+    pub(super) fn with_dates(mut self, dts: Vec<DateTime<Tz>>, is_date: bool) -> Self {
+        if !is_date {
+            return self.with_date_times(dts);
+        }
+
+        debug_assert!(self.values.is_empty());
+        if !self.has_parameter(&ICalendarParameterName::Value) {
+            self.params
+                .push(ICalendarParameter::value(ICalendarValueType::Date));
+        }
+        for dt in dts {
+            self.values
+                .push(PartialDateTime::from_date_timestamp(dt.to_naive_timestamp()).into());
+        }
+        self
+    }
+
     pub(super) fn with_date_time(mut self, dt: DateTime<Tz>) -> Self {
         debug_assert!(self.values.is_empty());
+
+        // A date-time value cannot have the PERIOD value type
+        self.params.retain(|param| {
+            !matches!(
+                (&param.name, &param.value),
+                (
+                    ICalendarParameterName::Value,
+                    ICalendarParameterValue::Value(ICalendarValueType::Period)
+                )
+            )
+        });
 
         // Best effort to restore the original timezone
         let tz_id = self.tz_id();
@@ -287,6 +343,25 @@ impl ICalendarEntry {
             !has_tz_id,
             tz_id.and_then(|id| Tz::from_str(id).ok()),
         );
+        self
+    }
+
+    pub(super) fn with_period(mut self, dt: DateTime<Tz>, duration: ICalendarDuration) -> Self {
+        self = self.with_date_time(dt);
+
+        if let Some(ICalendarValue::PartialDateTime(start)) = self.values.pop() {
+            self.values
+                .push(ICalendarValue::Period(ICalendarPeriod::Duration {
+                    start: *start,
+                    duration,
+                }));
+        }
+
+        if !self.has_parameter(&ICalendarParameterName::Value) {
+            self.params
+                .push(ICalendarParameter::value(ICalendarValueType::Period));
+        }
+
         self
     }
 

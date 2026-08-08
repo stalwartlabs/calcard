@@ -179,6 +179,7 @@ pub enum JSCalendarProperty<I: JSCalendarId> {
     Until,
     Updated,
     Uri,
+    Version,
     VirtualLocations,
     When,
     EndTimeZone,
@@ -388,6 +389,10 @@ impl JSCalendarDateTime {
             timestamp,
             is_local,
         }
+    }
+
+    pub fn is_start_of_day(&self) -> bool {
+        self.timestamp.rem_euclid(86400) == 0
     }
 
     pub fn to_rfc3339(&self) -> String {

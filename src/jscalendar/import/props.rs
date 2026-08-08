@@ -5,8 +5,11 @@
  */
 
 use crate::{
-    common::{Data, IanaType, timezone::TzTimestamp},
-    icalendar::{ICalendarEntry, ICalendarParameterName, ICalendarValue, ICalendarValueType, Uri},
+    common::{Data, IanaString, IanaType, timezone::TzTimestamp},
+    icalendar::{
+        ICalendarEntry, ICalendarParameterName, ICalendarProperty, ICalendarValue,
+        ICalendarValueType, Uri,
+    },
     jscalendar::{
         JSCalendarDateTime, JSCalendarId, JSCalendarProperty, JSCalendarValue,
         import::{
@@ -32,6 +35,22 @@ impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
             ),
         >,
     ) {
+        self.map_named_entry_with_id(entry, extract, top_property_name, values, None)
+    }
+
+    pub(super) fn map_named_entry_with_id(
+        &mut self,
+        entry: &mut EntryState,
+        extract: &[ICalendarParameterName],
+        top_property_name: JSCalendarProperty<I>,
+        values: impl IntoIterator<
+            Item = (
+                Key<'static, JSCalendarProperty<I>>,
+                Value<'static, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
+            ),
+        >,
+        default_id: Option<String>,
+    ) {
         // Obtain main property and value
         let mut values = values.into_iter().peekable();
         let (property, value) = match values.peek() {
@@ -49,6 +68,7 @@ impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
         let mut parameters = AHashMap::new();
         let js_id = parameters
             .extract_params(&mut entry.entry, extract)
+            .or(default_id)
             .unwrap_or_else(|| uuid5(value));
 
         // Set converted props
@@ -68,7 +88,9 @@ impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
             if let Some(current_value) = obj.get_mut(&key) {
                 match (value, current_value) {
                     (Value::Object(new_obj), Value::Object(existing_obj)) => {
-                        existing_obj.extend(new_obj.into_vec());
+                        for (key, value) in new_obj.into_vec() {
+                            existing_obj.insert(key, value);
+                        }
                     }
                     (value, current_value) => {
                         *current_value = value;
@@ -77,6 +99,35 @@ impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
             } else {
                 obj.insert_unchecked(key, value);
             }
+        }
+    }
+
+    pub(super) fn insert_recurrence_override(
+        &mut self,
+        key: Key<'static, JSCalendarProperty<I>>,
+        value: Value<'static, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
+    ) {
+        self.entries
+            .entry(Key::Property(JSCalendarProperty::RecurrenceOverrides))
+            .or_insert_with(Value::new_object)
+            .as_object_mut()
+            .unwrap()
+            .insert(key, value);
+    }
+
+    pub(super) fn add_period_conversion_prop(&mut self, converted_to: String) {
+        if self.include_ical_components {
+            let mut params = ICalendarParams::default();
+            params.0.insert(
+                ICalendarParameterName::Value,
+                vec![Value::Str(ICalendarValueType::Period.as_str().into())],
+            );
+            self.ical_converted_properties
+                .entry(converted_to)
+                .or_insert(ICalendarConvertedProperty {
+                    name: Some(ICalendarProperty::Rdate),
+                    params,
+                });
         }
     }
 
@@ -173,23 +224,26 @@ impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
         }
 
         if self.has_dates {
-            if !self.is_recurrence_instance {
-                self.entries.insert(
-                    Key::Property(JSCalendarProperty::TimeZone),
-                    self.tz_start
-                        .and_then(|tz| tz.name())
-                        .map(Value::Str)
-                        .unwrap_or(Value::Null),
-                );
+            /*
+             If a date-time value does not have a timezone, then the timezone is not set
+             in JSCalendar.
+            */
+
+            if !self.is_recurrence_instance
+                && let Some(tz) = self.tz_start.and_then(|tz| tz.name())
+            {
+                self.entries
+                    .insert(Key::Property(JSCalendarProperty::TimeZone), Value::Str(tz));
             }
 
-            if self.tz_end.is_some() && self.tz_start.is_some() && self.tz_end != self.tz_start {
+            if self.tz_end.is_some()
+                && self.tz_start.is_some()
+                && self.tz_end != self.tz_start
+                && let Some(tz) = self.tz_end.and_then(|tz| tz.name())
+            {
                 self.entries.insert(
                     Key::Property(JSCalendarProperty::EndTimeZone),
-                    self.tz_end
-                        .and_then(|tz| tz.name())
-                        .map(Value::Str)
-                        .unwrap_or(Value::Null),
+                    Value::Str(tz),
                 );
             }
 
@@ -203,14 +257,15 @@ impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
                         true,
                     ))),
                 );
-                let rid_tz = recurrence_id.timezone().to_resolved();
-                if rid_tz.is_some() && !self.is_recurrence_instance {
+                if !self.is_recurrence_instance
+                    && let Some(tz) = recurrence_id
+                        .timezone()
+                        .to_resolved()
+                        .and_then(|tz| tz.name())
+                {
                     self.entries.insert(
                         Key::Property(JSCalendarProperty::RecurrenceIdTimeZone),
-                        rid_tz
-                            .and_then(|tz| tz.name())
-                            .map(Value::Str)
-                            .unwrap_or(Value::Null),
+                        Value::Str(tz),
                     );
                 }
             }
@@ -248,6 +303,22 @@ impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
 
     pub(super) fn set_is_recurrence_instance(&mut self) {
         self.is_recurrence_instance = true;
+    }
+
+    pub(super) fn find_participant_by_address(&self, address: &str) -> Option<String> {
+        self.entries
+            .get(&Key::Property(JSCalendarProperty::Participants))?
+            .as_object()?
+            .iter()
+            .find_map(|(key, value)| {
+                match value
+                    .as_object()?
+                    .get(&Key::Property(JSCalendarProperty::CalendarAddress))?
+                {
+                    Value::Str(value) if value == address => Some(key.to_string().into_owned()),
+                    _ => None,
+                }
+            })
     }
 
     #[inline]

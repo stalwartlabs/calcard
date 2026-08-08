@@ -1,3 +1,12 @@
+calcard 0.3.9
+================================
+- Updated JSCalendar conversion rules according to `draft-ietf-calext-jscalendar-icalendar-25`.
+- Fix: `ORGANIZER` converted to a duplicate Participant object instead of merging with the `ATTENDEE` or `PARTICIPANT` sharing its calendar address (#24).
+- Fix: the `owner` role was not set on the Participant object converted from `ORGANIZER`.
+- Fix: `iCalendar` converted properties of Link and Participant objects were matched position rather than by object key when no `JSID` parameter was present.
+- Fix: all-day events exported as a floating DATE-TIME plus `SHOW-WITHOUT-TIME` instead of the `DATE` value type.
+- Fix: `VERSION` was missing from the generated `VCALENDAR` component, and the JSCalendar `version` property was exported as a `JSPROP` property.
+
 calcard 0.3.8
 ================================
 - Fix: binary values without a media type serialized as `data:base64,`, which is not a valid

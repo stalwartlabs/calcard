@@ -88,6 +88,17 @@ impl PartialDateTime {
         }
     }
 
+    pub fn from_date_timestamp(value: i64) -> Self {
+        let dt = DateTime::from_timestamp(value);
+
+        PartialDateTime {
+            year: dt.year.into(),
+            month: dt.month.into(),
+            day: dt.day.into(),
+            ..Default::default()
+        }
+    }
+
     pub fn from_naive_timestamp(value: i64) -> Self {
         let dt = DateTime::from_timestamp(value);
 

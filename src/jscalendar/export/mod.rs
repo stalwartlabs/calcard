@@ -25,6 +25,7 @@ struct State<'x, I: JSCalendarId, B: JSCalendarId> {
     tz_rid: Option<Tz>,
     start: Option<DateTime<Tz>>,
     recurrence_id: Option<DateTime<Tz>>,
+    is_date: bool,
 }
 
 #[allow(clippy::type_complexity)]

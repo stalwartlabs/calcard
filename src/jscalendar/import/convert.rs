@@ -5,13 +5,14 @@
  */
 
 use crate::{
-    common::timezone::TzTimestamp,
+    common::timezone::{Tz, TzTimestamp},
     icalendar::{timezone::TzResolver, *},
     jscalendar::{
         import::{ConversionOptions, EntryState, State, params::ExtractParams},
         *,
     },
 };
+use chrono::DateTime;
 use jmap_tools::{JsonPointer, Key, Map, Value};
 
 impl ICalendar {
@@ -333,7 +334,7 @@ impl ICalendar {
                         &mut entry,
                         &[
                             ICalendarParameterName::Fmttype,
-                            ICalendarParameterName::Label,
+                            ICalendarParameterName::Filename,
                             ICalendarParameterName::Size,
                             ICalendarParameterName::Jsid,
                         ],
@@ -346,6 +347,12 @@ impl ICalendar {
                             (
                                 Key::Property(JSCalendarProperty::Type),
                                 Value::Element(JSCalendarValue::Type(JSCalendarType::Link)),
+                            ),
+                            (
+                                Key::Property(JSCalendarProperty::Rel),
+                                Value::Element(JSCalendarValue::LinkRelation(
+                                    LinkRelation::Enclosure,
+                                )),
                             ),
                         ],
                     );
@@ -365,7 +372,7 @@ impl ICalendar {
                         &[
                             ICalendarParameterName::Display,
                             ICalendarParameterName::Fmttype,
-                            ICalendarParameterName::Label,
+                            ICalendarParameterName::Filename,
                             ICalendarParameterName::Size,
                             ICalendarParameterName::Jsid,
                         ],
@@ -378,6 +385,10 @@ impl ICalendar {
                             (
                                 Key::Property(JSCalendarProperty::Type),
                                 Value::Element(JSCalendarValue::Type(JSCalendarType::Link)),
+                            ),
+                            (
+                                Key::Property(JSCalendarProperty::Rel),
+                                Value::Element(JSCalendarValue::LinkRelation(LinkRelation::Icon)),
                             ),
                         ],
                     );
@@ -409,6 +420,38 @@ impl ICalendar {
                             (
                                 Key::Property(JSCalendarProperty::Type),
                                 Value::Element(JSCalendarValue::Type(JSCalendarType::Link)),
+                            ),
+                        ],
+                    );
+                    entry.set_map_name();
+                }
+                (
+                    ICalendarProperty::Url,
+                    Some(ICalendarValue::Text(uri)),
+                    ICalendarComponentType::VEvent
+                    | ICalendarComponentType::VTodo
+                    | ICalendarComponentType::Participant
+                    | ICalendarComponentType::VLocation
+                    | ICalendarComponentType::VCalendar,
+                ) => {
+                    state.map_named_entry(
+                        &mut entry,
+                        &[ICalendarParameterName::Label, ICalendarParameterName::Jsid],
+                        JSCalendarProperty::Links,
+                        [
+                            (
+                                Key::Property(JSCalendarProperty::Href),
+                                Value::Str(uri.into()),
+                            ),
+                            (
+                                Key::Property(JSCalendarProperty::Type),
+                                Value::Element(JSCalendarValue::Type(JSCalendarType::Link)),
+                            ),
+                            (
+                                Key::Property(JSCalendarProperty::Rel),
+                                Value::Element(JSCalendarValue::LinkRelation(
+                                    LinkRelation::Describedby,
+                                )),
                             ),
                         ],
                     );
@@ -496,11 +539,28 @@ impl ICalendar {
                         Value::Str(uri.clone().into()),
                     );
 
+                    if let Some(sent_by) = entry
+                        .entry
+                        .params
+                        .iter()
+                        .find(|param| param.name == ICalendarParameterName::SentBy)
+                        .and_then(|param| param.value.as_text())
+                    {
+                        state.entries.insert(
+                            Key::Property(JSCalendarProperty::SentBy),
+                            Value::Str(sent_by.to_string().into()),
+                        );
+                    }
+
                     /*
                      It also converts to a Participant object in the "participants" property,
                      if any of its parameters convert to a Participant object property, or
                      if none of the ATTENDEE properties in the iCalendar component have
                      the ROLE parameter set to "OWNER"
+
+                     An ORGANIZER property, an ATTENDEE property, and a PARTICIPANT component
+                     in the same iCalendar component all convert to the same Participant
+                     object, if their converted "calendarAddress" property values are equal.
                     */
 
                     if !has_owner
@@ -514,7 +574,9 @@ impl ICalendar {
                             )
                         })
                     {
-                        state.map_named_entry(
+                        let participant_id = state.find_participant_by_address(uri.as_ref());
+
+                        state.map_named_entry_with_id(
                             &mut entry,
                             &[
                                 ICalendarParameterName::Cn,
@@ -534,7 +596,17 @@ impl ICalendar {
                                         JSCalendarType::Participant,
                                     )),
                                 ),
+                                (
+                                    Key::Property(JSCalendarProperty::Roles),
+                                    Value::Object(Map::from(vec![(
+                                        Key::Property(JSCalendarProperty::ParticipantRole(
+                                            JSCalendarParticipantRole::Owner,
+                                        )),
+                                        Value::Bool(true),
+                                    )])),
+                                ),
                             ],
+                            participant_id,
                         );
                     } else {
                         continue;
@@ -991,20 +1063,40 @@ impl ICalendar {
                 ) if value.has_date() && start_date.is_some() => {
                     let tzid = entry.entry.tz_id();
                     state.tz_end = tzid.and_then(|v| tz_resolver.resolve(v)).or(state.tz_start);
-                    if let Some((delta, tz)) = value
+                    if let Some((delta, dt)) = value
                         .to_date_time()
                         .and_then(|dt| dt.to_date_time_with_tz(state.tz_end.unwrap_or_default()))
                         .and_then(|dt| {
                             let delta = dt.signed_duration_since(start_date.unwrap()).num_seconds();
-                            (delta > 0).then_some((delta, dt.timezone()))
+                            (delta > 0).then_some((delta, dt))
                         })
                     {
                         state.has_dates = true;
+
+                        /*
+                         If the value type of the DTEND property is DATE, then the duration is
+                         the number of days or weeks between the DTSTART and DTEND property
+                         values. If the value type is DATE-TIME, then the duration is the
+                         timespan between the DTSTART and DTEND property values when converted
+                         to UTC time.
+                        */
+
+                        let days = if !value.has_time() {
+                            dt.date_naive()
+                                .signed_duration_since(start_date.unwrap().date_naive())
+                                .num_days()
+                        } else {
+                            0
+                        };
+                        let duration = if days > 0 {
+                            ICalendarDuration::from_days(days)
+                        } else {
+                            ICalendarDuration::from_seconds(delta)
+                        };
+
                         state.entries.insert(
                             Key::Property(JSCalendarProperty::Duration),
-                            Value::Element(JSCalendarValue::Duration(
-                                ICalendarDuration::from_seconds(delta),
-                            )),
+                            Value::Element(JSCalendarValue::Duration(duration)),
                         );
 
                         // Remove IANA TZ references
@@ -1029,7 +1121,7 @@ impl ICalendar {
                         entry.set_map_name();
 
                         if state.tz_end.is_none() {
-                            state.tz_end = tz.to_resolved();
+                            state.tz_end = dt.timezone().to_resolved();
                         }
                         if state.tz_start.is_none() {
                             state.tz_start = state.tz_end;
@@ -1175,6 +1267,85 @@ impl ICalendar {
                             .into_iter()
                             .chain(values)
                             .collect();
+                    }
+                }
+                (
+                    ICalendarProperty::Rdate,
+                    Some(value @ ICalendarValue::Period(_)),
+                    ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
+                ) => {
+                    /*
+                     The property value converts to the key in the "recurrenceOverrides"
+                     property value, for values of type PERIOD this only applies to the
+                     period start. The duration of a PERIOD converts to the PatchObject's
+                     "duration" property.
+                    */
+
+                    let tz = entry
+                        .entry
+                        .tz_id()
+                        .and_then(|v| tz_resolver.resolve(v))
+                        .or(state.tz_start)
+                        .unwrap_or_default();
+
+                    // Restore the values, they are preserved as-is unless every period converts
+                    entry.entry.values = [value].into_iter().chain(values).collect();
+
+                    if let Some((start, _)) = entry
+                        .entry
+                        .values
+                        .first()
+                        .and_then(|value| period_to_date_time(value, tz))
+                        && entry
+                            .entry
+                            .values
+                            .iter()
+                            .skip(1)
+                            .all(|value| period_to_date_time(value, tz).is_some())
+                    {
+                        state.has_dates = true;
+                        if state.tz_start.is_none() {
+                            state.tz_start = start.timezone().to_resolved();
+                        }
+
+                        let tz_start = state.tz_start.unwrap_or_default();
+                        let overrides_name =
+                            JSCalendarProperty::RecurrenceOverrides::<I>.to_string();
+
+                        // Each period converts to its own recurrence override
+                        for pos in 0..entry.entry.values.len() {
+                            let (dt, duration) =
+                                period_to_date_time(&entry.entry.values[pos], tz).unwrap();
+                            let key = Key::Property(JSCalendarProperty::DateTime(
+                                JSCalendarDateTime::new(
+                                    dt.with_timezone(&tz_start).to_naive_timestamp(),
+                                    true,
+                                ),
+                            ));
+                            let key_name = key.to_string().into_owned();
+
+                            state.insert_recurrence_override(
+                                key,
+                                Value::Object(Map::from(vec![(
+                                    Key::Property(JSCalendarProperty::Duration),
+                                    Value::Element(JSCalendarValue::Duration(duration)),
+                                )])),
+                            );
+
+                            if pos == 0 {
+                                entry.set_converted_to::<I>(&[
+                                    overrides_name.as_ref(),
+                                    key_name.as_str(),
+                                ]);
+                                entry.set_map_name();
+                            } else {
+                                state.add_period_conversion_prop(format!(
+                                    "{}/{}",
+                                    overrides_name.as_ref(),
+                                    key_name
+                                ));
+                            }
+                        }
                     }
                 }
                 (
@@ -1831,5 +2002,27 @@ impl ICalendar {
         }
 
         state
+    }
+}
+
+fn period_to_date_time(
+    value: &ICalendarValue,
+    tz: Tz,
+) -> Option<(DateTime<Tz>, ICalendarDuration)> {
+    match value {
+        ICalendarValue::Period(ICalendarPeriod::Range { start, end }) => {
+            let start = start.to_date_time()?.to_date_time_with_tz(tz)?;
+            let end = end.to_date_time()?.to_date_time_with_tz(tz)?;
+
+            Some((
+                start,
+                ICalendarDuration::from_seconds(end.signed_duration_since(start).num_seconds()),
+            ))
+        }
+        ICalendarValue::Period(ICalendarPeriod::Duration { start, duration }) => Some((
+            start.to_date_time()?.to_date_time_with_tz(tz)?,
+            duration.clone(),
+        )),
+        _ => None,
     }
 }

@@ -483,6 +483,25 @@ impl ICalendarDuration {
         }
     }
 
+    pub fn from_days(days: i64) -> Self {
+        let neg = days < 0;
+        let days = days.unsigned_abs();
+        let (weeks, days) = if days.is_multiple_of(7) {
+            (days / 7, 0)
+        } else {
+            (0, days)
+        };
+
+        Self {
+            weeks: weeks as u32,
+            days: days as u32,
+            hours: 0,
+            minutes: 0,
+            seconds: 0,
+            neg,
+        }
+    }
+
     pub fn to_time_delta(&self) -> Option<chrono::TimeDelta> {
         chrono::TimeDelta::new(self.as_seconds(), 0)
     }

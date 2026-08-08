@@ -206,7 +206,7 @@ impl<I: JSCalendarId, B: JSCalendarId> ExtractParams
                         );
                     }
                 }
-                ICalendarParameterName::Label => {
+                ICalendarParameterName::Label | ICalendarParameterName::Filename => {
                     if let Some(text) = param.value.into_text() {
                         self.insert(
                             Key::Property(if matches!(entry.name, ICalendarProperty::Conference) {
@@ -333,7 +333,6 @@ impl<I: JSCalendarId, B: JSCalendarId> ExtractParams
                 | ICalendarParameterName::ScheduleStatus
                 | ICalendarParameterName::Tzid
                 | ICalendarParameterName::Value
-                | ICalendarParameterName::Filename
                 | ICalendarParameterName::ManagedId
                 | ICalendarParameterName::Order
                 | ICalendarParameterName::Schema
