@@ -1,3 +1,7 @@
+calcard 0.3.10
+================================
+- Bump `mail-builder` dependency to 0.5.
+
 calcard 0.3.9
 ================================
 - Updated JSCalendar conversion rules according to `draft-ietf-calext-jscalendar-icalendar-25`.
