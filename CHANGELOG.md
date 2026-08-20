@@ -1,6 +1,7 @@
 calcard 0.3.10
 ================================
 - Bump `mail-builder` dependency to 0.5.
+- Use `rkyv::primitive::ArchivedU32` instead of the concrete `rkyv::rend::u32_le`.
 
 calcard 0.3.9
 ================================
