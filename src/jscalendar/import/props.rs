@@ -278,12 +278,12 @@ impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
             );
         }
 
-        if !self.is_recurrence_instance {
+        if !self.is_recurrence_instance
+            && let Some(component_type) = self.component_type.to_jscalendar_type()
+        {
             self.entries.insert(
                 Key::Property(JSCalendarProperty::Type),
-                Value::Element(JSCalendarValue::Type(
-                    self.component_type.to_jscalendar_type().unwrap(),
-                )),
+                Value::Element(JSCalendarValue::Type(component_type)),
             );
         }
 

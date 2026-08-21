@@ -164,6 +164,7 @@ impl VCardEntry {
         }
 
         write!(out, ":")?;
+        line_len += 1;
 
         let (default_type, value_separator) = self.name.default_types();
         let default_type = default_type.unwrap_vcard();
@@ -191,7 +192,7 @@ impl VCardEntry {
                 line_len += 1;
             }
 
-            if line_len + 1 > 75 {
+            if line_len + 1 > 75 && !matches!(value, VCardValue::Text(v) if v.is_empty()) {
                 write!(out, "\r\n ")?;
                 line_len = 1;
             }
@@ -402,14 +403,21 @@ impl PartialDateTime {
         if matches!(fmt, VCardValueType::Timestamp) {
             write!(
                 out,
-                "{:04}{:02}{:02}T{:02}{:02}{:02}",
+                "{:04}{:02}{:02}",
                 self.year.unwrap_or_default(),
                 self.month.unwrap_or_default(),
                 self.day.unwrap_or_default(),
-                self.hour.unwrap_or_default(),
-                self.minute.unwrap_or_default(),
-                self.second.unwrap_or_default()
             )?;
+
+            if self.hour.is_some() {
+                write!(
+                    out,
+                    "T{:02}{:02}{:02}",
+                    self.hour.unwrap_or_default(),
+                    self.minute.unwrap_or_default(),
+                    self.second.unwrap_or_default()
+                )?;
+            }
 
             if let Some(tz_hour) = self.tz_hour {
                 let tz_minute = self.tz_minute.unwrap_or_default();

@@ -216,6 +216,11 @@ impl PartialDateTime {
             idx += 1;
         }
 
+        if self.hour.is_some() {
+            self.minute.get_or_insert(0);
+            self.second.get_or_insert(0);
+        }
+
         self.has_date() && (!require_time || self.has_time())
     }
 

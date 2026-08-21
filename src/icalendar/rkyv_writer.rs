@@ -174,6 +174,7 @@ impl ArchivedICalendarEntry {
         }
 
         write!(out, ":")?;
+        line_len += 1;
 
         if with_value {
             let (default_type, separator) = self.name.default_types();
@@ -190,7 +191,9 @@ impl ArchivedICalendarEntry {
                     line_len += 1;
                 }
 
-                if line_len + 1 > 75 {
+                if line_len + 1 > 75
+                    && !matches!(value, ArchivedICalendarValue::Text(v) if v.is_empty())
+                {
                     write!(out, "\r\n ")?;
                     line_len = 1;
                 }
@@ -241,7 +244,11 @@ impl ArchivedICalendarEntry {
                         continue;
                     }
                     ArchivedICalendarValue::Text(v) => {
-                        write_text(out, &mut line_len, v, true, true)?;
+                        let escape = !matches!(
+                            types.unwrap_or(&default_type),
+                            ArchivedICalendarValueType::Recur
+                        );
+                        write_text(out, &mut line_len, v, escape, escape)?;
                         continue;
                     }
                     ArchivedICalendarValue::CalendarScale(v) => v.as_str(),

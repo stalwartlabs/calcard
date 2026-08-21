@@ -167,6 +167,7 @@ impl ArchivedVCardEntry {
         }
 
         write!(out, ":")?;
+        line_len += 1;
 
         if with_value {
             let (default_type, value_separator) = self.name.default_types();
@@ -196,7 +197,9 @@ impl ArchivedVCardEntry {
                     line_len += 1;
                 }
 
-                if line_len + 1 > 75 {
+                if line_len + 1 > 75
+                    && !matches!(value, ArchivedVCardValue::Text(v) if v.is_empty())
+                {
                     write!(out, "\r\n ")?;
                     line_len = 1;
                 }
@@ -430,14 +433,21 @@ impl crate::common::ArchivedPartialDateTime {
         if matches!(fmt, ArchivedVCardValueType::Timestamp) {
             write!(
                 out,
-                "{:04}{:02}{:02}T{:02}{:02}{:02}",
+                "{:04}{:02}{:02}",
                 self.year.as_ref().map(u16::from).unwrap_or_default(),
                 self.month.as_ref().copied().unwrap_or_default(),
                 self.day.as_ref().copied().unwrap_or_default(),
-                self.hour.as_ref().copied().unwrap_or_default(),
-                self.minute.as_ref().copied().unwrap_or_default(),
-                self.second.as_ref().copied().unwrap_or_default()
             )?;
+
+            if self.hour.is_some() {
+                write!(
+                    out,
+                    "T{:02}{:02}{:02}",
+                    self.hour.as_ref().copied().unwrap_or_default(),
+                    self.minute.as_ref().copied().unwrap_or_default(),
+                    self.second.as_ref().copied().unwrap_or_default()
+                )?;
+            }
 
             if let Some(tz_hour) = self.tz_hour.as_ref().copied() {
                 let tz_minute = self.tz_minute.as_ref().copied().unwrap_or_default();

@@ -168,6 +168,7 @@ impl ICalendarEntry {
         }
 
         write!(out, ":")?;
+        line_len += 1;
 
         let (default_type, separator) = self.name.default_types();
         let separator = if !matches!(separator, ValueSeparator::Comma) {
@@ -183,7 +184,7 @@ impl ICalendarEntry {
                 line_len += 1;
             }
 
-            if line_len + 1 > 75 {
+            if line_len + 1 > 75 && !matches!(value, ICalendarValue::Text(v) if v.is_empty()) {
                 write!(out, "\r\n ")?;
                 line_len = 1;
             }
@@ -234,7 +235,11 @@ impl ICalendarEntry {
                     continue;
                 }
                 ICalendarValue::Text(v) => {
-                    write_text(out, &mut line_len, v, true, true)?;
+                    let escape = !matches!(
+                        types.unwrap_or(&default_type),
+                        ICalendarValueType::Recur
+                    );
+                    write_text(out, &mut line_len, v, escape, escape)?;
                     continue;
                 }
                 ICalendarValue::CalendarScale(v) => v.as_str(),

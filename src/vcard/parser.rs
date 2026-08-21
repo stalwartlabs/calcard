@@ -144,8 +144,11 @@ impl Parser<'_> {
                     }
                 };
                 match params.encoding {
-                    Some(Encoding::Base64) if multi_value != ValueSeparator::None => {
-                        self.expect_single_value();
+                    Some(Encoding::Base64) => {
+                        if multi_value != ValueSeparator::None {
+                            self.expect_single_value();
+                        }
+                        self.unfold_b64 = true;
                     }
                     Some(Encoding::QuotedPrintable) => {
                         self.unfold_qp = true;
@@ -338,6 +341,8 @@ impl Parser<'_> {
 
                     token_idx += 1;
                 }
+            } else {
+                entry.values.push(VCardValue::Text(String::new()));
             }
 
             // Add types
@@ -638,7 +643,7 @@ impl Token<'_> {
         self,
     ) -> std::result::Result<PartialDateTime, String> {
         let mut dt = PartialDateTime::default();
-        if dt.parse_timestamp(&mut self.text.iter().peekable(), true) {
+        if dt.parse_timestamp(&mut self.text.iter().peekable(), false) {
             Ok(dt)
         } else {
             let mut dt = PartialDateTime::default();

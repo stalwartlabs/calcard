@@ -1,3 +1,19 @@
+calcard 0.3.11
+================================
+- Fix: whitespace immediately preceding a fold was discarded while unfolding, silently joining the words around it (RFC 5545, Section 3.1).
+- Fix: `into_jscalendar()` panicked on `VJOURNAL`, `VFREEBUSY`, `VTIMEZONE` and unknown components, none of which have a JSCalendar type.
+- Fix: `RRULE` values that could not be parsed were truncated to their first rule part instead of being preserved verbatim.
+- Fix: unparseable `RRULE` values were serialized with `TEXT` escaping, turning the structural `;` and `,` separators of the `RECUR` value type into `\;` and `\,` (RFC 5545, Section 3.3.10).
+- Fix: date-only vCard 3.0 `REV` values were serialized with a fabricated `T000000` time, although a `date` value is valid there (RFC 2426, Section 3.6.4).
+- Fix: truncated iCalendar `DATE-TIME` and vCard `TIMESTAMP` values were not completed, so a value missing its seconds did not survive a round trip, and a value missing its minutes was silently downgraded to a `DATE`, discarding the time.
+- Fix: control characters were retained in parameter values and emitted verbatim by URI parameters such as `ALTREP` and `DIR`, although `QSAFE-CHAR` does not permit them (RFC 5545, Section 3.1).
+- Fix: vCard content lines lacking a value separator were parsed with no value but serialized with an empty one.
+- Fix: serialized lines exceeded the 75 octet limit by one because the colon separating a property from its value was not counted.
+- Fix: an empty value at a fold boundary emitted a continuation line holding nothing but the fold character.
+- Fix: vCard 2.1 `BASE64` values continued on unindented lines and terminated by a blank line were truncated to their first line, discarding the rest of the encoded data.
+- Fix: an `RRULE` holding an invalid rule part silently yielded a partial recurrence rule, since every part after the invalid one was skipped and the resulting rule was returned as if it had parsed cleanly.
+- Expanded the iCalendar and vCard round-trip test corpus with samples collected from public test suites.
+
 calcard 0.3.10
 ================================
 - Bump `mail-builder` dependency to 0.5.

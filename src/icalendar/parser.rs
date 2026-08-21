@@ -642,21 +642,21 @@ impl Parser<'_> {
         let mut rrule = ICalendarRecurrenceRule::default();
 
         let mut token_start = usize::MAX;
-        let mut token_end = usize::MAX;
 
         while let Some(mut token) = self.token_until_lf(&mut last_stop_char) {
-            if token_start == usize::MAX {
+            if token_start == usize::MAX && !token.text.is_empty() {
                 token_start = token.start;
             }
-            token_end = token.end;
             if !is_valid {
+                continue;
+            }
+            if token.text.is_empty() && token.stop_char != StopChar::Equal {
                 continue;
             }
             if token.stop_char != StopChar::Equal {
                 if !self.strict {
                     // Ignore unknown tokens
                     while let Some(token_) = self.token_until_lf(&mut last_stop_char) {
-                        token_end = token.end;
                         if token_.stop_char == StopChar::Equal {
                             token = token_;
                             break;
@@ -674,9 +674,7 @@ impl Parser<'_> {
 
             hashify::fnc_map_ignore_case!(token.text.as_ref(),
                 b"FREQ" => {
-                    while let Some(value) = self.parse_value_until_lf(StopChar::Semicolon, &mut last_stop_char) {
-                        token_end = token.end;
-                        if let Some(value)= value {
+                    while let Some(value) = self.parse_value_until_lf(StopChar::Semicolon, &mut last_stop_char) {                        if let Some(value)= value {
                             rrule.freq = value;
                             has_freq = true;
                         } else if !self.strict {
@@ -685,9 +683,7 @@ impl Parser<'_> {
                     }
                 },
                 b"UNTIL" => {
-                    while let Some(value) = self.parse_value_until_lf::<ICalendarDateOrTime>(StopChar::Semicolon, &mut last_stop_char) {
-                        token_end = token.end;
-                        if let Some(value)= value {
+                    while let Some(value) = self.parse_value_until_lf::<ICalendarDateOrTime>(StopChar::Semicolon, &mut last_stop_char) {                        if let Some(value)= value {
                             rrule.until = Some(value.0);
                         } else if !self.strict {
                             is_valid = false;
@@ -695,9 +691,7 @@ impl Parser<'_> {
                     }
                 },
                 b"COUNT" => {
-                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
-                        token_end = token.end;
-                        if let Some(value)= value {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {                        if let Some(value)= value {
                             let count = value.0.unsigned_abs() as u32;
                             if count > 0 {
                                 rrule.count = Some(count);
@@ -708,9 +702,7 @@ impl Parser<'_> {
                     }
                 },
                 b"INTERVAL" => {
-                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
-                        token_end = token.end;
-                        if let Some(value)= value {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {                        if let Some(value)= value {
                             let interval = value.0.unsigned_abs() as u16;
                             if interval > 0 {
                                 rrule.interval = Some(interval);
@@ -721,9 +713,7 @@ impl Parser<'_> {
                     }
                 },
                 b"BYSECOND" => {
-                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
-                        token_end = token.end;
-                        if let Some(value)= value {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {                        if let Some(value)= value {
                             rrule.bysecond.push(value.0.unsigned_abs() as u8);
                         } else if !self.strict {
                             is_valid = false;
@@ -731,9 +721,7 @@ impl Parser<'_> {
                     }
                 },
                 b"BYMINUTE" => {
-                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
-                        token_end = token.end;
-                        if let Some(value)= value {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {                        if let Some(value)= value {
                             rrule.byminute.push(value.0.unsigned_abs() as u8);
                         } else if !self.strict {
                             is_valid = false;
@@ -741,9 +729,7 @@ impl Parser<'_> {
                     }
                 },
                 b"BYHOUR" => {
-                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
-                        token_end = token.end;
-                        if let Some(value)= value {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {                        if let Some(value)= value {
                             rrule.byhour.push(value.0.unsigned_abs() as u8);
                         } else if !self.strict {
                             is_valid = false;
@@ -751,9 +737,7 @@ impl Parser<'_> {
                     }
                 },
                 b"BYDAY" => {
-                    while let Some(value) = self.parse_value_until_lf::<ICalendarDay>(StopChar::Semicolon, &mut last_stop_char) {
-                        token_end = token.end;
-                        if let Some(value)= value {
+                    while let Some(value) = self.parse_value_until_lf::<ICalendarDay>(StopChar::Semicolon, &mut last_stop_char) {                        if let Some(value)= value {
                             rrule.byday.push(value);
                         } else if !self.strict {
                             is_valid = false;
@@ -761,9 +745,7 @@ impl Parser<'_> {
                     }
                 },
                 b"BYMONTHDAY" => {
-                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
-                        token_end = token.end;
-                        if let Some(value)= value {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {                        if let Some(value)= value {
                             rrule.bymonthday.push(value.0 as i8);
                         } else if !self.strict {
                             is_valid = false;
@@ -771,9 +753,7 @@ impl Parser<'_> {
                     }
                 },
                 b"BYYEARDAY" => {
-                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
-                        token_end = token.end;
-                        if let Some(value)= value {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {                        if let Some(value)= value {
                             rrule.byyearday.push(value.0 as i16);
                         } else if !self.strict {
                             is_valid = false;
@@ -781,9 +761,7 @@ impl Parser<'_> {
                     }
                 },
                 b"BYWEEKNO" => {
-                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
-                        token_end = token.end;
-                        if let Some(value)= value {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {                        if let Some(value)= value {
                             rrule.byweekno.push(value.0 as i8);
                         } else if !self.strict {
                             is_valid = false;
@@ -791,9 +769,7 @@ impl Parser<'_> {
                     }
                 },
                 b"BYMONTH" => {
-                    while let Some(value) = self.parse_value_until_lf::<ICalendarMonth>(StopChar::Semicolon, &mut last_stop_char) {
-                        token_end = token.end;
-                        if let Some(value)= value {
+                    while let Some(value) = self.parse_value_until_lf::<ICalendarMonth>(StopChar::Semicolon, &mut last_stop_char) {                        if let Some(value)= value {
                             rrule.bymonth.push(value);
                         } else if !self.strict {
                             is_valid = false;
@@ -801,9 +777,7 @@ impl Parser<'_> {
                     }
                 },
                 b"BYSETPOS" => {
-                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {
-                        token_end = token.end;
-                        if let Some(value)= value {
+                    while let Some(value) = self.parse_value_until_lf::<Integer>(StopChar::Semicolon, &mut last_stop_char) {                        if let Some(value)= value {
                             rrule.bysetpos.push(value.0 as i32);
                         } else if !self.strict {
                             is_valid = false;
@@ -811,9 +785,7 @@ impl Parser<'_> {
                     }
                 },
                 b"WKST" => {
-                    while let Some(value) = self.parse_value_until_lf::<ICalendarWeekday>(StopChar::Semicolon, &mut last_stop_char) {
-                        token_end = token.end;
-                        if let Some(value)= value {
+                    while let Some(value) = self.parse_value_until_lf::<ICalendarWeekday>(StopChar::Semicolon, &mut last_stop_char) {                        if let Some(value)= value {
                             rrule.wkst = Some(value);
                         } else if !self.strict {
                             is_valid = false;
@@ -821,9 +793,7 @@ impl Parser<'_> {
                     }
                 },
                 b"RSCALE" => {
-                    while let Some(value) = self.parse_value_until_lf::<CalendarScale>(StopChar::Semicolon, &mut last_stop_char) {
-                        token_end = token.end;
-                        if let Some(value)= value {
+                    while let Some(value) = self.parse_value_until_lf::<CalendarScale>(StopChar::Semicolon, &mut last_stop_char) {                        if let Some(value)= value {
                             rrule.rscale = Some(value);
                         } else if !self.strict {
                             is_valid = false;
@@ -831,9 +801,7 @@ impl Parser<'_> {
                     }
                 },
                 b"SKIP" => {
-                    while let Some(value) = self.parse_value_until_lf::<ICalendarSkip>(StopChar::Semicolon, &mut last_stop_char) {
-                        token_end = token.end;
-                        if let Some(value)= value {
+                    while let Some(value) = self.parse_value_until_lf::<ICalendarSkip>(StopChar::Semicolon, &mut last_stop_char) {                        if let Some(value)= value {
                             rrule.skip = Some(value);
                         } else if !self.strict {
                             is_valid = false;
@@ -843,9 +811,7 @@ impl Parser<'_> {
                 _ => {
                     if !self.strict {
                         // Ignore unknown tokens
-                        while let Some(token) = self.token_until_lf(&mut last_stop_char) {
-                            token_end = token.end;
-                            if token.stop_char == StopChar::Semicolon{
+                        while let Some(token) = self.token_until_lf(&mut last_stop_char) {                            if token.stop_char == StopChar::Semicolon{
                                 break;
                             }
                         }
@@ -856,13 +822,29 @@ impl Parser<'_> {
             );
         }
 
-        if has_freq {
+        if has_freq && is_valid {
             Ok(rrule)
-        } else if token_start != usize::MAX {
+        } else if token_start != usize::MAX && self.last_token_end >= token_start {
             Err(self
                 .input
-                .get(token_start..=token_end)
-                .map(|slice| String::from_utf8_lossy(slice).into_owned())
+                .get(token_start..=self.last_token_end)
+                .map(|slice| {
+                    let mut buf = Vec::with_capacity(slice.len());
+                    let mut iter = slice.iter().peekable();
+
+                    while let Some(ch) = iter.next() {
+                        match ch {
+                            b'\r' => {}
+                            b'\n' => {
+                                iter.next_if(|ch| matches!(ch, b' ' | b'\t'));
+                            }
+                            _ => buf.push(*ch),
+                        }
+                    }
+
+                    String::from_utf8(buf)
+                        .unwrap_or_else(|err| String::from_utf8_lossy(err.as_bytes()).into_owned())
+                })
                 .unwrap_or_default())
         } else {
             Err("".to_string())

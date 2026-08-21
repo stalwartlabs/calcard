@@ -19,7 +19,12 @@ pub(crate) fn write_text(
     escape_comma: bool,
 ) -> std::fmt::Result {
     for ch in value.chars() {
-        let ch_len = ch.len_utf8();
+        let ch_len = match ch {
+            '\r' | '\n' | '\\' => 2,
+            ';' if escape_semicolon => 2,
+            ',' if escape_comma => 2,
+            _ => ch.len_utf8(),
+        };
         if *line_len + ch_len > 75 {
             write!(out, "\r\n ")?;
             *line_len = 1;

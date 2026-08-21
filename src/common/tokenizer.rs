@@ -32,9 +32,11 @@ impl<'x> Parser<'x> {
         self.stop_comma = true;
         self.stop_equal = true;
         self.unfold_qp = false;
+        self.unfold_b64 = false;
         self.unquote = true;
         self.stop_dot = false;
         self.skip_ws = true;
+        self.strip_ctl = false;
     }
 
     pub(crate) fn expect_single_value(&mut self) {
@@ -44,8 +46,10 @@ impl<'x> Parser<'x> {
         self.stop_semicolon = false;
         self.unquote = false;
         self.unfold_qp = false;
+        self.unfold_b64 = false;
         self.stop_dot = false;
         self.skip_ws = false;
+        self.strip_ctl = false;
     }
 
     pub(crate) fn expect_multi_value_comma(&mut self) {
@@ -55,8 +59,10 @@ impl<'x> Parser<'x> {
         self.stop_semicolon = false;
         self.unquote = false;
         self.unfold_qp = false;
+        self.unfold_b64 = false;
         self.stop_dot = false;
         self.skip_ws = true;
+        self.strip_ctl = false;
     }
 
     pub(crate) fn expect_multi_value_semicolon(&mut self) {
@@ -66,8 +72,10 @@ impl<'x> Parser<'x> {
         self.stop_semicolon = true;
         self.unquote = false;
         self.unfold_qp = false;
+        self.unfold_b64 = false;
         self.stop_dot = false;
         self.skip_ws = false;
+        self.strip_ctl = false;
     }
 
     pub(crate) fn expect_multi_value_semicolon_and_comma(&mut self) {
@@ -77,8 +85,10 @@ impl<'x> Parser<'x> {
         self.stop_semicolon = true;
         self.unquote = false;
         self.unfold_qp = false;
+        self.unfold_b64 = false;
         self.stop_dot = false;
         self.skip_ws = false;
+        self.strip_ctl = false;
     }
 
     pub(crate) fn expect_param_value(&mut self) {
@@ -87,9 +97,11 @@ impl<'x> Parser<'x> {
         self.stop_comma = true;
         self.stop_equal = false;
         self.unfold_qp = false;
+        self.unfold_b64 = false;
         self.unquote = true;
         self.stop_dot = false;
         self.skip_ws = true;
+        self.strip_ctl = true;
     }
 
     pub(crate) fn expect_rrule_value(&mut self) {
@@ -99,8 +111,10 @@ impl<'x> Parser<'x> {
         self.stop_semicolon = true;
         self.unquote = false;
         self.unfold_qp = false;
+        self.unfold_b64 = false;
         self.stop_dot = false;
         self.skip_ws = true;
+        self.strip_ctl = false;
     }
 
     fn try_unfold(&mut self) -> bool {
@@ -113,6 +127,21 @@ impl<'x> Parser<'x> {
         false
     }
 
+    fn is_base64_continuation(&self, idx: usize) -> bool {
+        let mut has_data = false;
+
+        for ch in self.input.get(idx + 1..).unwrap_or_default() {
+            match ch {
+                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'+' | b'/' | b'=' => has_data = true,
+                b'\r' => {}
+                b'\n' => break,
+                _ => return false,
+            }
+        }
+
+        has_data
+    }
+
     pub(crate) fn token(&mut self) -> Option<Token<'x>> {
         let mut offset_start = usize::MAX;
         let mut offset_end = usize::MAX;
@@ -120,6 +149,7 @@ impl<'x> Parser<'x> {
         let mut in_quote = false;
         let stop_char;
         let mut buf: Vec<u8> = vec![];
+        let mut skipped_ws = usize::MAX;
 
         'outer: loop {
             let (idx, ch) = if let Some(next) = self.iter.next() {
@@ -140,10 +170,13 @@ impl<'x> Parser<'x> {
                             offset_start = idx;
                         }
                         offset_end = idx;
+                        skipped_ws = usize::MAX;
 
                         if !buf.is_empty() {
                             buf.push(*ch);
                         }
+                    } else if skipped_ws == usize::MAX {
+                        skipped_ws = idx;
                     }
                 }
                 b'\r' => {}
@@ -160,6 +193,20 @@ impl<'x> Parser<'x> {
                         if buf.is_empty() && offset_start != usize::MAX {
                             buf.extend_from_slice(&self.input[offset_start..=offset_end]);
                         }
+
+                        if skipped_ws != usize::MAX && !buf.is_empty() {
+                            buf.extend(
+                                self.input[skipped_ws..idx]
+                                    .iter()
+                                    .filter(|ch| matches!(ch, b' ' | b'\t')),
+                            );
+                        }
+                        skipped_ws = usize::MAX;
+                    } else if self.unfold_b64 && self.is_base64_continuation(idx) {
+                        if buf.is_empty() && offset_start != usize::MAX {
+                            buf.extend_from_slice(&self.input[offset_start..=offset_end]);
+                        }
+                        skipped_ws = usize::MAX;
                     } else {
                         stop_char = StopChar::Lf;
                         break;
@@ -195,9 +242,18 @@ impl<'x> Parser<'x> {
                         if buf.is_empty() {
                             buf.extend_from_slice(&self.input[offset_start..=offset_end]);
                         }
+
+                        if skipped_ws != usize::MAX {
+                            buf.extend(
+                                self.input[skipped_ws..idx]
+                                    .iter()
+                                    .filter(|ch| matches!(ch, b' ' | b'\t')),
+                            );
+                        }
                     } else {
                         offset_start = next_offset_end;
                     }
+                    skipped_ws = usize::MAX;
                     buf.push(match next_ch {
                         b'n' | b'N' => b'\n',
                         b'r' | b'R' => b'\r',
@@ -228,17 +284,27 @@ impl<'x> Parser<'x> {
                     stop_char = StopChar::Dot;
                     break;
                 }
+                0x00..=0x08 | 0x0B | 0x0C | 0x0E..=0x1F | 0x7F if self.strip_ctl => {
+                    if buf.is_empty() && offset_start != usize::MAX {
+                        buf.extend_from_slice(&self.input[offset_start..=offset_end]);
+                    }
+                }
                 _ => {
                     if offset_start == usize::MAX {
                         offset_start = idx;
                     }
                     offset_end = idx;
+                    skipped_ws = usize::MAX;
 
                     if !buf.is_empty() {
                         buf.push(*ch);
                     }
                 }
             }
+        }
+
+        if offset_start != usize::MAX {
+            self.last_token_end = offset_end;
         }
 
         if buf.is_empty() {

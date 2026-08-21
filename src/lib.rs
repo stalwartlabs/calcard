@@ -49,9 +49,12 @@ pub struct Parser<'x> {
     pub(crate) stop_equal: bool,
     pub(crate) stop_dot: bool,
     pub(crate) unfold_qp: bool,
+    pub(crate) unfold_b64: bool,
     pub(crate) unquote: bool,
     pub(crate) skip_ws: bool,
+    pub(crate) strip_ctl: bool,
     pub(crate) token_buf: Vec<Token<'x>>,
+    pub(crate) last_token_end: usize,
 }
 
 impl<'x> Parser<'x> {
@@ -67,9 +70,12 @@ impl<'x> Parser<'x> {
             stop_equal: true,
             stop_dot: false,
             unfold_qp: false,
+            unfold_b64: false,
             unquote: true,
             skip_ws: false,
+            strip_ctl: false,
             token_buf: Vec::with_capacity(10),
+            last_token_end: usize::MAX,
         }
     }
 
