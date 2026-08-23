@@ -1,3 +1,8 @@
+calcard 0.3.12
+================================
+- Added `ICalendar::add_missing_timezones()`, which builds a `VTIMEZONE` component for every `TZID` parameter that has no matching definition, as required by RFC 5545, Section 3.6.5.
+- Added `ICalendar::add_timezone()`, which builds a `VTIMEZONE` definition for a given time zone identifier over an explicit UTC range.
+
 calcard 0.3.11
 ================================
 - Fix: whitespace immediately preceding a fold was discarded while unfolding, silently joining the words around it (RFC 5545, Section 3.1).

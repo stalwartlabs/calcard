@@ -5,11 +5,17 @@
  */
 
 use super::{
-    ICalendar, ICalendarComponent, ICalendarComponentType, ICalendarEntry, ICalendarProperty,
-    ICalendarValue,
+    ICalendar, ICalendarComponent, ICalendarComponentType, ICalendarDay, ICalendarEntry,
+    ICalendarFrequency, ICalendarMonth, ICalendarPeriod, ICalendarProperty,
+    ICalendarRecurrenceRule, ICalendarValue, ICalendarWeekday,
 };
-use crate::{common::timezone::Tz, icalendar::ICalendarParameterName};
-use std::{collections::HashMap, str::FromStr};
+use crate::{
+    common::{PartialDateTime, timezone::Tz},
+    icalendar::ICalendarParameterName,
+};
+use chrono::{Datelike, NaiveDate, NaiveDateTime, Offset, TimeZone, Timelike, Utc, Weekday};
+use chrono_tz::{OffsetComponents, OffsetName};
+use std::{collections::HashMap, ops::Range, str::FromStr};
 
 pub struct TzResolver<T> {
     tzs: HashMap<T, Tz>,
@@ -110,5 +116,575 @@ impl ICalendarEntry {
     pub fn tz_id(&self) -> Option<&str> {
         self.parameters(&ICalendarParameterName::Tzid)
             .find_map(|v| v.as_text())
+    }
+}
+
+const TZ_MIN_YEAR: i32 = 1900;
+const TZ_MAX_FUTURE_YEARS: i32 = 100;
+const TZ_SAMPLE_STEP: i64 = 86400;
+const TZ_RULE_ACTIVE_SECONDS: i64 = 366 * 86400;
+
+impl ICalendar {
+    pub fn add_timezone(&mut self, tz_id: &str, from: i64, to: i64) -> Option<u32> {
+        if self
+            .components
+            .first()
+            .is_none_or(|root| root.component_type != ICalendarComponentType::VCalendar)
+        {
+            return None;
+        }
+
+        let observances = match Tz::from_str(tz_id).ok()? {
+            Tz::Tz(tz) => build_observances(tz, from, to),
+            Tz::Fixed(offset) => {
+                let offset = round_to_minute(offset.local_minus_utc());
+                vec![TzObservance {
+                    at: from,
+                    from_offset: offset,
+                    to_offset: offset,
+                    is_dst: false,
+                    name: None,
+                    rrule: None,
+                }]
+            }
+            Tz::Floating => return None,
+        };
+
+        let insert_at = self.components[0]
+            .component_ids
+            .iter()
+            .position(|component_id| {
+                self.components
+                    .get(*component_id as usize)
+                    .is_none_or(|comp| comp.component_type != ICalendarComponentType::VTimezone)
+            })
+            .unwrap_or(self.components[0].component_ids.len());
+
+        let tz_component_id = self.components.len() as u32;
+        self.components.push(ICalendarComponent {
+            component_type: ICalendarComponentType::VTimezone,
+            entries: vec![
+                ICalendarEntry::new(ICalendarProperty::Tzid).with_value(tz_id.to_string()),
+            ],
+            component_ids: Vec::with_capacity(observances.len()),
+        });
+
+        for observance in observances {
+            let component_id = self.components.len() as u32;
+            self.components.push(observance.into_component());
+            self.components[tz_component_id as usize]
+                .component_ids
+                .push(component_id);
+        }
+
+        self.components[0]
+            .component_ids
+            .insert(insert_at, tz_component_id);
+
+        Some(tz_component_id)
+    }
+
+    pub fn add_missing_timezones(&mut self) -> usize {
+        let mut defined: Vec<&str> = Vec::new();
+        for component in self.timezones() {
+            for entry in &component.entries {
+                if entry.name == ICalendarProperty::Tzid
+                    && let Some(ICalendarValue::Text(tz_id)) = entry.values.first()
+                {
+                    defined.push(tz_id.as_str());
+                }
+            }
+        }
+
+        let mut referenced: Vec<String> = Vec::new();
+        let mut range: Option<(i64, i64)> = None;
+        let mut recurrence_span = 0;
+        let mut is_unbounded = false;
+
+        for component in &self.components {
+            if matches!(
+                component.component_type,
+                ICalendarComponentType::VTimezone
+                    | ICalendarComponentType::Standard
+                    | ICalendarComponentType::Daylight
+            ) {
+                continue;
+            }
+
+            for entry in &component.entries {
+                for param in &entry.params {
+                    if param.name == ICalendarParameterName::Tzid
+                        && let Some(tz_id) = param.value.as_text()
+                        && !defined.contains(&tz_id)
+                        && !referenced.iter().any(|id| id == tz_id)
+                    {
+                        referenced.push(tz_id.to_string());
+                    }
+                }
+
+                match &entry.name {
+                    ICalendarProperty::Rrule => {
+                        for value in &entry.values {
+                            if let ICalendarValue::RecurrenceRule(rule) = value {
+                                match (&rule.until, &rule.count) {
+                                    (Some(until), _) => expand_range(&mut range, until),
+                                    (None, Some(count)) => {
+                                        recurrence_span = recurrence_span.max(recurrence_span_of(
+                                            &rule.freq,
+                                            *count,
+                                            rule.interval,
+                                        ));
+                                    }
+                                    (None, None) => is_unbounded = true,
+                                }
+                            }
+                        }
+                    }
+                    ICalendarProperty::Dtstart
+                    | ICalendarProperty::Dtend
+                    | ICalendarProperty::Due
+                    | ICalendarProperty::RecurrenceId
+                    | ICalendarProperty::Exdate
+                    | ICalendarProperty::Rdate => {
+                        for value in &entry.values {
+                            match value {
+                                ICalendarValue::PartialDateTime(dt) => {
+                                    expand_range(&mut range, dt);
+                                }
+                                ICalendarValue::Period(ICalendarPeriod::Range { start, end }) => {
+                                    expand_range(&mut range, start);
+                                    expand_range(&mut range, end);
+                                }
+                                ICalendarValue::Period(ICalendarPeriod::Duration {
+                                    start, ..
+                                }) => {
+                                    expand_range(&mut range, start);
+                                }
+                                _ => (),
+                            }
+                        }
+                    }
+                    _ => (),
+                }
+            }
+        }
+
+        if referenced.is_empty() {
+            return 0;
+        }
+
+        let now = Utc::now().timestamp();
+        let (min, max) = range.unwrap_or((now, now));
+        let max = max.saturating_add(recurrence_span);
+        let current_year = year_of(now);
+        let max_year = current_year.saturating_add(TZ_MAX_FUTURE_YEARS);
+        let from_year = year_of(min).clamp(TZ_MIN_YEAR, max_year);
+        let to_year = if is_unbounded {
+            year_of(max).max(current_year)
+        } else {
+            year_of(max)
+        }
+        .saturating_add(2)
+        .clamp(from_year.saturating_add(1), max_year.saturating_add(2));
+        let from = start_of_year(from_year).saturating_sub(TZ_SAMPLE_STEP);
+        let to = start_of_year(to_year);
+
+        let mut added = 0;
+        for tz_id in referenced {
+            if self.add_timezone(&tz_id, from, to).is_some() {
+                added += 1;
+            }
+        }
+        added
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TzState {
+    offset: i32,
+    is_dst: bool,
+}
+
+#[derive(PartialEq, Eq)]
+struct TzRuleKey {
+    month: u8,
+    ordwk: i16,
+    weekday: ICalendarWeekday,
+    hour: u8,
+    minute: u8,
+    second: u8,
+    from_offset: i32,
+    to_offset: i32,
+}
+
+struct TzObservance {
+    at: i64,
+    from_offset: i32,
+    to_offset: i32,
+    is_dst: bool,
+    name: Option<String>,
+    rrule: Option<ICalendarRecurrenceRule>,
+}
+
+impl TzObservance {
+    fn onset(&self) -> NaiveDateTime {
+        naive_utc(self.at.saturating_add(self.from_offset as i64))
+    }
+
+    fn rule_key(&self) -> Option<(i32, TzRuleKey)> {
+        let onset = self.onset();
+        let day = onset.day();
+        let ordwk = if day.saturating_add(7) > days_in_month(onset.year(), onset.month()) {
+            -1
+        } else {
+            ((day - 1) / 7 + 1) as i16
+        };
+
+        Some((
+            onset.year(),
+            TzRuleKey {
+                month: u8::try_from(onset.month()).ok()?,
+                ordwk,
+                weekday: weekday_of(onset.weekday()),
+                hour: u8::try_from(onset.hour()).ok()?,
+                minute: u8::try_from(onset.minute()).ok()?,
+                second: u8::try_from(onset.second()).ok()?,
+                from_offset: self.from_offset,
+                to_offset: self.to_offset,
+            },
+        ))
+    }
+
+    fn into_component(self) -> ICalendarComponent {
+        let mut component = ICalendarComponent::new(if self.is_dst {
+            ICalendarComponentType::Daylight
+        } else {
+            ICalendarComponentType::Standard
+        });
+
+        component
+            .entries
+            .push(ICalendarEntry::new(ICalendarProperty::Dtstart).with_value(
+                PartialDateTime::from_naive_timestamp(self.onset().and_utc().timestamp()),
+            ));
+        component.entries.push(
+            ICalendarEntry::new(ICalendarProperty::Tzoffsetfrom)
+                .with_value(offset_to_partial(self.from_offset)),
+        );
+        component.entries.push(
+            ICalendarEntry::new(ICalendarProperty::Tzoffsetto)
+                .with_value(offset_to_partial(self.to_offset)),
+        );
+        if let Some(name) = self.name {
+            component
+                .entries
+                .push(ICalendarEntry::new(ICalendarProperty::Tzname).with_value(name));
+        }
+        if let Some(rrule) = self.rrule {
+            component
+                .entries
+                .push(ICalendarEntry::new(ICalendarProperty::Rrule).with_value(rrule));
+        }
+
+        component
+    }
+}
+
+fn build_observances(tz: chrono_tz::Tz, from: i64, to: i64) -> Vec<TzObservance> {
+    let initial = tz_state_at(tz, from);
+    let mut observances = vec![TzObservance {
+        at: from,
+        from_offset: round_to_minute(initial.offset),
+        to_offset: round_to_minute(initial.offset),
+        is_dst: initial.is_dst,
+        name: tz_name_at(tz, from),
+        rrule: None,
+    }];
+
+    let mut previous_at = from;
+    let mut previous = initial;
+    let mut at = from;
+
+    while at < to {
+        at = at.saturating_add(TZ_SAMPLE_STEP).min(to);
+        let state = tz_state_at(tz, at);
+        if state != previous {
+            let onset = find_transition(tz, previous_at, at, previous);
+            observances.push(TzObservance {
+                at: onset,
+                from_offset: round_to_minute(previous.offset),
+                to_offset: round_to_minute(state.offset),
+                is_dst: state.is_dst,
+                name: tz_name_at(tz, onset),
+                rrule: None,
+            });
+            previous = state;
+        }
+        previous_at = at;
+    }
+
+    label_observances(&mut observances);
+
+    collapse_observances(observances, to)
+}
+
+fn label_observances(observances: &mut [TzObservance]) {
+    let mut daylight_offset = None;
+    let mut standard_offset = None;
+
+    for observance in observances.iter() {
+        let slot = if observance.is_dst {
+            &mut daylight_offset
+        } else {
+            &mut standard_offset
+        };
+        *slot = Some(slot.map_or(observance.to_offset, |offset: i32| {
+            offset.max(observance.to_offset)
+        }));
+    }
+
+    if let (Some(daylight_offset), Some(standard_offset)) = (daylight_offset, standard_offset)
+        && daylight_offset < standard_offset
+    {
+        for observance in observances.iter_mut() {
+            observance.is_dst = !observance.is_dst;
+        }
+    }
+}
+
+fn collapse_observances(mut observances: Vec<TzObservance>, to: i64) -> Vec<TzObservance> {
+    let mut discard = vec![false; observances.len()];
+    let mut unbounded: [Option<(usize, i64)>; 2] = [None, None];
+    let mut trailing: [Option<(usize, u8, i16, ICalendarWeekday)>; 2] = [None, None];
+
+    for is_dst in [false, true] {
+        let mut onsets: Vec<(usize, i32, TzRuleKey)> = Vec::new();
+        let mut runs: Vec<Range<usize>> = Vec::new();
+
+        for (index, observance) in observances.iter().enumerate() {
+            if index == 0 || observance.is_dst != is_dst {
+                continue;
+            }
+            let Some((year, key)) = observance.rule_key() else {
+                continue;
+            };
+            let extends = onsets
+                .last()
+                .is_some_and(|(last_index, last_year, last_key)| {
+                    last_year.saturating_add(1) == year
+                        && last_key == &key
+                        && observances[*last_index].name == observance.name
+                });
+
+            onsets.push((index, year, key));
+            match runs.last_mut() {
+                Some(run) if extends => run.end = onsets.len(),
+                _ => runs.push(onsets.len() - 1..onsets.len()),
+            }
+        }
+
+        for (position, run) in runs.iter().enumerate() {
+            let (Some((first, _, key)), Some((last, _, _))) =
+                (onsets.get(run.start), onsets.get(run.end - 1))
+            else {
+                continue;
+            };
+            if run.len() < 2 {
+                continue;
+            }
+
+            let last_at = observances[*last].at;
+            let is_expired = last_at.saturating_add(TZ_RULE_ACTIVE_SECONDS) < to;
+            let is_final = position + 1 == runs.len() && !is_expired;
+            observances[*first].rrule = Some(ICalendarRecurrenceRule {
+                freq: ICalendarFrequency::Yearly,
+                until: (!is_final).then(|| PartialDateTime::from_utc_timestamp(last_at)),
+                bymonth: vec![ICalendarMonth::new(key.month, false)],
+                byday: vec![ICalendarDay {
+                    ordwk: Some(key.ordwk),
+                    weekday: key.weekday,
+                }],
+                ..Default::default()
+            });
+            if is_final {
+                unbounded[usize::from(is_dst)] = Some((*first, last_at));
+            }
+
+            for (index, _, _) in &onsets[run.start + 1..run.end] {
+                discard[*index] = true;
+            }
+        }
+
+        if let Some(run) = runs.last()
+            && run.len() == 1
+            && let Some((index, _, key)) = onsets.get(run.start)
+        {
+            trailing[usize::from(is_dst)] = Some((*index, key.month, key.ordwk, key.weekday));
+        }
+    }
+
+    for is_dst in [false, true] {
+        let class = usize::from(is_dst);
+        let (None, Some((other_index, other_at))) =
+            (unbounded[class], unbounded[usize::from(!is_dst)])
+        else {
+            continue;
+        };
+
+        match trailing[class] {
+            Some((index, month, ordwk, weekday))
+                if observances[index].at.saturating_add(TZ_RULE_ACTIVE_SECONDS) >= to =>
+            {
+                observances[index].rrule = Some(ICalendarRecurrenceRule {
+                    freq: ICalendarFrequency::Yearly,
+                    bymonth: vec![ICalendarMonth::new(month, false)],
+                    byday: vec![ICalendarDay {
+                        ordwk: Some(ordwk),
+                        weekday,
+                    }],
+                    ..Default::default()
+                });
+                unbounded[class] = Some((index, observances[index].at));
+            }
+            _ => {
+                if let Some(rrule) = observances[other_index].rrule.as_mut() {
+                    rrule.until = Some(PartialDateTime::from_utc_timestamp(other_at));
+                    unbounded[usize::from(!is_dst)] = None;
+                }
+            }
+        }
+    }
+
+    let mut result = Vec::with_capacity(observances.len());
+    for (index, observance) in observances.into_iter().enumerate() {
+        if !discard[index] {
+            result.push(observance);
+        }
+    }
+    result
+}
+
+fn find_transition(tz: chrono_tz::Tz, mut low: i64, mut high: i64, low_state: TzState) -> i64 {
+    while high - low > 1 {
+        let middle = low + (high - low) / 2;
+        if tz_state_at(tz, middle) == low_state {
+            low = middle;
+        } else {
+            high = middle;
+        }
+    }
+    high
+}
+
+fn tz_state_at(tz: chrono_tz::Tz, timestamp: i64) -> TzState {
+    let offset = tz.offset_from_utc_datetime(&naive_utc(timestamp));
+
+    TzState {
+        offset: offset.fix().local_minus_utc(),
+        is_dst: offset.dst_offset().num_seconds() != 0,
+    }
+}
+
+fn tz_name_at(tz: chrono_tz::Tz, timestamp: i64) -> Option<String> {
+    tz.offset_from_utc_datetime(&naive_utc(timestamp))
+        .abbreviation()
+        .map(|name| name.to_string())
+}
+
+fn round_to_minute(offset: i32) -> i32 {
+    let minutes = (offset.unsigned_abs() + 30) / 60 * 60;
+
+    if offset < 0 {
+        -(minutes as i32)
+    } else {
+        minutes as i32
+    }
+}
+
+fn offset_to_partial(offset: i32) -> PartialDateTime {
+    let seconds = offset.unsigned_abs();
+
+    PartialDateTime {
+        tz_hour: u8::try_from(seconds / 3600).ok(),
+        tz_minute: u8::try_from((seconds % 3600) / 60).ok(),
+        tz_minus: offset < 0,
+        ..Default::default()
+    }
+}
+
+fn recurrence_span_of(freq: &ICalendarFrequency, count: u32, interval: Option<u16>) -> i64 {
+    let unit = match freq {
+        ICalendarFrequency::Yearly => 366 * 86400,
+        ICalendarFrequency::Monthly => 31 * 86400,
+        ICalendarFrequency::Weekly => 7 * 86400,
+        ICalendarFrequency::Daily => 86400,
+        ICalendarFrequency::Hourly => 3600,
+        ICalendarFrequency::Minutely => 60,
+        ICalendarFrequency::Secondly => 1,
+    };
+
+    i64::from(count)
+        .saturating_mul(i64::from(interval.unwrap_or(1)))
+        .saturating_mul(unit)
+}
+
+fn expand_range(range: &mut Option<(i64, i64)>, value: &PartialDateTime) {
+    let Some(timestamp) = value.to_date_time().map(|result| {
+        result.date_time.and_utc().timestamp()
+            - result
+                .offset
+                .map_or(0, |offset| offset.local_minus_utc() as i64)
+    }) else {
+        return;
+    };
+
+    match range {
+        Some((min, max)) => {
+            *min = (*min).min(timestamp);
+            *max = (*max).max(timestamp);
+        }
+        None => {
+            *range = Some((timestamp, timestamp));
+        }
+    }
+}
+
+fn naive_utc(timestamp: i64) -> NaiveDateTime {
+    chrono::DateTime::from_timestamp(timestamp, 0)
+        .unwrap_or_default()
+        .naive_utc()
+}
+
+fn year_of(timestamp: i64) -> i32 {
+    naive_utc(timestamp).year()
+}
+
+fn start_of_year(year: i32) -> i64 {
+    NaiveDate::from_ymd_opt(year, 1, 1)
+        .and_then(|date| date.and_hms_opt(0, 0, 0))
+        .map_or(0, |date_time| date_time.and_utc().timestamp())
+}
+
+fn days_in_month(year: i32, month: u32) -> u32 {
+    let (year, month) = if month == 12 {
+        (year.saturating_add(1), 1)
+    } else {
+        (year, month + 1)
+    };
+
+    NaiveDate::from_ymd_opt(year, month, 1)
+        .and_then(|date| date.pred_opt())
+        .map_or(31, |date| date.day())
+}
+
+fn weekday_of(weekday: Weekday) -> ICalendarWeekday {
+    match weekday {
+        Weekday::Mon => ICalendarWeekday::Monday,
+        Weekday::Tue => ICalendarWeekday::Tuesday,
+        Weekday::Wed => ICalendarWeekday::Wednesday,
+        Weekday::Thu => ICalendarWeekday::Thursday,
+        Weekday::Fri => ICalendarWeekday::Friday,
+        Weekday::Sat => ICalendarWeekday::Saturday,
+        Weekday::Sun => ICalendarWeekday::Sunday,
     }
 }
