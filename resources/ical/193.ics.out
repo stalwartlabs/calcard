@@ -530,8 +530,8 @@ DESCRIPTION:Spurs: Keller\, Carr\, Taricco\, King\, Richards (Gardner\, 30)
  \, Blanc\, Forlan.
 END:VEVENT
 BEGIN:VEVENT
-ATTENDEE;CN="Nick Edmonds";DIR="addressbook://56CB9F6C-4AE2-11D7-A1F5-003065
- B8B7E6:ABPerson":mailto:nick@lego3.com
+ATTENDEE;CN="Nick Edmonds";DIR="addressbook://56CB9F6C-4AE2-11D7-A1F5-00306
+ 5B8B7E6:ABPerson":mailto:nick@lego3.com
 DTSTAMP:20030604T033131Z
 UID:08A2B803-963D-11D7-ABA4-003065B8B7E6
 SEQUENCE:7

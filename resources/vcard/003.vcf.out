@@ -7,9 +7,9 @@ TITLE:Shrimp Man
 PHOTO;MEDIATYPE=image/gif:http://www.example.com/dir_photos/my_photo.gif
 TEL;TYPE=WORK,VOICE;VALUE=URI:tel:+1-111-555-1212
 TEL;TYPE=HOME,VOICE;VALUE=URI:tel:+1-404-555-1212
-ADR;TYPE=WORK;PREF=1;LABEL="\"100 Waters Edge\nBaytown, LA 30314\nUnited S
- tates of America\"":;;100 Waters Edge;Baytown;LA;30314;United States of Am
- erica
+ADR;TYPE=WORK;PREF=1;LABEL="\"100 Waters Edge\nBaytown, LA 30314\nUnited St
+ ates of America\"":;;100 Waters Edge;Baytown;LA;30314;United States of Ame
+ rica
 ADR;TYPE=HOME;LABEL="\"42 Plantation St.\nBaytown, LA 30314\nUnited States 
  of America\"":;;42 Plantation St.;Baytown;LA;30314;United States of Americ
  a

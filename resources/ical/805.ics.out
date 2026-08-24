@@ -22,8 +22,8 @@ CLASS:PUBLIC
 DESCRIPTION:redacted
 LAST-MODIFIED:20190510T070457Z
 LOCATION:redacted@example.com
-ORGANIZER;CN=redacted;SENT-BY="mailto:redacted@example.com":mailto:redacted@e
- xample.com
+ORGANIZER;CN=redacted;SENT-BY="mailto:redacted@example.com":mailto:redacted
+ @example.com
 STATUS:CONFIRMED
 TRANSP:OPAQUE
 X-MICROSOFT-CDO-INTENDEDSTATUS:BUSY

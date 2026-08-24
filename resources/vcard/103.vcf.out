@@ -14,8 +14,8 @@ NOTE;CHARSET=UTF-8:Kommentar ÄÄÄÄÄÄ ääääää ÖÖÖÖÖÖ ööö
  r ÄÄÄÄÄÄ ääääää ÖÖÖÖÖÖ öööööö ÜÜÜÜÜÜ üüü
  üüü ßßßßßß\r\nKommentar ÄÄÄÄÄÄ ääääää ÖÖÖÖÖÖ ö
  ööööö ÜÜÜÜÜÜ üüüüüü ßßßßßß
-TEL;TYPE=WORK,VOICE;utf-8;QUOTED-PRINTABLE;de-DE;x-unknown;INLINE;
- VCARD:Tel gesch=C3=A4ftlich
+TEL;TYPE=WORK,VOICE;utf-8;QUOTED-PRINTABLE;de-DE;x-unknown;INLINE;VCARD:Tel
+  gesch=C3=A4ftlich
 TEL;TYPE=HOME,VOICE:Tel privat
 TEL;TYPE=CELL,VOICE:Handy
 TEL;TYPE=VOICE:Other Phone
@@ -37,8 +37,8 @@ X-WAB-SPOUSE_NAME:Partner
 EMAIL;PREF;INTERNET:privat@folker-kinzel.de
 EMAIL;INTERNET:business@folker-kinzel.de
 EMAIL;INTERNET:andere@folker-kinzel.de
-PHOTO;JPEG;B:/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQE
- BAgGBgUGCQgKk/ioorZFjl+6aZRRVAf/2Q==
+PHOTO;JPEG;B:/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBA
+ gGBgUGCQgKk/ioorZFjl+6aZRRVAf/2Q==
 REV:20190710T084311Z
 END:VCARD
 

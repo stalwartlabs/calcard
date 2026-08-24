@@ -1,8 +1,10 @@
 BEGIN:VCALENDAR
 BEGIN:VEVENT
 UID:noend123
-DTSTART;TZID=custom_America/New_York_Forward_reference;VALUE=DATE-TIME:20140829T080000
-DTSTART;TZID=custom_America/New_York_Forward_reference;VALUE=DATE-TIME:20140829T100000
+DTSTART;TZID=custom_America/New_York_Forward_reference;VALUE=DATE-TIME:2014
+ 0829T080000
+DTSTART;TZID=custom_America/New_York_Forward_reference;VALUE=DATE-TIME:2014
+ 0829T100000
 SUMMARY:an event with a custom tz name
 END:VEVENT
 BEGIN:VTIMEZONE

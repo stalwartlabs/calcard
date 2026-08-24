@@ -31,9 +31,8 @@ ORGANIZER;CN="Admin Account, Tine 2.0":mailto:l.kneschke@caldav.org
 ATTENDEE;CN="Admin Account, Tine 2.0";CUTYPE=INDIVIDUAL;EMAIL=l.kneschke@ca
  ldav.org;PARTSTAT=ACCEPTED;ROLE=REQ-PARTICIPANT;RSVP=FALSE:mailto:l.knesch
  ke@caldav.org
-ATTENDEE;CN="Löw, Jogi";CUTYPE=INDIVIDUAL;EMAIL=j.loew@caldav.org;
- PARTSTAT=NEEDS-ACTION;ROLE=REQ-PARTICIPANT;RSVP=FALSE:mailto:j.loew@caldav
- .org
+ATTENDEE;CN="Löw, Jogi";CUTYPE=INDIVIDUAL;EMAIL=j.loew@caldav.org;PARTSTAT
+ =NEEDS-ACTION;ROLE=REQ-PARTICIPANT;RSVP=FALSE:mailto:j.loew@caldav.org
 ATTENDEE;CN="Admin Account, Tine 2.0";CUTYPE=INDIVIDUAL;EMAIL=unittest@tine
  20.org;PARTSTAT=NEEDS-ACTION:mailto:unittest@tine20.org
 ATTENDEE;CN="Clever, Susan";CUTYPE=INDIVIDUAL;EMAIL=sclever@tine20.org;

@@ -25,16 +25,16 @@ TRANSP:OPAQUE
 RDATE;TZID=Eastern;VALUE=PERIOD:20050426T100000/20050426T110000
 RECURRENCE-ID:20050426T130000Z
 DTSTAMP:20050406T205010Z
-COMMENT;ALTREP="CID:<FFFF__=0ABBE548DFE1E66E8f9e8a93d@coffeebean.com>":Resche
- dule of a single instance's time only (+ 1 hr)
+COMMENT;ALTREP="CID:<FFFF__=0ABBE548DFE1E66E8f9e8a93d@coffeebean.com>":Resc
+ hedule of a single instance's time only (+ 1 hr)
 SEQUENCE:1
-ATTENDEE;ROLE=CHAIR;PARTSTAT=ACCEPTED;CN="iCal Chair/CoffeeBean";RSVP=FALSE:
- mailto:iCalChair@coffeebean.com
+ATTENDEE;ROLE=CHAIR;PARTSTAT=ACCEPTED;CN="iCal Chair/CoffeeBean";RSVP=FALSE
+ :mailto:iCalChair@coffeebean.com
 ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;CN="iCal Participant/Co
  ffeeBean";RSVP=TRUE:mailto:iCalParticipant@coffeebean.com
 CLASS:PUBLIC
-DESCRIPTION;ALTREP="CID:<FFFE__=0ABBE548DFE1E66E8f9e8a93d@coffeebean.com>":bo
- dy
+DESCRIPTION;ALTREP="CID:<FFFE__=0ABBE548DFE1E66E8f9e8a93d@coffeebean.com>":
+ body
 SUMMARY:More complicated stream (5 day recurring)
 ORGANIZER;CN="iCal Chair/CoffeeBean":mailto:iCalChair@coffeebean.com
 UID:6BA1ECA4D58B306C85256FDB0071B664-Lotus_Notes_Generated

@@ -13,8 +13,8 @@ UID:222bcfe0-17e4-4f3b-a667-45aa9467e8ec
 DTSTAMP:20141125T101424Z
 ATTENDEE;PARTSTAT=NEEDS-ACTION;ROLE=REQ_PARTICIPANT;RSVP=TRUE;
  SCHEDULE-STATUS=1.1:mailto:dragavei.roxana@gmx.de
-ORGANIZER;CN="rocsana elena";SENT-BY="mailto:rocsana_elena@yahoo.com":mailto:
- rocsana_elena@yahoo.com
+ORGANIZER;CN="rocsana elena";SENT-BY="mailto:rocsana_elena@yahoo.com":mailt
+ o:rocsana_elena@yahoo.com
 X-YAHOO-YID:rocsana_elena
 TRANSP:OPAQUE
 STATUS:CONFIRMED
@@ -72,8 +72,8 @@ SEQUENCE:1
 STATUS:CONFIRMED
 UID:fd7aa03f-8985-4fb9-85c4-0d91ba18f0b9
 DTSTAMP:20150403T071919Z
-ORGANIZER;CN="rocsana elena";SENT-BY="mailto:rocsana_elena@yahoo.com":mailto:
- rocsana_elena@yahoo.com
+ORGANIZER;CN="rocsana elena";SENT-BY="mailto:rocsana_elena@yahoo.com":mailt
+ o:rocsana_elena@yahoo.com
 X-YAHOO-YID:rocsana_elena
 TRANSP:OPAQUE
 STATUS:CONFIRMED
@@ -100,8 +100,8 @@ SEQUENCE:0
 STATUS:CONFIRMED
 UID:5168f7e8-a6b0-49b0-be30-07767a5188ff
 DTSTAMP:20150403T071940Z
-ORGANIZER;CN="rocsana elena";SENT-BY="mailto:rocsana_elena@yahoo.com":mailto:
- rocsana_elena@yahoo.com
+ORGANIZER;CN="rocsana elena";SENT-BY="mailto:rocsana_elena@yahoo.com":mailt
+ o:rocsana_elena@yahoo.com
 RRULE:FREQ=DAILY;INTERVAL=1
 X-YAHOO-YID:rocsana_elena
 TRANSP:OPAQUE
@@ -119,8 +119,8 @@ SEQUENCE:0
 STATUS:CONFIRMED
 UID:7b795e04-691f-4b06-bd6e-66f6dee6bbec
 DTSTAMP:20150403T071951Z
-ORGANIZER;CN="rocsana elena";SENT-BY="mailto:rocsana_elena@yahoo.com":mailto:
- rocsana_elena@yahoo.com
+ORGANIZER;CN="rocsana elena";SENT-BY="mailto:rocsana_elena@yahoo.com":mailt
+ o:rocsana_elena@yahoo.com
 X-YAHOO-YID:rocsana_elena
 TRANSP:OPAQUE
 STATUS:CONFIRMED
@@ -147,8 +147,8 @@ SEQUENCE:0
 STATUS:CONFIRMED
 UID:30e0f373-6ff8-4a8d-8ef8-b2860b2248f0
 DTSTAMP:20150403T072020Z
-ORGANIZER;CN="rocsana elena";SENT-BY="mailto:rocsana_elena@yahoo.com":mailto:
- rocsana_elena@yahoo.com
+ORGANIZER;CN="rocsana elena";SENT-BY="mailto:rocsana_elena@yahoo.com":mailt
+ o:rocsana_elena@yahoo.com
 RRULE:FREQ=DAILY;INTERVAL=1
 X-YAHOO-YID:rocsana_elena
 TRANSP:OPAQUE

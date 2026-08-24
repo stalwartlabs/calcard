@@ -9,7 +9,7 @@ TEL;TYPE=FAX,WORK:+1-919-676-9564
 EMAIL;TYPE=INTERNET,PREF:Frank_Dawson@Lotus.com
 EMAIL;TYPE=INTERNET:semicolon\;@points.net
 URL:http://home%32%20.earthlink.net/~fdawson
-ADR;TYPE=HOME:;;Evil backslash \\ way;Ulm;Newlines\r\nCountry\r\nevil;89073;
-  
+ADR;TYPE=HOME:;;Evil backslash \\ way;Ulm;Newlines\r\nCountry\r\nevil;89073
+ ; 
 END:VCARD
 

@@ -9,7 +9,9 @@ use crate::{
     common::{
         IanaString,
         parser::Timestamp,
-        writer::{write_bytes, write_jscomps, write_param_value, write_text},
+        writer::{
+            FoldingWriter, LineWriter, write_bytes, write_jscomps, write_param_value, write_text,
+        },
     },
     vcard::{
         VCardParameterName, VCardParameterValue, VCardProperty, VCardValue, ValueSeparator,
@@ -37,86 +39,65 @@ impl VCard {
 
 impl VCardEntry {
     pub fn write_to(&self, out: &mut impl Write, is_v4: bool) -> std::fmt::Result {
-        let mut line_len = 0;
+        let mut folded = FoldingWriter::new(out);
+        let out = &mut folded;
 
         if let Some(group_name) = &self.group {
-            write!(out, "{group_name}.")?;
-            line_len += group_name.len() + 1;
+            out.write_atomic(group_name)?;
+            out.write_atomic(".")?;
         }
 
-        let entry_name = self.name.as_str();
-        write!(out, "{}", entry_name)?;
-        line_len += entry_name.len();
+        out.write_atomic(self.name.as_str())?;
         let mut types = None;
         let mut last_param: Option<&VCardParameterName> = None;
 
         for param in &self.params {
             if last_param.is_some_and(|last_param| last_param == &param.name) {
-                write!(out, ",")?;
-                line_len += 1;
-
-                if line_len + 1 > 75 {
-                    write!(out, "\r\n ")?;
-                    line_len = 1;
-                }
+                out.write_atomic(",")?;
             } else {
-                write!(out, ";")?;
-                line_len += 1;
-                let name = param.name.as_str();
-                let need_len = name.len() + 1;
-                if line_len + need_len > 75 {
-                    write!(out, "\r\n ")?;
-                    line_len = 1;
-                }
+                out.write_atomic(";")?;
+                out.write_atomic(param.name.as_str())?;
                 if !matches!(param.value, VCardParameterValue::Null) {
-                    write!(out, "{name}=")?;
-                } else {
-                    write!(out, "{name}")?;
+                    out.write_atomic("=")?;
                 }
-                line_len += need_len;
                 last_param = Some(&param.name);
             }
 
             match &param.value {
                 VCardParameterValue::Text(v) => {
-                    write_param_value(out, &mut line_len, v)?;
+                    write_param_value(out, v)?;
                 }
                 VCardParameterValue::Integer(i) => {
                     write!(out, "{i}")?;
-                    line_len += 2;
                 }
                 VCardParameterValue::Timestamp(v) => {
                     write!(out, "{}", Timestamp(*v))?;
-                    line_len += 17;
                 }
                 VCardParameterValue::Bool(v) => {
-                    let v = if *v { "TRUE" } else { "FALSE" };
-                    line_len += v.len();
-                    write!(out, "{v}")?;
+                    out.write_atomic(if *v { "TRUE" } else { "FALSE" })?;
                 }
                 VCardParameterValue::ValueType(v) => {
                     if types.is_none() {
                         types = Some(v);
                     }
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 VCardParameterValue::Type(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 VCardParameterValue::Calscale(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 VCardParameterValue::Level(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 VCardParameterValue::Phonetic(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 VCardParameterValue::Jscomps(v) => {
-                    out.write_str("\"")?;
-                    line_len += 1;
-                    write_jscomps(out, &mut line_len, v)?;
-                    out.write_str("\"")?;
+                    out.write_atomic("\"")?;
+                    write_jscomps(out, v)?;
+                    out.write_atomic("\"")?;
                     last_param = None;
                 }
                 VCardParameterValue::Null => {
@@ -130,8 +111,7 @@ impl VCardEntry {
                 VCardValue::Binary(data) => Some(data),
                 _ => None,
             }) {
-                write!(out, ";ENCODING=b")?;
-                line_len += 11;
+                out.write_atomic(";ENCODING=b")?;
 
                 if let Some(media_type) = data.content_type.as_deref()
                     && !self
@@ -140,12 +120,8 @@ impl VCardEntry {
                         .any(|param| param.name == VCardParameterName::Type)
                     && let Some(token) = legacy_media_type(self.name.as_str(), media_type)
                 {
-                    if line_len + token.len() + 6 > 75 {
-                        write!(out, "\r\n ")?;
-                        line_len = 1;
-                    }
-                    write!(out, ";TYPE={token}")?;
-                    line_len += token.len() + 6;
+                    out.write_atomic(";TYPE=")?;
+                    out.write_atomic(&token)?;
                 }
             }
 
@@ -154,17 +130,11 @@ impl VCardEntry {
                 VCardValue::Component(items) => items.iter().any(|s| !s.is_ascii()),
                 _ => false,
             }) {
-                if line_len + 14 > 75 {
-                    write!(out, "\r\n ")?;
-                    line_len = 1;
-                }
-                write!(out, ";CHARSET=UTF-8")?;
-                line_len += 14;
+                out.write_atomic(";CHARSET=UTF-8")?;
             }
         }
 
-        write!(out, ":")?;
-        line_len += 1;
+        out.write_atomic(":")?;
 
         let (default_type, value_separator) = self.name.default_types();
         let default_type = default_type.unwrap_vcard();
@@ -188,40 +158,29 @@ impl VCardEntry {
 
         for (pos, value) in self.values.iter().enumerate() {
             if pos > 0 {
-                write!(out, "{separator}")?;
-                line_len += 1;
-            }
-
-            if line_len + 1 > 75 && !matches!(value, VCardValue::Text(v) if v.is_empty()) {
-                write!(out, "\r\n ")?;
-                line_len = 1;
+                out.write_atomic(separator)?;
             }
 
             match value {
                 VCardValue::Text(v) => {
-                    write_text(out, &mut line_len, v, escape_semicolon, escape_comma)?;
+                    write_text(out, v, escape_semicolon, escape_comma)?;
                 }
                 VCardValue::Component(v) => {
                     for (pos, item) in v.iter().enumerate() {
                         if pos > 0 {
-                            write!(out, ",")?;
-                            line_len += 1;
+                            out.write_atomic(",")?;
                         }
-                        write_text(out, &mut line_len, item, true, true)?;
+                        write_text(out, item, true, true)?;
                     }
                 }
                 VCardValue::Integer(v) => {
                     write!(out, "{v}")?;
-                    line_len += 4;
                 }
                 VCardValue::Float(v) => {
                     write!(out, "{v}")?;
-                    line_len += 4;
                 }
                 VCardValue::Boolean(v) => {
-                    let text = if *v { "TRUE" } else { "FALSE" };
-                    write!(out, "{text}")?;
-                    line_len += text.len();
+                    out.write_atomic(if *v { "TRUE" } else { "FALSE" })?;
                 }
                 VCardValue::PartialDateTime(v) => {
                     let typ = if pos == 0 {
@@ -238,35 +197,30 @@ impl VCardEntry {
                     } else {
                         v.format_as_legacy_vcard(out, typ)?;
                     }
-                    line_len += 16;
                 }
                 VCardValue::Binary(v) => {
                     if is_v4 {
                         let media_type = v.content_type.as_deref().unwrap_or_default();
-                        write!(out, "data:{media_type};base64\\,")?;
-                        line_len += media_type.len() + 14;
+                        out.write_str("data:")?;
+                        out.write_str(media_type)?;
+                        out.write_str(";")?;
+                        out.write_atomic("base64\\,")?;
                     }
-                    write_bytes(out, Some(&mut line_len), &v.data)?;
+                    write_bytes(out, &v.data)?;
                 }
                 VCardValue::Sex(v) => {
-                    let text = v.as_str();
-                    write!(out, "{text}")?;
-                    line_len += text.len();
+                    out.write_atomic(v.as_str())?;
                 }
                 VCardValue::GramGender(v) => {
-                    let text = v.as_str();
-                    write!(out, "{text}")?;
-                    line_len += text.len();
+                    out.write_atomic(v.as_str())?;
                 }
                 VCardValue::Kind(v) => {
-                    let text = v.as_str();
-                    write!(out, "{text}")?;
-                    line_len += text.len();
+                    out.write_atomic(v.as_str())?;
                 }
             }
         }
 
-        write!(out, "\r\n")
+        out.end_line()
     }
 }
 
@@ -564,6 +518,17 @@ mod tests {
     fn write(vcard: &VCard, version: VCardVersion) -> String {
         let mut out = String::new();
         vcard.write_to(&mut out, version).unwrap();
+
+        #[cfg(feature = "rkyv")]
+        {
+            let bytes = rkyv::to_bytes::<rkyv::rancor::Error>(vcard).unwrap();
+            let archived =
+                rkyv::access::<crate::vcard::ArchivedVCard, rkyv::rancor::Error>(&bytes).unwrap();
+            let mut archived_out = String::new();
+            archived.write_to(&mut archived_out, version).unwrap();
+            assert_eq!(out, archived_out, "archived writer diverged at {version}");
+        }
+
         out
     }
 
@@ -624,5 +589,63 @@ mod tests {
             "{}",
             write(&vcard, VCardVersion::V3_0)
         );
+    }
+
+    #[test]
+    fn test_write_fold_width() {
+        let filler = "A".repeat(73);
+        let long_param = "B".repeat(64);
+        let component = "C".repeat(71);
+
+        for input in [
+            format!("N:{filler};B;C;D;E"),
+            format!("N:{filler};;;;"),
+            format!("ADR:{component};;;;;;"),
+            format!("N:{component},,,,,;;;;"),
+            format!("NOTE;X-FOO={long_param}:hello"),
+            format!("NOTE:{}", "D".repeat(500)),
+        ] {
+            let vcard = parse(&format!(
+                "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:T\r\n{input}\r\nEND:VCARD\r\n"
+            ));
+
+            for version in [VCardVersion::V3_0, VCardVersion::V4_0] {
+                let out = write(&vcard, version);
+                crate::common::writer::assert_fold_width(&out, &input);
+
+                let reparsed = parse(&out);
+                assert_eq!(
+                    write(&reparsed, version),
+                    out,
+                    "not idempotent for {input} at version {version}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_write_jscomps() {
+        let filler = "-".repeat(55);
+        let folded_separator = format!("{}\r\n {}", "-".repeat(60), "=".repeat(10));
+
+        for input in [
+            format!("N;JSCOMPS=\"s,{filler};1;2;3;0\":a;b;c;d;e"),
+            format!("N;JSCOMPS=\"s,{folded_separator};1;2\":a;b;c;d;e"),
+            format!("N;JSCOMPS=\"s,{};12;34,5\":a;b;c;d;e", "-".repeat(54)),
+            "N;JSCOMPS=\"s,==========;1;2\":a;b;c;d;e".to_string(),
+            "N;JSCOMPS=\"s,\\\\;1;2\":a;b;c;d;e".to_string(),
+        ] {
+            let vcard = parse(&format!(
+                "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:T\r\n{input}\r\nEND:VCARD\r\n"
+            ));
+            let out = write(&vcard, VCardVersion::V4_0);
+            crate::common::writer::assert_fold_width(&out, &input);
+
+            assert_eq!(
+                parse(&out).entries,
+                vcard.entries,
+                "JSCOMPS did not survive a round trip for {input}\n{out}"
+            );
+        }
     }
 }

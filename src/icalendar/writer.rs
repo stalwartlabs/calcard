@@ -11,7 +11,7 @@ use super::{
 use crate::{
     common::{
         CalendarScale, IanaString, PartialDateTime,
-        writer::{write_bytes, write_param_value, write_text},
+        writer::{FoldingWriter, LineWriter, write_bytes, write_param_value, write_text},
     },
     icalendar::{
         ICalendarMonth, ICalendarParameterName, ICalendarParameterValue, ICalendarValue, Uri,
@@ -31,7 +31,7 @@ impl ICalendar {
         loop {
             if let Some(component_id) = component_iter.next() {
                 let component = self.components.get(*component_id as usize).unwrap();
-                write!(out, "BEGIN:{}\r\n", component.component_type.as_str())?;
+                write_boundary(out, "BEGIN:", component.component_type.as_str())?;
 
                 for entry in &component.entries {
                     entry.write_to(out)?;
@@ -41,10 +41,10 @@ impl ICalendar {
                     component_stack.push((component, component_iter));
                     component_iter = component.component_ids.iter();
                 } else {
-                    write!(out, "END:{}\r\n", component.component_type.as_str())?;
+                    write_boundary(out, "END:", component.component_type.as_str())?;
                 }
             } else if let Some((component, iter)) = component_stack.pop() {
-                write!(out, "END:{}\r\n", component.component_type.as_str())?;
+                write_boundary(out, "END:", component.component_type.as_str())?;
                 component_iter = iter;
             } else {
                 break;
@@ -57,15 +57,13 @@ impl ICalendar {
 
 impl ICalendarEntry {
     pub fn write_to(&self, out: &mut impl Write) -> std::fmt::Result {
-        let mut line_len = 0;
+        let mut folded = FoldingWriter::new(out);
+        let out = &mut folded;
 
-        let entry_name = self.name.as_str();
-        write!(out, "{}", entry_name)?;
-        line_len += entry_name.len();
+        out.write_atomic(self.name.as_str())?;
 
         if matches!(self.values.first(), Some(ICalendarValue::Binary(_))) {
-            write!(out, ";ENCODING=BASE64")?;
-            line_len += 18;
+            out.write_atomic(";ENCODING=BASE64")?;
         }
 
         let mut types = None;
@@ -73,38 +71,22 @@ impl ICalendarEntry {
 
         for param in &self.params {
             if last_param.is_some_and(|last_param| last_param == &param.name) {
-                write!(out, ",")?;
-                line_len += 1;
-
-                if line_len + 1 > 75 {
-                    write!(out, "\r\n ")?;
-                    line_len = 1;
-                }
+                out.write_atomic(",")?;
             } else {
-                write!(out, ";")?;
-                line_len += 1;
-                let name = param.name.as_str();
-                let need_len = name.len() + 1;
-                if line_len + need_len > 75 {
-                    write!(out, "\r\n ")?;
-                    line_len = 1;
-                }
+                out.write_atomic(";")?;
+                out.write_atomic(param.name.as_str())?;
                 if !matches!(param.value, ICalendarParameterValue::Null) {
-                    write!(out, "{name}=")?;
-                } else {
-                    write!(out, "{name}")?;
+                    out.write_atomic("=")?;
                 }
-                line_len += need_len;
                 last_param = Some(&param.name);
             }
 
             match &param.value {
                 ICalendarParameterValue::Text(v) => {
-                    write_param_value(out, &mut line_len, v)?;
+                    write_param_value(out, v)?;
                 }
                 ICalendarParameterValue::Integer(i) => {
                     write!(out, "{i}")?;
-                    line_len += 2;
                 }
                 ICalendarParameterValue::Bool(v) => {
                     let v = if !matches!(param.name, ICalendarParameterName::Range) {
@@ -112,54 +94,52 @@ impl ICalendarEntry {
                     } else {
                         "THISANDFUTURE"
                     };
-                    line_len += v.len();
-                    write!(out, "{v}")?;
+                    out.write_atomic(v)?;
                 }
                 ICalendarParameterValue::Uri(uri) => {
-                    write!(out, "\"")?;
-                    write_uri(out, &mut line_len, uri, false)?;
-                    write!(out, "\"")?;
+                    out.write_atomic("\"")?;
+                    write_uri(out, uri, false)?;
+                    out.write_atomic("\"")?;
                 }
                 ICalendarParameterValue::Cutype(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ICalendarParameterValue::Fbtype(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ICalendarParameterValue::Partstat(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ICalendarParameterValue::Related(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ICalendarParameterValue::Reltype(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ICalendarParameterValue::Role(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ICalendarParameterValue::ScheduleAgent(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ICalendarParameterValue::ScheduleForceSend(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ICalendarParameterValue::Value(v) => {
                     types = Some(v);
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ICalendarParameterValue::Display(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ICalendarParameterValue::Feature(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ICalendarParameterValue::Duration(v) => {
                     write!(out, "{v}")?;
-                    line_len += 14;
                 }
                 ICalendarParameterValue::Linkrel(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ICalendarParameterValue::Null => {
                     last_param = None;
@@ -167,8 +147,7 @@ impl ICalendarEntry {
             }
         }
 
-        write!(out, ":")?;
-        line_len += 1;
+        out.write_atomic(":")?;
 
         let (default_type, separator) = self.name.default_types();
         let separator = if !matches!(separator, ValueSeparator::Comma) {
@@ -180,66 +159,50 @@ impl ICalendarEntry {
 
         for (pos, value) in self.values.iter().enumerate() {
             if pos > 0 {
-                write!(out, "{separator}")?;
-                line_len += 1;
-            }
-
-            if line_len + 1 > 75 && !matches!(value, ICalendarValue::Text(v) if v.is_empty()) {
-                write!(out, "\r\n ")?;
-                line_len = 1;
+                out.write_atomic(separator)?;
             }
 
             let text = match value {
                 ICalendarValue::Binary(v) => {
-                    write_bytes(out, Some(&mut line_len), v)?;
+                    write_bytes(out, v)?;
                     continue;
                 }
                 ICalendarValue::Boolean(v) => {
-                    let text = if *v { "TRUE" } else { "FALSE" };
-                    write!(out, "{text}")?;
-                    line_len += text.len();
+                    out.write_atomic(if *v { "TRUE" } else { "FALSE" })?;
                     continue;
                 }
                 ICalendarValue::Uri(v) => {
-                    write_uri(out, &mut line_len, v, true)?;
+                    write_uri(out, v, true)?;
                     continue;
                 }
                 ICalendarValue::PartialDateTime(v) => {
                     v.format_as_ical(out, types.unwrap_or(&default_type))?;
-                    line_len += 6;
                     continue;
                 }
                 ICalendarValue::Duration(v) => {
                     write!(out, "{}", v)?;
-                    line_len += 6;
                     continue;
                 }
                 ICalendarValue::RecurrenceRule(v) => {
                     write!(out, "{}", v)?;
-                    line_len += 6;
                     continue;
                 }
                 ICalendarValue::Period(v) => {
                     write!(out, "{}", v)?;
-                    line_len += 32;
                     continue;
                 }
                 ICalendarValue::Float(v) => {
                     write!(out, "{v}")?;
-                    line_len += 4;
                     continue;
                 }
                 ICalendarValue::Integer(v) => {
                     write!(out, "{v}")?;
-                    line_len += 4;
                     continue;
                 }
                 ICalendarValue::Text(v) => {
-                    let escape = !matches!(
-                        types.unwrap_or(&default_type),
-                        ICalendarValueType::Recur
-                    );
-                    write_text(out, &mut line_len, v, escape, escape)?;
+                    let escape =
+                        !matches!(types.unwrap_or(&default_type), ICalendarValueType::Recur);
+                    write_text(out, v, escape, escape)?;
                     continue;
                 }
                 ICalendarValue::CalendarScale(v) => v.as_str(),
@@ -254,35 +217,50 @@ impl ICalendarEntry {
                 ICalendarValue::Proximity(v) => v.as_str(),
             };
 
-            write!(out, "{text}")?;
-            line_len += text.len();
+            out.write_atomic(text)?;
         }
 
-        write!(out, "\r\n")
+        out.end_line()
     }
 }
 
-pub(crate) fn write_uri(
-    out: &mut impl Write,
-    line_len: &mut usize,
+pub(crate) fn write_uri<W: Write>(
+    out: &mut FoldingWriter<'_, W>,
     value: &Uri,
     escape: bool,
 ) -> std::fmt::Result {
     match value {
         Uri::Data(v) => {
             let media_type = v.content_type.as_deref().unwrap_or_default();
-            write!(out, "data:{media_type};")?;
-            *line_len += media_type.len() + 6;
+            out.write_str("data:")?;
+            out.write_str(media_type)?;
+            out.write_str(";")?;
             if escape {
-                write!(out, "base64\\,")?;
+                out.write_atomic("base64\\,")?;
             } else {
-                write!(out, "base64,")?;
+                out.write_atomic("base64,")?;
             }
-            *line_len += 8;
-            write_bytes(out, Some(line_len), &v.data)
+            write_bytes(out, &v.data)
         }
-        Uri::Location(v) => write_text(out, line_len, v, escape, escape),
+        Uri::Location(v) => write_text(out, v, escape, escape),
     }
+}
+
+fn write_boundary(out: &mut impl Write, keyword: &str, name: &str) -> std::fmt::Result {
+    let mut folded = FoldingWriter::new(out);
+    folded.write_atomic(keyword)?;
+    folded.write_atomic(name)?;
+    folded.end_line()
+}
+
+#[cfg(feature = "rkyv")]
+fn write_component_begin(out: &mut impl Write, name: &str) -> std::fmt::Result {
+    write_boundary(out, "BEGIN:", name)
+}
+
+#[cfg(feature = "rkyv")]
+fn write_component_end(out: &mut impl Write, name: &str) -> std::fmt::Result {
+    write_boundary(out, "END:", name)
 }
 
 impl Uri {
@@ -541,5 +519,69 @@ impl PartialDateTime {
 impl Display for ICalendar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.write_to(f)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Entry, Parser, icalendar::ICalendar};
+
+    fn parse(input: &str) -> ICalendar {
+        let mut parser = Parser::new(input);
+        let Entry::ICalendar(ical) = parser.entry() else {
+            panic!("expected iCalendar for {input}");
+        };
+        ical
+    }
+
+    fn write(ical: &ICalendar) -> String {
+        let out = ical.to_string();
+
+        #[cfg(feature = "rkyv")]
+        {
+            let bytes = rkyv::to_bytes::<rkyv::rancor::Error>(ical).unwrap();
+            let archived =
+                rkyv::access::<crate::icalendar::ArchivedICalendar, rkyv::rancor::Error>(&bytes)
+                    .unwrap();
+            assert_eq!(out, archived.to_string(), "archived writer diverged");
+        }
+
+        out
+    }
+
+    #[test]
+    fn test_write_fold_width() {
+        for input in [
+            "RRULE:FREQ=WEEKLY;UNTIL=20210309T080000Z;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR,SA;WKST=MO",
+            "RDATE;VALUE=PERIOD:19970101T180000Z/19970102T070000Z,19970109T180000Z/PT5H30M",
+            "FREEBUSY;FBTYPE=BUSY:20120103T091500Z/20120103T101500Z,20120113T130000Z/20120113T150000Z",
+            "EXDATE;TZID=US/Central:20170706T090000,20170713T090000,20170720T090000,20170803T090000",
+            "DTSTART;TZID=/softwarestudio.org/Olson_20011030_5/America/Chicago:20030515T183000",
+            "REQUEST-STATUS:EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE;;",
+        ] {
+            let ical = parse(&format!(
+                "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//x//x//EN\r\n\
+                 BEGIN:VEVENT\r\nUID:1\r\n{input}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+            ));
+
+            let out = write(&ical);
+            crate::common::writer::assert_fold_width(&out, input);
+
+            assert_eq!(write(&parse(&out)), out, "not idempotent for {input}");
+        }
+    }
+
+    #[test]
+    fn test_write_component_boundary_fold_width() {
+        let name = "X".repeat(90);
+        let ical = parse(&format!(
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//x//x//EN\r\n\
+             BEGIN:{name}\r\nEND:{name}\r\nEND:VCALENDAR\r\n"
+        ));
+
+        let out = write(&ical);
+        crate::common::writer::assert_fold_width(&out, &name);
+
+        assert_eq!(write(&parse(&out)), out, "not idempotent for {name}");
     }
 }

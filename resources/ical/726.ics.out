@@ -611,8 +611,8 @@ DTEND;TZID=Europe/London:20241004T114500
 TRANSP:OPAQUE
 X-MOZ-GENERATION:2
 DESCRIPTION;ALTREP="data:text/html;base64,MTVtaW4gYmVmb3JlIHN0YXJ0JmFtcDtlb
- mQ8YnI+MTVtaW4gYWZ0ZXIgc3RhcnQmYW1wO2VuZA==":15min before start&end\n15min 
- after start&end
+ mQ8YnI+MTVtaW4gYWZ0ZXIgc3RhcnQmYW1wO2VuZA==":15min before start&end\n15min
+  after start&end
 BEGIN:VALARM
 ACTION:DISPLAY
 TRIGGER:-PT15M

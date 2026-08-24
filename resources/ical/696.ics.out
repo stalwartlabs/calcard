@@ -245,8 +245,8 @@ METHOD:REPLY
 VERSION:2.0
 BEGIN:VEVENT
 ORGANIZER:MAILTO:A@Example.com
-ATTENDEE;PARTSTAT=DELEGATED;DELEGATED-TO="Mailto:E@example.com":Mailto:C@exam
- ple.com
+ATTENDEE;PARTSTAT=DELEGATED;DELEGATED-TO="Mailto:E@example.com":Mailto:C@ex
+ ample.com
 UID:calsrv.example.com-873970198738777@example.com
 SEQUENCE:0
 REQUEST-STATUS:2.0;Success
@@ -260,9 +260,10 @@ METHOD:REQUEST
 VERSION:2.0
 BEGIN:VEVENT
 ORGANIZER:Mailto:A@example.com
-ATTENDEE;PARTSTAT=DELEGATED;DELEGATED-TO="Mailto:E@example.com":Mailto:C@exam
- ple.com
-ATTENDEE;RSVP=TRUE;DELEGATED-FROM="Mailto:C@example.com":Mailto:E@example.com
+ATTENDEE;PARTSTAT=DELEGATED;DELEGATED-TO="Mailto:E@example.com":Mailto:C@ex
+ ample.com
+ATTENDEE;RSVP=TRUE;DELEGATED-FROM="Mailto:C@example.com":Mailto:E@example.c
+ om
 DTSTART:19970701T180000Z
 DTEND:19970701T200000Z
 SUMMARY:Phone Conference
@@ -279,8 +280,8 @@ METHOD:REPLY
 VERSION:2.0
 BEGIN:VEVENT
 ORGANIZER:MAILTO:A@Example.com
-ATTENDEE;PARTSTAT=ACCEPTED;DELEGATED-FROM="Mailto:C@example.com":Mailto:E@exa
- mple.com
+ATTENDEE;PARTSTAT=ACCEPTED;DELEGATED-FROM="Mailto:C@example.com":Mailto:E@e
+ xample.com
 UID:calsrv.example.com-873970198738777@example.com
 SEQUENCE:0
 REQUEST-STATUS:2.0;Success
@@ -294,8 +295,8 @@ METHOD:REPLY
 VERSION:2.0
 BEGIN:VEVENT
 ORGANIZER:MAILTO:A@Example.com
-ATTENDEE;PARTSTAT=DELEGATED;DELEGATED-TO="Mailto:E@example.com":Mailto:C@exam
- ple.com
+ATTENDEE;PARTSTAT=DELEGATED;DELEGATED-TO="Mailto:E@example.com":Mailto:C@ex
+ ample.com
 COMMENT:Sorry\, I will be out of town at that time.
 UID:calsrv.example.com-873970198738777@example.com
 SEQUENCE:0
@@ -310,8 +311,8 @@ METHOD:REQUEST
 VERSION:2.0
 BEGIN:VEVENT
 ORGANIZER:MAILTO:A@Example.com
-ATTENDEE;PARTSTAT=DECLINED;DELEGATED-FROM="Mailto:C@example.com":Mailto:E@exa
- mple.com
+ATTENDEE;PARTSTAT=DECLINED;DELEGATED-FROM="Mailto:C@example.com":Mailto:E@e
+ xample.com
 ATTENDEE;RSVP=TRUE:Mailto:C@example.com
 UID:calsrv.example.com-873970198738777@example.com
 SEQUENCE:0

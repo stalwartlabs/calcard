@@ -2,8 +2,8 @@ BEGIN:VCARD
 VERSION:2.1
 N;LANGUAGE=de:Rastral;Ralf
 FN:Ralf Rastral
-ADR;TYPE=HOME;PREF;CHARSET=UTF-8:;;Lämmerweg 12;Kleindorf;;98765;Deutschl
- and
+ADR;TYPE=HOME;PREF;CHARSET=UTF-8:;;Lämmerweg 12;Kleindorf;;98765;Deutschla
+ nd
 LABEL;TYPE=HOME;PREF;ENCODING=b:TORtbWVyd2VnIDEyDQo5ODc2NSBLbGVpbmRvcmY=
 END:VCARD
 

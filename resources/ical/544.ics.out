@@ -44,8 +44,8 @@ DESCRIPTION:When: Occurs every Friday effective 12/7/2012 from 4:00 PM to 6
 DTEND;TZID="(UTC+02:00) Athens, Bucharest, Istanbul":20121207T180000
 DTSTAMP:20130403T070926Z
 DTSTART;TZID="(UTC+02:00) Athens, Bucharest, Istanbul":20121207T160000
-EXDATE;TZID="(UTC+02:00) Athens, Bucharest, Istanbul":20130118T160000,20130208T160000,20130215T160000,
- 20130301T160000,20130308T160000
+EXDATE;TZID="(UTC+02:00) Athens, Bucharest, Istanbul":20130118T160000,20130
+ 208T160000,20130215T160000,20130301T160000,20130308T160000
 LAST-MODIFIED:20140214T133026Z
 LOCATION:Training room
 ORGANIZER;CN="Ciprian Baltatescu":mailto:ciprian.baltatescu@1and1.ro
@@ -857,7 +857,8 @@ DESCRIPTION:\n\nUpdate:  JF de  1 ora. Odata la 2 saptamani. Luni de la 15:
 DTEND;TZID="(UTC+02:00) Athens, Bucharest, Istanbul":20130506T160000
 DTSTAMP:20130423T141938Z
 DTSTART;TZID="(UTC+02:00) Athens, Bucharest, Istanbul":20130506T150000
-EXDATE;TZID="(UTC+02:00) Athens, Bucharest, Istanbul":20130506T150000,20130701T150000
+EXDATE;TZID="(UTC+02:00) Athens, Bucharest, Istanbul":20130506T150000,20130
+ 701T150000
 LAST-MODIFIED:20140210T123047Z
 LOCATION:0503 / Cloud / 5th floor / Tel. 9264
 ORGANIZER;CN="Cristina Zambitchi":mailto:cristina.zambitchi@1and1.ro
@@ -4746,8 +4747,8 @@ ATTENDEE;CN="Judith Fechter";RSVP=TRUE:mailto:judith.fechter@1und1.de
 ATTENDEE;CN="Daniel Marques";RSVP=TRUE:mailto:daniel.marques@1und1.de
 ATTENDEE;CN="Sascha Becker";RSVP=TRUE:mailto:sascha.becker@1und1.de
 ATTENDEE;CN='se_mam_buc@1und1.de';RSVP=TRUE:mailto:se_mam_buc@1und1.de
-ATTENDEE;CN='mam-managers-extended@1and1.ro';ROLE=OPT-PARTICIPANT;RSVP=TRUE:
- mailto:mam-managers-extended@1and1.ro
+ATTENDEE;CN='mam-managers-extended@1and1.ro';ROLE=OPT-PARTICIPANT;RSVP=TRUE
+ :mailto:mam-managers-extended@1and1.ro
 ATTENDEE;CN="Ionut Manta";ROLE=OPT-PARTICIPANT;RSVP=TRUE:mailto:ionut.manta
  @1and1.ro
 ATTENDEE;CN="Marius Hacman";ROLE=OPT-PARTICIPANT;RSVP=TRUE:mailto:marius.ha

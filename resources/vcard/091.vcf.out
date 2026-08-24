@@ -6,8 +6,8 @@ ORG:Wurstdarm KG
 TITLE:Compliance Officer
 TEL;TYPE=WORK,VOICE:0987 /6543
 TEL;TYPE=HOME,VOICE:9876 /11223344
-LABEL;TYPE=WORK;PREF;CHARSET=UTF-8:Business-Straße 19\r\n76543 Schaffhaus
- en
+LABEL;TYPE=WORK;PREF;CHARSET=UTF-8:Business-Straße 19\r\n76543 Schaffhause
+ n
 LABEL;TYPE=HOME;POSTAL:Freizeitweg 4\r\n12345 Freizeithausen
 LABEL;POSTAL:Sonstgasse 44\r\n37465 Anderstadt
 LABEL;TYPE=WORK;CHARSET=UTF-8:Fabrikstraße 1\r\n76543 Industriehausen

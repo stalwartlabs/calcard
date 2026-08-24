@@ -36,8 +36,8 @@ ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=TENTATIVE;CN="Henry Cabot":mailto:hc
  abot@example.com
 ATTENDEE;ROLE=REQ-PARTICIPANT;DELEGATED-FROM="mailto:bob@example.com";
  PARTSTAT=ACCEPTED;CN="Jane Doe":mailto:jdoe@example.com
-ATTENDEE;ROLE=NON-PARTICIPANT;PARTSTAT=DELEGATED;DELEGATED-TO="mailto:hcabot
- @example.com";CN="The Big Cheese":mailto:iamboss@example.com
+ATTENDEE;ROLE=NON-PARTICIPANT;PARTSTAT=DELEGATED;DELEGATED-TO="mailto:hcabo
+ t@example.com";CN="The Big Cheese":mailto:iamboss@example.com
 END:VEVENT
 END:VCALENDAR
 

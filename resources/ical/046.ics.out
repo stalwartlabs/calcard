@@ -14,10 +14,10 @@ END:VEVENT
 END:VCALENDAR
 
 BEGIN:VCALENDAR
-ATTENDEE;DELEGATED-TO="mailto:foo7@bar","mailto:foo8@bar";CN="Foo, Bar":mailto:
- foo1@bar
-ATTENDEE;DELEGATED-TO="mailto:foo7@bar","mailto:foo8@bar";CN="Foo; Bar":mailto:
- foo2@bar
+ATTENDEE;DELEGATED-TO="mailto:foo7@bar","mailto:foo8@bar";CN="Foo, Bar":mai
+ lto:foo1@bar
+ATTENDEE;DELEGATED-TO="mailto:foo7@bar","mailto:foo8@bar";CN="Foo; Bar":mai
+ lto:foo2@bar
 ATTENDEE;CN="Foo, Bar":mailto:foo3@bar
 ATTENDEE;CN="Foo; Bar":mailto:foo4@bar
 ATTENDEE;DELEGATED-TO="mailto:foo7@bar";CN="Foo, Bar":mailto:foo5@bar

@@ -1137,6 +1137,7 @@ mod tests {
                                 }
                             }
                             let ical_text = ical.to_string();
+                            crate::common::writer::assert_fold_width(&ical_text, file_name);
                             writeln!(output, "{}", ical_text).unwrap();
                             //writeln!(output_debug, "{:#?}", ical).unwrap();
 

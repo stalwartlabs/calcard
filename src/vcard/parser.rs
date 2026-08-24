@@ -497,14 +497,11 @@ impl Parser<'_> {
                                     let mut last_is_escape = false;
 
                                     for ch in item.chars() {
-                                        if ch == '\\' {
-                                            if last_is_escape {
-                                                last_is_escape = false;
-                                            } else {
-                                                last_is_escape = true;
-                                                continue;
-                                            }
+                                        if ch == '\\' && !last_is_escape {
+                                            last_is_escape = true;
+                                            continue;
                                         }
+                                        last_is_escape = false;
                                         sep.push(ch);
                                     }
 
@@ -869,6 +866,7 @@ mod tests {
                                 }
                             }*/
                             let vcard_text = vcard.to_string();
+                            crate::common::writer::assert_fold_width(&vcard_text, file_name);
                             writeln!(output, "{}", vcard_text).unwrap();
                             let _vcard_orig = vcard.clone();
 
@@ -919,6 +917,21 @@ mod tests {
                                 )
                                 .unwrap();
                                 assert_eq!(vcard_text, vcard_unarchived.to_string());
+
+                                for version in [
+                                    crate::vcard::VCardVersion::V3_0,
+                                    crate::vcard::VCardVersion::V4_0,
+                                ] {
+                                    let mut native = String::new();
+                                    let mut archived = String::new();
+                                    _vcard_orig.write_to(&mut native, version).unwrap();
+                                    vcard_unarchived.write_to(&mut archived, version).unwrap();
+                                    assert_eq!(
+                                        native, archived,
+                                        "archived writer diverged at {version} for {file_name}"
+                                    );
+                                    crate::common::writer::assert_fold_width(&native, file_name);
+                                }
                             }
                         }
                         Entry::InvalidLine(text) => {

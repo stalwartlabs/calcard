@@ -29,8 +29,8 @@ SEQUENCE:1
 RECURRENCE-ID;TZID=Europe/Berlin:20140129T140000
 DTSTART;TZID=Europe/Berlin:20140129T140000
 DTEND;TZID=Europe/Berlin:20140129T150000
-ORGANIZER;CN="Schüle, Philipp";EMAIL=p.schuele@metaways.de;SENT-BY="mailto:
- p.schuele@metaways.de":mailto:p.schuele@metaways.de
+ORGANIZER;CN="Schüle, Philipp";EMAIL=p.schuele@metaways.de;SENT-BY="mailto
+ :p.schuele@metaways.de":mailto:p.schuele@metaways.de
 ATTENDEE;CN="Schüle, Philipp";CUTYPE=INDIVIDUAL;PARTSTAT=ACCEPTED;ROLE=REQ
  -PARTICIPANT;RSVP=FALSE;EMAIL=p.schuele@metaways.de:mailto:p.schuele@metaw
  ays.de

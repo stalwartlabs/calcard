@@ -14,8 +14,8 @@ UID:19970901T095957Z-76A912@example.com
 ORGANIZER:mailto:jane_doe@example.com
 ATTENDEE:mailto:john_public@example.com
 DTSTAMP:19970901T100000Z
-FREEBUSY:19971015T050000Z/PT8H30M,19971015T160000Z/PT5H30M,
- 19971015T223000Z/PT6H30M
+FREEBUSY:19971015T050000Z/PT8H30M,19971015T160000Z/PT5H30M,19971015T223000Z
+ /PT6H30M
 URL:http://example.com/pub/busy/jpublic-01.ifb
 COMMENT:This iCalendar file contains busy time information for the next thr
  ee months.

@@ -11,8 +11,8 @@ DTSTAMP:20150928T132434Z
 CREATED:20150928T125212Z
 DESCRIPTION:
 SUMMARY:yo
-ATTACH;X-TITLE="the spec";X-JMAP-CID=123456789asd;FMTTYPE=text/html;SIZE=4480;
- X-JMAP-REL=enclosure:http://jmap.io/spec.html#calendar-events
+ATTACH;X-TITLE="the spec";X-JMAP-CID=123456789asd;FMTTYPE=text/html;SIZE=44
+ 80;X-JMAP-REL=enclosure:http://jmap.io/spec.html#calendar-events
 ATTACH:http://example.com/some.url
 ATTACH;X-JMAP-ID=describedby-attach;X-JMAP-REL=describedby:http://described
  by/attach

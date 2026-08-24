@@ -26,8 +26,8 @@ UID:e679217e8c3f89e8ca55779f70f9940e6689ed98
 SUMMARY:Hi12
 STATUS:CONFIRMED
 ORGANIZER;CN="extern org":mailto:extern@caldav.org
-ATTENDEE;CN="extern org";EMAIL=extern@caldav.org;CUTYPE=INDIVIDUAL;
- PARTSTAT=ACCEPTED:mailto:extern@caldav.org
+ATTENDEE;CN="extern org";EMAIL=extern@caldav.org;CUTYPE=INDIVIDUAL;PARTSTAT
+ =ACCEPTED:mailto:extern@caldav.org
 ATTENDEE;CN="Admin Account, Tine 2.0";CUTYPE=INDIVIDUAL;EMAIL=unittest@tine
  20.org;PARTSTAT=ACCEPTED:mailto:unittest@tine20.org
 ATTENDEE;CN="Clever, Susan";CUTYPE=INDIVIDUAL;EMAIL=sclever@tine20.org;

@@ -27,8 +27,8 @@ ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN="Attendee
  3":mailto:attendee3@example.com
 DESCRIPTION;LANGUAGE=en-GB:
 Dear Team:
-We look forward to the meeting on Monday. Please bring your questions so we can discuss them together. See you then!:
- )
+We look forward to the meeting on Monday. Please bring your questions so we
+  can discuss them together. See you then!:)
 https://zoom.us/j/XXXXXXXXXXXX?pwd=XXXXXXXXXXXXX
 Meeting ID: XXXXXXXXX
 Passcode: XXXXXXX

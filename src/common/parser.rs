@@ -14,10 +14,40 @@ use mail_parser::{
     DateTime,
     decoders::{base64::base64_decode, hex::decode_hex},
 };
-use std::{iter::Peekable, slice::Iter, str::FromStr};
+use std::{borrow::Cow, iter::Peekable, slice::Iter, str::FromStr};
+
+pub(crate) fn unfold(text: &str) -> Cow<'_, str> {
+    if !text.as_bytes().contains(&b'\n') {
+        return Cow::Borrowed(text);
+    }
+
+    let mut unfolded = String::with_capacity(text.len());
+    let mut rest = text;
+
+    while let Some(pos) = rest.find('\n') {
+        let after = &rest[pos + 1..];
+
+        if let Some(continuation) = after.strip_prefix([' ', '\t']) {
+            let end = if rest[..pos].ends_with('\r') {
+                pos - 1
+            } else {
+                pos
+            };
+            unfolded.push_str(&rest[..end]);
+            rest = continuation;
+        } else {
+            unfolded.push_str(&rest[..=pos]);
+            rest = after;
+        }
+    }
+
+    unfolded.push_str(rest);
+
+    Cow::Owned(unfolded)
+}
 
 impl<'x> Parser<'x> {
-    pub(crate) fn raw_token(&mut self) -> Option<&'x str> {
+    pub(crate) fn raw_token(&mut self) -> Option<Cow<'x, str>> {
         self.token_buf
             .first()
             .and_then(|first| {
@@ -25,6 +55,7 @@ impl<'x> Parser<'x> {
                     .get(first.start..=self.token_buf.last().unwrap().end)
             })
             .and_then(|v| std::str::from_utf8(v).ok())
+            .map(unfold)
     }
 
     pub(crate) fn buf_parse_many<T: From<Token<'x>>>(&mut self) -> Vec<T> {

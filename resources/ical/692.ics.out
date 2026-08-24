@@ -107,8 +107,8 @@ SEQUENCE:0
 COMMENT:Unfortunately\, I have another commitment that conflicts with thism
  eeting. I am delegating my attendance to Bob.
 ATTENDEE;ROLE=CHAIR;CUTYPE=INDIVIDUAL;CN=Alice;PARTSTAT=DELEGATED;
- DELEGATED-TO="bob@cal.softwarestudio.org":Mailto:alice@cal.softwarestudio.or
- g
+ DELEGATED-TO="bob@cal.softwarestudio.org":Mailto:alice@cal.softwarestudio.
+ org
 END:VEVENT
 END:VCALENDAR
 
@@ -160,8 +160,8 @@ SEQUENCE:0
 COMMENT:Unfortunately\, I have another commitment that conflicts with thism
  eeting. I am delegating my attendance to Bob.
 ATTENDEE;ROLE=CHAIR;CUTYPE=INDIVIDUAL;CN=Alice;PARTSTAT=DELEGATED;
- DELEGATED-TO="bob@cal.softwarestudio.org":Mailto:alice@cal.softwarestudio.or
- g
+ DELEGATED-TO="bob@cal.softwarestudio.org":Mailto:alice@cal.softwarestudio.
+ org
 END:VEVENT
 END:VCALENDAR
 
@@ -213,8 +213,8 @@ SEQUENCE:0
 COMMENT:Unfortunately\, I have another commitment that conflicts with thism
  eeting. I am delegating my attendance to Bob.
 ATTENDEE;ROLE=CHAIR;CUTYPE=INDIVIDUAL;CN=Alice;PARTSTAT=DELEGATED;
- DELEGATED-TO="bob@cal.softwarestudio.org":Mailto:alice@cal.softwarestudio.or
- g
+ DELEGATED-TO="bob@cal.softwarestudio.org":Mailto:alice@cal.softwarestudio.
+ org
 END:VEVENT
 END:VCALENDAR
 
@@ -266,8 +266,8 @@ SEQUENCE:0
 COMMENT:Unfortunately\, I have another commitment that conflicts with thism
  eeting. I am delegating my attendance to Bob.
 ATTENDEE;ROLE=CHAIR;CUTYPE=INDIVIDUAL;CN=Alice;PARTSTAT=DELEGATED;
- DELEGATED-TO="bob@cal.softwarestudio.org":Mailto:alice@cal.softwarestudio.or
- g
+ DELEGATED-TO="bob@cal.softwarestudio.org":Mailto:alice@cal.softwarestudio.
+ org
 END:VEVENT
 END:VCALENDAR
 

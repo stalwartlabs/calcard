@@ -7,7 +7,7 @@
 use crate::{
     common::{
         parser::Timestamp,
-        writer::{write_bytes, write_param_value, write_text},
+        writer::{FoldingWriter, LineWriter, write_bytes, write_param_value, write_text},
     },
     vcard::{media_type::legacy_media_type, *},
 };
@@ -40,86 +40,65 @@ impl ArchivedVCardEntry {
         with_value: bool,
         is_v4: bool,
     ) -> std::fmt::Result {
-        let mut line_len = 0;
+        let mut folded = FoldingWriter::new(out);
+        let out = &mut folded;
 
         if let Some(group_name) = self.group.as_ref() {
-            write!(out, "{group_name}.")?;
-            line_len += group_name.len() + 1;
+            out.write_atomic(group_name)?;
+            out.write_atomic(".")?;
         }
 
-        let entry_name = self.name.as_str();
-        write!(out, "{}", entry_name)?;
-        line_len += entry_name.len();
+        out.write_atomic(self.name.as_str())?;
         let mut types = None;
         let mut last_param: Option<&ArchivedVCardParameterName> = None;
 
         for param in self.params.iter() {
             if last_param.is_some_and(|last_param| last_param == &param.name) {
-                write!(out, ",")?;
-                line_len += 1;
-
-                if line_len + 1 > 75 {
-                    write!(out, "\r\n ")?;
-                    line_len = 1;
-                }
+                out.write_atomic(",")?;
             } else {
-                write!(out, ";")?;
-                line_len += 1;
-                let name = param.name.as_str();
-                let need_len = name.len() + 1;
-                if line_len + need_len > 75 {
-                    write!(out, "\r\n ")?;
-                    line_len = 1;
-                }
+                out.write_atomic(";")?;
+                out.write_atomic(param.name.as_str())?;
                 if !matches!(param.value, ArchivedVCardParameterValue::Null) {
-                    write!(out, "{name}=")?;
-                } else {
-                    write!(out, "{name}")?;
+                    out.write_atomic("=")?;
                 }
-                line_len += need_len;
                 last_param = Some(&param.name);
             }
 
             match &param.value {
                 ArchivedVCardParameterValue::Text(v) => {
-                    write_param_value(out, &mut line_len, v)?;
+                    write_param_value(out, v)?;
                 }
                 ArchivedVCardParameterValue::Integer(i) => {
                     write!(out, "{}", i)?;
-                    line_len += 2;
                 }
                 ArchivedVCardParameterValue::Timestamp(v) => {
                     write!(out, "{}", Timestamp(v.to_native()))?;
-                    line_len += 17;
                 }
                 ArchivedVCardParameterValue::Bool(v) => {
-                    let v = if *v { "TRUE" } else { "FALSE" };
-                    line_len += v.len();
-                    write!(out, "{v}")?;
+                    out.write_atomic(if *v { "TRUE" } else { "FALSE" })?;
                 }
                 ArchivedVCardParameterValue::ValueType(v) => {
                     if types.is_none() {
                         types = Some(v);
                     }
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedVCardParameterValue::Type(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedVCardParameterValue::Calscale(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedVCardParameterValue::Level(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedVCardParameterValue::Phonetic(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedVCardParameterValue::Jscomps(v) => {
-                    out.write_str("\"")?;
-                    line_len += 1;
-                    write_jscomps(out, &mut line_len, v)?;
-                    out.write_str("\"")?;
+                    out.write_atomic("\"")?;
+                    write_jscomps(out, v)?;
+                    out.write_atomic("\"")?;
                     last_param = None;
                 }
                 ArchivedVCardParameterValue::Null => {
@@ -133,8 +112,7 @@ impl ArchivedVCardEntry {
                 ArchivedVCardValue::Binary(data) => Some(data),
                 _ => None,
             }) {
-                write!(out, ";ENCODING=b")?;
-                line_len += 11;
+                out.write_atomic(";ENCODING=b")?;
 
                 if let Some(media_type) = data.content_type.as_deref()
                     && !self
@@ -143,12 +121,8 @@ impl ArchivedVCardEntry {
                         .any(|param| param.name == VCardParameterName::Type)
                     && let Some(token) = legacy_media_type(self.name.as_str(), media_type)
                 {
-                    if line_len + token.len() + 6 > 75 {
-                        write!(out, "\r\n ")?;
-                        line_len = 1;
-                    }
-                    write!(out, ";TYPE={token}")?;
-                    line_len += token.len() + 6;
+                    out.write_atomic(";TYPE=")?;
+                    out.write_atomic(&token)?;
                 }
             }
 
@@ -157,17 +131,11 @@ impl ArchivedVCardEntry {
                 ArchivedVCardValue::Component(items) => items.iter().any(|s| !s.is_ascii()),
                 _ => false,
             }) {
-                if line_len + 14 > 75 {
-                    write!(out, "\r\n ")?;
-                    line_len = 1;
-                }
-                write!(out, ";CHARSET=UTF-8")?;
-                line_len += 14;
+                out.write_atomic(";CHARSET=UTF-8")?;
             }
         }
 
-        write!(out, ":")?;
-        line_len += 1;
+        out.write_atomic(":")?;
 
         if with_value {
             let (default_type, value_separator) = self.name.default_types();
@@ -193,42 +161,29 @@ impl ArchivedVCardEntry {
 
             for (pos, value) in self.values.iter().enumerate() {
                 if pos > 0 {
-                    write!(out, "{separator}")?;
-                    line_len += 1;
-                }
-
-                if line_len + 1 > 75
-                    && !matches!(value, ArchivedVCardValue::Text(v) if v.is_empty())
-                {
-                    write!(out, "\r\n ")?;
-                    line_len = 1;
+                    out.write_atomic(separator)?;
                 }
 
                 match value {
                     ArchivedVCardValue::Text(v) => {
-                        write_text(out, &mut line_len, v, escape_semicolon, escape_comma)?;
+                        write_text(out, v, escape_semicolon, escape_comma)?;
                     }
                     ArchivedVCardValue::Component(v) => {
                         for (pos, item) in v.iter().enumerate() {
                             if pos > 0 {
-                                write!(out, ",")?;
-                                line_len += 1;
+                                out.write_atomic(",")?;
                             }
-                            write_text(out, &mut line_len, item, true, true)?;
+                            write_text(out, item, true, true)?;
                         }
                     }
                     ArchivedVCardValue::Integer(v) => {
                         write!(out, "{v}")?;
-                        line_len += 4;
                     }
                     ArchivedVCardValue::Float(v) => {
                         write!(out, "{v}")?;
-                        line_len += 4;
                     }
                     ArchivedVCardValue::Boolean(v) => {
-                        let text = if *v { "TRUE" } else { "FALSE" };
-                        write!(out, "{text}")?;
-                        line_len += text.len();
+                        out.write_atomic(if *v { "TRUE" } else { "FALSE" })?;
                     }
                     ArchivedVCardValue::PartialDateTime(v) => {
                         let typ = if pos == 0 {
@@ -245,35 +200,30 @@ impl ArchivedVCardEntry {
                         } else {
                             v.format_as_legacy_vcard(out, typ)?;
                         }
-                        line_len += 16;
                     }
                     ArchivedVCardValue::Binary(v) => {
                         if is_v4 {
                             let media_type = v.content_type.as_deref().unwrap_or_default();
-                            write!(out, "data:{media_type};base64\\,")?;
-                            line_len += media_type.len() + 14;
+                            out.write_str("data:")?;
+                            out.write_str(media_type)?;
+                            out.write_str(";")?;
+                            out.write_atomic("base64\\,")?;
                         }
-                        write_bytes(out, Some(&mut line_len), &v.data)?;
+                        write_bytes(out, &v.data)?;
                     }
                     ArchivedVCardValue::Sex(v) => {
-                        let text = v.as_str();
-                        write!(out, "{text}")?;
-                        line_len += text.len();
+                        out.write_atomic(v.as_str())?;
                     }
                     ArchivedVCardValue::GramGender(v) => {
-                        let text = v.as_str();
-                        write!(out, "{text}")?;
-                        line_len += text.len();
+                        out.write_atomic(v.as_str())?;
                     }
                     ArchivedVCardValue::Kind(v) => {
-                        let text = v.as_str();
-                        write!(out, "{text}")?;
-                        line_len += text.len();
+                        out.write_atomic(v.as_str())?;
                     }
                 }
             }
         }
-        write!(out, "\r\n")
+        out.end_line()
     }
 }
 
@@ -570,44 +520,35 @@ impl Display for ArchivedVCard {
 }
 
 pub(crate) fn write_jscomps(
-    out: &mut impl Write,
-    line_len: &mut usize,
+    out: &mut impl LineWriter,
     values: &[ArchivedJscomp],
 ) -> std::fmt::Result {
     for (pos, item) in values.iter().enumerate() {
         if pos > 0 {
-            out.write_char(';')?;
-            *line_len += 1;
+            out.write_atomic(";")?;
         }
         match item {
             ArchivedJscomp::Entry { position, value } => {
                 write!(out, "{position}")?;
-                if *position > 9 {
-                    *line_len += 2;
-                } else {
-                    *line_len += 1;
-                }
                 if *value > 0 {
                     write!(out, ",{value}")?;
-                    if *value > 9 {
-                        *line_len += 3;
-                    } else {
-                        *line_len += 2;
-                    }
                 }
             }
             ArchivedJscomp::Separator(s) => {
                 if !s.is_empty() {
-                    out.write_str("s,")?;
-                    *line_len += 2;
+                    out.write_atomic("s,")?;
 
                     for ch in s.chars() {
-                        if matches!(ch, ',' | ':' | '=' | ';' | '"') {
-                            out.write_char('\\')?;
-                            *line_len += 1;
+                        match ch {
+                            '\\' => out.write_atomic("\\\\")?,
+                            ',' => out.write_atomic("\\,")?,
+                            ':' => out.write_atomic("\\:")?,
+                            '=' => out.write_atomic("\\=")?,
+                            ';' => out.write_atomic("\\;")?,
+                            '"' => out.write_atomic("\\\"")?,
+                            '\r' | '\n' => {}
+                            _ => out.write_char(ch)?,
                         }
-                        out.write_char(ch)?;
-                        *line_len += 1;
                     }
                 }
             }

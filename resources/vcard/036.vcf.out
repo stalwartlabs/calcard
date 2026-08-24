@@ -18,8 +18,8 @@ NOTE:THIS SOFTWARE IS PROVIDED BY GEORGE EL-HADDAD ''AS IS'' AND ANY EXPRES
   SUCH DAMAGE.
 TEL;TYPE=WORK,VOICE:(905) 555-1234
 TEL;TYPE=HOME,VOICE:(905) 666-1234
-ADR;TYPE=WORK;PREF:;;Cresent moon drive;Albaney;New York;12345;United Stat
- es of America
+ADR;TYPE=WORK;PREF:;;Cresent moon drive;Albaney;New York;12345;United State
+ s of America
 LABEL;TYPE=WORK;PREF:Cresent moon drive\r\nAlbaney\, New York  12345
 ADR;TYPE=HOME:;;Silicon Alley 5,;New York;New York;12345;United States of A
  merica

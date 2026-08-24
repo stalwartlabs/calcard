@@ -148,8 +148,8 @@ DTSTART;TZID=America/Los_Angeles:20241004T030000
 DTEND;TZID=America/Los_Angeles:20241004T040000
 TRANSP:OPAQUE
 X-MOZ-GENERATION:2
-DESCRIPTION;ALTREP="data:text/html;base64,YWxhcm0gYXQgc3RhcnQgb2YgZXZlbnQ=":
- alarm at start of event
+DESCRIPTION;ALTREP="data:text/html;base64,YWxhcm0gYXQgc3RhcnQgb2YgZXZlbnQ="
+ :alarm at start of event
 SEQUENCE:1
 BEGIN:VALARM
 ACTION:DISPLAY

@@ -12,8 +12,8 @@ CREATED:20150928T125212Z
 DESCRIPTION:
 SUMMARY:foo
 LAST-MODIFIED:20150928T132434Z
-ATTENDEE;X-JMAP-ID=attendee;DIR="https://local/attendee/dir":mailto:attendee@
- local
+ATTENDEE;X-JMAP-ID=attendee;DIR="https://local/attendee/dir":mailto:attende
+ e@local
 ORGANIZER:mailto:organizer@local
 END:VEVENT
 END:VCALENDAR

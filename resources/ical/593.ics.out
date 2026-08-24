@@ -1,11 +1,11 @@
 BEGIN:VCALENDAR
 BEGIN:VEVENT
-ATTENDEE;DELEGATED-TO="mailto:jdoe@example.com","mailto:jqpublic@example.com":m
- ailto:jsmith@example.com
-ATTENDEE;DELEGATED-FROM="mailto:jsmith@example.com","mailto:jdoe@example.com":m
- ailto:jdoe@example.com
-ATTENDEE;MEMBER="mailto:projectA@example.com","mailto:projectB@example.com":mai
- lto:janedoe@example.com
+ATTENDEE;DELEGATED-TO="mailto:jdoe@example.com","mailto:jqpublic@example.co
+ m":mailto:jsmith@example.com
+ATTENDEE;DELEGATED-FROM="mailto:jsmith@example.com","mailto:jdoe@example.co
+ m":mailto:jdoe@example.com
+ATTENDEE;MEMBER="mailto:projectA@example.com","mailto:projectB@example.com"
+ :mailto:janedoe@example.com
 UID:list
 DESCRIPTION:These are all the parameters which might come as a list.
 END:VEVENT
