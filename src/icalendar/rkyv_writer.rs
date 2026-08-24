@@ -8,9 +8,12 @@ use super::*;
 use crate::{
     common::{
         ArchivedPartialDateTime, CalendarScale,
-        writer::{write_bytes, write_param_value, write_text},
+        writer::{FoldingWriter, LineWriter, write_bytes, write_param_value, write_text},
     },
-    icalendar::ValueSeparator,
+    icalendar::{
+        ValueSeparator,
+        writer::{write_component_begin, write_component_end},
+    },
 };
 use std::{
     fmt::{Display, Write},
@@ -29,7 +32,7 @@ impl ArchivedICalendar {
                     .components
                     .get(component_id.to_native() as usize)
                     .unwrap();
-                write!(out, "BEGIN:{}\r\n", component.component_type.as_str())?;
+                write_component_begin(out, component.component_type.as_str())?;
 
                 for entry in component.entries.iter() {
                     if !matches!(
@@ -44,10 +47,10 @@ impl ArchivedICalendar {
                     component_stack.push((component, component_iter));
                     component_iter = component.component_ids.iter();
                 } else {
-                    write!(out, "END:{}\r\n", component.component_type.as_str())?;
+                    write_component_end(out, component.component_type.as_str())?;
                 }
             } else if let Some((component, iter)) = component_stack.pop() {
-                write!(out, "END:{}\r\n", component.component_type.as_str())?;
+                write_component_end(out, component.component_type.as_str())?;
                 component_iter = iter;
             } else {
                 break;
@@ -60,18 +63,16 @@ impl ArchivedICalendar {
 
 impl ArchivedICalendarEntry {
     pub fn write_to(&self, out: &mut impl Write, with_value: bool) -> std::fmt::Result {
-        let mut line_len = 0;
+        let mut folded = FoldingWriter::new(out);
+        let out = &mut folded;
 
-        let entry_name = self.name.as_str();
-        write!(out, "{}", entry_name)?;
-        line_len += entry_name.len();
+        out.write_atomic(self.name.as_str())?;
 
         if matches!(
             self.values.first().as_ref(),
             Some(ArchivedICalendarValue::Binary(_))
         ) {
-            write!(out, ";ENCODING=BASE64")?;
-            line_len += 18;
+            out.write_atomic(";ENCODING=BASE64")?;
         }
 
         let mut types = None;
@@ -79,38 +80,22 @@ impl ArchivedICalendarEntry {
 
         for param in self.params.iter() {
             if last_param.is_some_and(|last_param| last_param == &param.name) {
-                write!(out, ",")?;
-                line_len += 1;
-
-                if line_len + 1 > 75 {
-                    write!(out, "\r\n ")?;
-                    line_len = 1;
-                }
+                out.write_atomic(",")?;
             } else {
-                write!(out, ";")?;
-                line_len += 1;
-                let name = param.name.as_str();
-                let need_len = name.len() + 1;
-                if line_len + need_len > 75 {
-                    write!(out, "\r\n ")?;
-                    line_len = 1;
-                }
+                out.write_atomic(";")?;
+                out.write_atomic(param.name.as_str())?;
                 if !matches!(param.value, ArchivedICalendarParameterValue::Null) {
-                    write!(out, "{name}=")?;
-                } else {
-                    write!(out, "{name}")?;
+                    out.write_atomic("=")?;
                 }
-                line_len += need_len;
                 last_param = Some(&param.name);
             }
 
             match &param.value {
                 ArchivedICalendarParameterValue::Text(v) => {
-                    write_param_value(out, &mut line_len, v)?;
+                    write_param_value(out, v)?;
                 }
                 ArchivedICalendarParameterValue::Integer(i) => {
                     write!(out, "{i}")?;
-                    line_len += 2;
                 }
                 ArchivedICalendarParameterValue::Bool(v) => {
                     let v = if !matches!(param.name, ArchivedICalendarParameterName::Range) {
@@ -118,54 +103,52 @@ impl ArchivedICalendarEntry {
                     } else {
                         "THISANDFUTURE"
                     };
-                    line_len += v.len();
-                    write!(out, "{v}")?;
+                    out.write_atomic(v)?;
                 }
                 ArchivedICalendarParameterValue::Uri(uri) => {
-                    write!(out, "\"")?;
-                    write_uri(out, &mut line_len, uri, false)?;
-                    write!(out, "\"")?;
+                    out.write_atomic("\"")?;
+                    write_uri(out, uri, false)?;
+                    out.write_atomic("\"")?;
                 }
                 ArchivedICalendarParameterValue::Cutype(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedICalendarParameterValue::Fbtype(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedICalendarParameterValue::Partstat(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedICalendarParameterValue::Related(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedICalendarParameterValue::Reltype(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedICalendarParameterValue::Role(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedICalendarParameterValue::ScheduleAgent(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedICalendarParameterValue::ScheduleForceSend(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedICalendarParameterValue::Value(v) => {
                     types = Some(v);
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedICalendarParameterValue::Display(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedICalendarParameterValue::Feature(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedICalendarParameterValue::Duration(v) => {
                     write!(out, "{v}")?;
-                    line_len += 14;
                 }
                 ArchivedICalendarParameterValue::Linkrel(v) => {
-                    write_param_value(out, &mut line_len, v.as_str())?;
+                    write_param_value(out, v.as_str())?;
                 }
                 ArchivedICalendarParameterValue::Null => {
                     last_param = None;
@@ -173,8 +156,7 @@ impl ArchivedICalendarEntry {
             }
         }
 
-        write!(out, ":")?;
-        line_len += 1;
+        out.write_atomic(":")?;
 
         if with_value {
             let (default_type, separator) = self.name.default_types();
@@ -187,60 +169,44 @@ impl ArchivedICalendarEntry {
 
             for (pos, value) in self.values.iter().enumerate() {
                 if pos > 0 {
-                    write!(out, "{separator}")?;
-                    line_len += 1;
-                }
-
-                if line_len + 1 > 75
-                    && !matches!(value, ArchivedICalendarValue::Text(v) if v.is_empty())
-                {
-                    write!(out, "\r\n ")?;
-                    line_len = 1;
+                    out.write_atomic(separator)?;
                 }
 
                 let text = match value {
                     ArchivedICalendarValue::Binary(v) => {
-                        write_bytes(out, Some(&mut line_len), v)?;
+                        write_bytes(out, v)?;
                         continue;
                     }
                     ArchivedICalendarValue::Boolean(v) => {
-                        let text = if *v { "TRUE" } else { "FALSE" };
-                        write!(out, "{text}")?;
-                        line_len += text.len();
+                        out.write_atomic(if *v { "TRUE" } else { "FALSE" })?;
                         continue;
                     }
                     ArchivedICalendarValue::Uri(v) => {
-                        write_uri(out, &mut line_len, v, true)?;
+                        write_uri(out, v, true)?;
                         continue;
                     }
                     ArchivedICalendarValue::PartialDateTime(v) => {
                         v.format_as_ical(out, types.unwrap_or(&default_type))?;
-                        line_len += 6;
                         continue;
                     }
                     ArchivedICalendarValue::Duration(v) => {
                         write!(out, "{}", v)?;
-                        line_len += 6;
                         continue;
                     }
                     ArchivedICalendarValue::RecurrenceRule(v) => {
                         write!(out, "{}", v)?;
-                        line_len += 6;
                         continue;
                     }
                     ArchivedICalendarValue::Period(v) => {
                         write!(out, "{}", v)?;
-                        line_len += 32;
                         continue;
                     }
                     ArchivedICalendarValue::Float(v) => {
                         write!(out, "{v}")?;
-                        line_len += 4;
                         continue;
                     }
                     ArchivedICalendarValue::Integer(v) => {
                         write!(out, "{v}")?;
-                        line_len += 4;
                         continue;
                     }
                     ArchivedICalendarValue::Text(v) => {
@@ -248,7 +214,7 @@ impl ArchivedICalendarEntry {
                             types.unwrap_or(&default_type),
                             ArchivedICalendarValueType::Recur
                         );
-                        write_text(out, &mut line_len, v, escape, escape)?;
+                        write_text(out, v, escape, escape)?;
                         continue;
                     }
                     ArchivedICalendarValue::CalendarScale(v) => v.as_str(),
@@ -263,34 +229,32 @@ impl ArchivedICalendarEntry {
                     ArchivedICalendarValue::Proximity(v) => v.as_str(),
                 };
 
-                write!(out, "{text}")?;
-                line_len += text.len();
+                out.write_atomic(text)?;
             }
         }
-        write!(out, "\r\n")
+        out.end_line()
     }
 }
 
-pub(crate) fn write_uri(
-    out: &mut impl Write,
-    line_len: &mut usize,
+pub(crate) fn write_uri<W: Write>(
+    out: &mut FoldingWriter<'_, W>,
     value: &ArchivedUri,
     escape: bool,
 ) -> std::fmt::Result {
     match value {
         ArchivedUri::Data(v) => {
             let media_type = v.content_type.as_deref().unwrap_or_default();
-            write!(out, "data:{media_type};")?;
-            *line_len += media_type.len() + 6;
+            out.write_str("data:")?;
+            out.write_str(media_type)?;
+            out.write_str(";")?;
             if escape {
-                write!(out, "base64\\,")?;
+                out.write_atomic("base64\\,")?;
             } else {
-                write!(out, "base64,")?;
+                out.write_atomic("base64,")?;
             }
-            *line_len += 8;
-            write_bytes(out, Some(line_len), &v.data)
+            write_bytes(out, &v.data)
         }
-        ArchivedUri::Location(v) => write_text(out, line_len, v, escape, escape),
+        ArchivedUri::Location(v) => write_text(out, v, escape, escape),
     }
 }
 

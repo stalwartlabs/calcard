@@ -64,7 +64,7 @@ impl EntryState {
                         continue;
                     };
                     let mut jscomps = String::new();
-                    let _ = write_jscomps(&mut jscomps, &mut 0, &v);
+                    let _ = write_jscomps(&mut jscomps, &v);
                     Value::Str(jscomps.into())
                 }
                 VCardParameterName::Other(name) if name.eq_ignore_ascii_case("group") => {

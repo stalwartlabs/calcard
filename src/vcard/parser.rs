@@ -497,14 +497,11 @@ impl Parser<'_> {
                                     let mut last_is_escape = false;
 
                                     for ch in item.chars() {
-                                        if ch == '\\' {
-                                            if last_is_escape {
-                                                last_is_escape = false;
-                                            } else {
-                                                last_is_escape = true;
-                                                continue;
-                                            }
+                                        if ch == '\\' && !last_is_escape {
+                                            last_is_escape = true;
+                                            continue;
                                         }
+                                        last_is_escape = false;
                                         sep.push(ch);
                                     }
 

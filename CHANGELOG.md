@@ -1,3 +1,8 @@
+calcard 0.3.13
+================================
+- Fix: serialized lines exceeded the 75 octet fold (#25).
+- General performance improvements.
+
 calcard 0.3.12
 ================================
 - Added `ICalendar::add_missing_timezones()`, which builds a `VTIMEZONE` component for every `TZID` parameter that has no matching definition, as required by RFC 5545, Section 3.6.5.

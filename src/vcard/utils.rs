@@ -230,7 +230,7 @@ impl Data {
         let media_type = self.content_type.as_deref().unwrap_or_default();
         let mut out = String::with_capacity(self.data.len().div_ceil(4) + media_type.len() + 14);
         let _ = write!(&mut out, "data:{media_type};base64,");
-        let _ = write_bytes(&mut out, None, &self.data);
+        let _ = write_bytes(&mut out, &self.data);
         out
     }
 }
@@ -246,7 +246,7 @@ impl VCardParameterValue {
             VCardParameterValue::Phonetic(v) => Cow::Borrowed(v.as_str()),
             VCardParameterValue::Jscomps(v) => {
                 let mut jscomps = String::new();
-                let _ = write_jscomps(&mut jscomps, &mut 0, &v);
+                let _ = write_jscomps(&mut jscomps, &v);
                 Cow::Owned(jscomps)
             }
             VCardParameterValue::Integer(i) => Cow::Owned(i.to_string()),
