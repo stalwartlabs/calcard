@@ -121,7 +121,8 @@ impl ICalendarEntry {
 
 const TZ_MIN_YEAR: i32 = 1900;
 const TZ_MAX_FUTURE_YEARS: i32 = 100;
-const TZ_SAMPLE_STEP: i64 = 86400;
+const TZ_RANGE_MARGIN: i64 = 86400;
+const TZ_SCAN_STEP: i64 = 3 * 86400;
 const TZ_RULE_ACTIVE_SECONDS: i64 = 366 * 86400;
 
 impl ICalendar {
@@ -161,6 +162,7 @@ impl ICalendar {
             .unwrap_or(self.components[0].component_ids.len());
 
         let tz_component_id = self.components.len() as u32;
+        self.components.reserve(observances.len() + 1);
         self.components.push(ICalendarComponent {
             component_type: ICalendarComponentType::VTimezone,
             entries: vec![
@@ -169,13 +171,14 @@ impl ICalendar {
             component_ids: Vec::with_capacity(observances.len()),
         });
 
+        let first_component_id = self.components.len() as u32;
         for observance in observances {
-            let component_id = self.components.len() as u32;
             self.components.push(observance.into_component());
-            self.components[tz_component_id as usize]
-                .component_ids
-                .push(component_id);
         }
+        let last_component_id = self.components.len() as u32;
+        self.components[tz_component_id as usize]
+            .component_ids
+            .extend(first_component_id..last_component_id);
 
         self.components[0]
             .component_ids
@@ -286,7 +289,7 @@ impl ICalendar {
         }
         .saturating_add(2)
         .clamp(from_year.saturating_add(1), max_year.saturating_add(2));
-        let from = start_of_year(from_year).saturating_sub(TZ_SAMPLE_STEP);
+        let from = start_of_year(from_year).saturating_sub(TZ_RANGE_MARGIN);
         let to = start_of_year(to_year);
 
         let mut added = 0;
@@ -391,22 +394,23 @@ impl TzObservance {
 }
 
 fn build_observances(tz: chrono_tz::Tz, from: i64, to: i64) -> Vec<TzObservance> {
-    let initial = tz_state_at(tz, from);
-    let mut observances = vec![TzObservance {
+    let (initial, initial_name) = tz_observance_at(tz, from);
+    let mut observances = Vec::with_capacity(estimated_observances(from, to));
+    observances.push(TzObservance {
         at: from,
         from_offset: round_to_minute(initial.offset),
         to_offset: round_to_minute(initial.offset),
         is_dst: initial.is_dst,
-        name: tz_name_at(tz, from),
+        name: initial_name,
         rrule: None,
-    }];
+    });
 
     let mut previous_at = from;
     let mut previous = initial;
     let mut at = from;
 
     while at < to {
-        at = at.saturating_add(TZ_SAMPLE_STEP).min(to);
+        at = at.saturating_add(TZ_SCAN_STEP).min(to);
         let state = tz_state_at(tz, at);
         if state != previous {
             let onset = find_transition(tz, previous_at, at, previous);
@@ -457,9 +461,12 @@ fn collapse_observances(mut observances: Vec<TzObservance>, to: i64) -> Vec<TzOb
     let mut unbounded: [Option<(usize, i64)>; 2] = [None, None];
     let mut trailing: [Option<(usize, u8, i16, ICalendarWeekday)>; 2] = [None, None];
 
+    let mut onsets: Vec<(usize, i32, TzRuleKey)> = Vec::new();
+    let mut runs: Vec<Range<usize>> = Vec::new();
+
     for is_dst in [false, true] {
-        let mut onsets: Vec<(usize, i32, TzRuleKey)> = Vec::new();
-        let mut runs: Vec<Range<usize>> = Vec::new();
+        onsets.clear();
+        runs.clear();
 
         for (index, observance) in observances.iter().enumerate() {
             if index == 0 || observance.is_dst != is_dst {
@@ -555,13 +562,14 @@ fn collapse_observances(mut observances: Vec<TzObservance>, to: i64) -> Vec<TzOb
         }
     }
 
-    let mut result = Vec::with_capacity(observances.len());
-    for (index, observance) in observances.into_iter().enumerate() {
-        if !discard[index] {
-            result.push(observance);
-        }
-    }
-    result
+    let mut index = 0;
+    observances.retain(|_| {
+        let keep = !discard[index];
+        index += 1;
+        keep
+    });
+
+    observances
 }
 
 fn find_transition(tz: chrono_tz::Tz, mut low: i64, mut high: i64, low_state: TzState) -> i64 {
@@ -585,10 +593,28 @@ fn tz_state_at(tz: chrono_tz::Tz, timestamp: i64) -> TzState {
     }
 }
 
+fn tz_observance_at(tz: chrono_tz::Tz, timestamp: i64) -> (TzState, Option<String>) {
+    let offset = tz.offset_from_utc_datetime(&naive_utc(timestamp));
+
+    (
+        TzState {
+            offset: offset.fix().local_minus_utc(),
+            is_dst: offset.dst_offset().num_seconds() != 0,
+        },
+        offset.abbreviation().map(|name| name.to_string()),
+    )
+}
+
 fn tz_name_at(tz: chrono_tz::Tz, timestamp: i64) -> Option<String> {
     tz.offset_from_utc_datetime(&naive_utc(timestamp))
         .abbreviation()
         .map(|name| name.to_string())
+}
+
+fn estimated_observances(from: i64, to: i64) -> usize {
+    let years = to.saturating_sub(from) / TZ_RULE_ACTIVE_SECONDS;
+
+    (years.clamp(0, 1024) as usize) * 2 + 2
 }
 
 fn round_to_minute(offset: i32) -> i32 {
@@ -929,9 +955,9 @@ mod tests {
         let mut ical = ICalendar {
             components: vec![ICalendarComponent::new(ICalendarComponentType::VEvent)],
         };
-        assert_eq!(ical.add_timezone("Europe/Berlin", 0, TZ_SAMPLE_STEP), None);
+        assert_eq!(ical.add_timezone("Europe/Berlin", 0, TZ_RANGE_MARGIN), None);
         assert_eq!(
-            ICalendar::default().add_timezone("Europe/Berlin", 0, TZ_SAMPLE_STEP),
+            ICalendar::default().add_timezone("Europe/Berlin", 0, TZ_RANGE_MARGIN),
             None
         );
     }
