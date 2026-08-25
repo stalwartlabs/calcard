@@ -606,7 +606,7 @@ mod tests {
                                 .into_iter()
                                 .filter_map(|event| event.try_into_date_time())
                                 .collect::<Vec<_>>();
-                            events.sort_by_key(|a| a.start);
+                            events.sort_by_key(|a| (a.start, a.comp_id));
 
                             for err in &expanded.errors {
                                 print!("[{}: {:?}] ", err.comp_id, err.error);

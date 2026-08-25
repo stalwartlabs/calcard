@@ -16,36 +16,6 @@ use mail_parser::{
 };
 use std::{borrow::Cow, iter::Peekable, slice::Iter, str::FromStr};
 
-pub(crate) fn unfold(text: &str) -> Cow<'_, str> {
-    if !text.as_bytes().contains(&b'\n') {
-        return Cow::Borrowed(text);
-    }
-
-    let mut unfolded = String::with_capacity(text.len());
-    let mut rest = text;
-
-    while let Some(pos) = rest.find('\n') {
-        let after = &rest[pos + 1..];
-
-        if let Some(continuation) = after.strip_prefix([' ', '\t']) {
-            let end = if rest[..pos].ends_with('\r') {
-                pos - 1
-            } else {
-                pos
-            };
-            unfolded.push_str(&rest[..end]);
-            rest = continuation;
-        } else {
-            unfolded.push_str(&rest[..=pos]);
-            rest = after;
-        }
-    }
-
-    unfolded.push_str(rest);
-
-    Cow::Owned(unfolded)
-}
-
 impl<'x> Parser<'x> {
     pub(crate) fn raw_token(&mut self) -> Option<Cow<'x, str>> {
         self.token_buf
@@ -442,6 +412,25 @@ pub(crate) fn parse_small_digits(
     }
 
     false
+}
+
+pub(crate) fn unfold(text: &str) -> Cow<'_, str> {
+    if !text.as_bytes().contains(&b'\n') {
+        return Cow::Borrowed(text);
+    }
+
+    let mut unfolded = String::with_capacity(text.len());
+
+    for (pos, chunk) in text.split('\n').enumerate() {
+        let chunk = if pos == 0 {
+            chunk
+        } else {
+            chunk.strip_prefix([' ', '\t']).unwrap_or(chunk)
+        };
+        unfolded.push_str(chunk.strip_suffix('\r').unwrap_or(chunk));
+    }
+
+    Cow::Owned(unfolded)
 }
 
 #[derive(Default)]
