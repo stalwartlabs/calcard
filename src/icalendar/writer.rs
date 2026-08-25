@@ -254,12 +254,12 @@ fn write_boundary(out: &mut impl Write, keyword: &str, name: &str) -> std::fmt::
 }
 
 #[cfg(feature = "rkyv")]
-fn write_component_begin(out: &mut impl Write, name: &str) -> std::fmt::Result {
+pub(crate) fn write_component_begin(out: &mut impl Write, name: &str) -> std::fmt::Result {
     write_boundary(out, "BEGIN:", name)
 }
 
 #[cfg(feature = "rkyv")]
-fn write_component_end(out: &mut impl Write, name: &str) -> std::fmt::Result {
+pub(crate) fn write_component_end(out: &mut impl Write, name: &str) -> std::fmt::Result {
     write_boundary(out, "END:", name)
 }
 
