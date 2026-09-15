@@ -69,6 +69,25 @@ impl<I: JSCalendarId, B: JSCalendarId> ConvertedComponent<'_, I, B> {
 
         component
     }
+
+    pub(super) fn retain_class_property(&mut self, keep_unknown: bool) -> bool {
+        let mut has_class = false;
+        self.properties.retain(|property| {
+            let Some([Value::Str(name), _, _, value, ..]) = property.as_array() else {
+                return true;
+            };
+            if ICalendarProperty::parse(name.as_bytes()) != Some(ICalendarProperty::Class) {
+                return true;
+            }
+            let keep = keep_unknown
+                && !has_class
+                && matches!(value, Value::Str(value)
+                    if ICalendarClassification::parse(value.as_bytes()).is_none());
+            has_class |= keep;
+            keep
+        });
+        has_class
+    }
 }
 
 impl ICalendarComponent {

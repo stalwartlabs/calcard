@@ -11,7 +11,7 @@ use crate::{
         ICalendarValueType, Uri,
     },
     jscalendar::{
-        JSCalendarDateTime, JSCalendarId, JSCalendarProperty, JSCalendarValue,
+        JSCalendarDateTime, JSCalendarId, JSCalendarPrivacy, JSCalendarProperty, JSCalendarValue,
         import::{
             EntryState, ICalendarConvertedProperty, ICalendarParams, State, params::ExtractParams,
         },
@@ -19,8 +19,8 @@ use crate::{
     },
 };
 use ahash::AHashMap;
-use jmap_tools::{JsonPointer, JsonPointerHandler, Key, Map, Property, Value};
-use std::{borrow::Cow, collections::hash_map::Entry};
+use jmap_tools::{JsonPointer, JsonPointerHandler, JsonPointerItem, Key, Map, Property, Value};
+use std::{borrow::Cow, collections::hash_map::Entry, str::FromStr};
 
 impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
     pub(super) fn map_named_entry(
@@ -303,6 +303,60 @@ impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
 
     pub(super) fn set_is_recurrence_instance(&mut self) {
         self.is_recurrence_instance = true;
+    }
+
+    pub(super) fn privacy(&self) -> Option<JSCalendarPrivacy> {
+        match self
+            .entries
+            .get(&Key::Property(JSCalendarProperty::Privacy))?
+        {
+            Value::Element(JSCalendarValue::Privacy(privacy)) => Some(*privacy),
+            _ => Some(JSCalendarPrivacy::Private),
+        }
+    }
+
+    pub(super) fn raise_privacy(&mut self, privacy: JSCalendarPrivacy) {
+        if self.privacy().unwrap_or(JSCalendarPrivacy::Public) < privacy {
+            self.entries.insert(
+                Key::Property(JSCalendarProperty::Privacy),
+                Value::Element(JSCalendarValue::Privacy(privacy)),
+            );
+            self.patch_objects.retain(|(pointer, _)| {
+                !matches!(
+                    pointer.first(),
+                    Some(JsonPointerItem::Key(Key::Property(
+                        JSCalendarProperty::Privacy
+                    )))
+                )
+            });
+        }
+    }
+
+    pub(super) fn merge_privacy(&mut self, privacy: JSCalendarPrivacy) {
+        let privacy = self
+            .privacy()
+            .map_or(privacy, |current| current.max(privacy));
+        self.entries.insert(
+            Key::Property(JSCalendarProperty::Privacy),
+            Value::Element(JSCalendarValue::Privacy(privacy)),
+        );
+    }
+
+    pub(super) fn remove_forbidden_override_patches(&mut self) {
+        self.entries.retain(|key, _| {
+            !matches!(key, Key::Property(property) if property.is_forbidden_override_patch())
+        });
+        self.patch_objects
+            .retain(|(pointer, _)| !JSCalendarProperty::is_forbidden_override_pointer(pointer));
+        self.ical_converted_properties.retain(|converted_to, _| {
+            !matches!(
+                converted_to
+                    .split('/')
+                    .next()
+                    .and_then(|name| JSCalendarProperty::<I>::from_str(name).ok()),
+                Some(JSCalendarProperty::RecurrenceOverrides | JSCalendarProperty::RecurrenceRule)
+            )
+        });
     }
 
     pub(super) fn find_participant_by_address(&self, address: &str) -> Option<String> {

@@ -62,6 +62,7 @@ impl ICalendar {
         let mut organizer_address = None;
         let mut organizer_params: Vec<ICalendarParameter> = Vec::new();
         let mut organizer_sent_by = None;
+        let mut privacy = None;
         let mut organizer_participant_id = None;
         let mut has_organizer_participant = false;
         let mut main_location_id = None;
@@ -103,6 +104,15 @@ impl ICalendar {
                 }
                 (Key::Property(JSCalendarProperty::SentBy), Value::Str(text)) => {
                     organizer_sent_by = Some(std::mem::take(text));
+                }
+                (
+                    Key::Property(JSCalendarProperty::Privacy),
+                    Value::Element(JSCalendarValue::Privacy(value)),
+                ) => {
+                    privacy = Some(*value);
+                }
+                (Key::Property(JSCalendarProperty::Privacy), Value::Str(_)) => {
+                    privacy = Some(JSCalendarPrivacy::Private);
                 }
                 (Key::Property(JSCalendarProperty::DescriptionContentType), Value::Str(text)) => {
                     description_content_type = Some(std::mem::take(text));
@@ -171,6 +181,29 @@ impl ICalendar {
                 let Value::Object(obj) = value else {
                     continue;
                 };
+
+                let patch_count = obj.len();
+                obj.as_mut_vec().retain(|(key, value)| match key {
+                    Key::Property(JSCalendarProperty::Pointer(pointer)) => {
+                        !JSCalendarProperty::is_forbidden_override_pointer(pointer)
+                    }
+                    Key::Property(JSCalendarProperty::Privacy) => {
+                        let override_privacy = match value {
+                            Value::Element(JSCalendarValue::Privacy(value)) => *value,
+                            _ => JSCalendarPrivacy::Private,
+                        };
+                        if override_privacy > privacy.unwrap_or(JSCalendarPrivacy::Public) {
+                            privacy = Some(override_privacy);
+                        }
+                        false
+                    }
+                    Key::Property(property) => !property.is_forbidden_override_patch(),
+                    _ => true,
+                });
+                if obj.is_empty() && patch_count > 0 {
+                    *value = Value::Null;
+                    continue;
+                }
 
                 let mut patched_obj = None;
 
@@ -929,22 +962,9 @@ impl ICalendar {
                 }
                 (
                     JSCalendarProperty::Privacy,
-                    Value::Element(JSCalendarValue::Privacy(value)),
+                    Value::Element(JSCalendarValue::Privacy(_)),
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
-                ) => {
-                    component.entries.push(
-                        ICalendarEntry::new(ICalendarProperty::Class)
-                            .with_value(match value {
-                                JSCalendarPrivacy::Public => ICalendarClassification::Public,
-                                JSCalendarPrivacy::Private => ICalendarClassification::Private,
-                                JSCalendarPrivacy::Secret => ICalendarClassification::Confidential,
-                            })
-                            .import_converted(
-                                &[JSCalendarProperty::Privacy],
-                                &mut root_conversions,
-                            ),
-                    );
-                }
+                ) => {}
                 (
                     JSCalendarProperty::Color,
                     Value::Str(text),
@@ -1861,7 +1881,7 @@ impl ICalendar {
             });
 
             for (key, value) in overrides.into_vec() {
-                let (Key::Property(JSCalendarProperty::DateTime(jsdt)), Value::Object(obj)) =
+                let (Key::Property(JSCalendarProperty::DateTime(jsdt)), Value::Object(mut obj)) =
                     (key, value)
                 else {
                     continue;
@@ -1905,6 +1925,41 @@ impl ICalendar {
                         &Key::Property(JSCalendarProperty::Excluded),
                         &Value::Bool(true),
                     ) {
+                        if let Some(privacy) = privacy {
+                            obj.insert_unchecked(
+                                Key::Property(JSCalendarProperty::Privacy),
+                                Value::Element(JSCalendarValue::Privacy(privacy)),
+                            );
+                        }
+                        if let Some(address) = &organizer_address
+                            && obj
+                                .get(&Key::Property(JSCalendarProperty::Participants))
+                                .and_then(Value::as_object)
+                                .is_some_and(|participants| {
+                                    participants.iter().any(|(_, participant)| {
+                                        matches!(
+                                            participant.as_object().and_then(|participant| {
+                                                participant.get(&Key::Property(
+                                                    JSCalendarProperty::CalendarAddress,
+                                                ))
+                                            }),
+                                            Some(Value::Str(participant_address))
+                                                if participant_address == address
+                                        )
+                                    })
+                                })
+                        {
+                            obj.insert_unchecked(
+                                Key::Property(JSCalendarProperty::OrganizerCalendarAddress),
+                                Value::Str(address.clone()),
+                            );
+                            if let Some(sent_by) = &organizer_sent_by {
+                                obj.insert_unchecked(
+                                    Key::Property(JSCalendarProperty::SentBy),
+                                    Value::Str(sent_by.clone()),
+                                );
+                            }
+                        }
                         self.from_jscalendar(
                             State {
                                 tz: state.tz,
@@ -2026,6 +2081,30 @@ impl ICalendar {
                 }))
         {
             component.entries.push(show_without_time);
+        }
+
+        if matches!(
+            component.component_type,
+            ICalendarComponentType::VEvent | ICalendarComponentType::VTodo
+        ) {
+            let has_preserved_class = root_conversions.as_mut().is_some_and(|conversions| {
+                conversions.retain_class_property(matches!(
+                    privacy,
+                    None | Some(JSCalendarPrivacy::Private)
+                ))
+            });
+
+            if !has_preserved_class && let Some(privacy) = privacy {
+                component.entries.push(
+                    ICalendarEntry::new(ICalendarProperty::Class)
+                        .with_value(match privacy {
+                            JSCalendarPrivacy::Public => ICalendarClassification::Public,
+                            JSCalendarPrivacy::Private => ICalendarClassification::Private,
+                            JSCalendarPrivacy::Secret => ICalendarClassification::Confidential,
+                        })
+                        .import_converted(&[JSCalendarProperty::Privacy], &mut root_conversions),
+                );
+            }
         }
 
         if let Some(root_conversions) = root_conversions {

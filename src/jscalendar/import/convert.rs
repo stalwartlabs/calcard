@@ -171,21 +171,25 @@ impl ICalendar {
 
             // Bundle recurrence overrides together by UID
             while let Some(mut component) = group_components.next() {
+                let mut instances = Vec::new();
+
                 if component.uid.is_some() && component.recurrence_id.is_none() {
-                    while group_components
-                        .peek()
-                        .is_some_and(|r| r.uid == component.uid && r.recurrence_id.is_some())
+                    let mut privacy = component.privacy();
+
+                    while let Some(mut recurrence) = group_components
+                        .next_if(|r| r.uid == component.uid && r.recurrence_id.is_some())
                     {
-                        let mut recurrence = group_components.next().unwrap();
-                        let recurrence_id = recurrence
-                            .recurrence_id
-                            .take()
-                            .unwrap()
+                        let Some(recurrence_id) = recurrence.recurrence_id.take() else {
+                            continue;
+                        };
+                        let recurrence_id = recurrence_id
                             .with_timezone(&component.tz_start.unwrap_or_default())
                             .to_naive_timestamp();
                         let _ = recurrence.uid.take();
 
+                        privacy = privacy.max(recurrence.privacy());
                         recurrence.set_is_recurrence_instance();
+                        recurrence.remove_forbidden_override_patches();
 
                         component
                             .get_mut_object_or_insert(JSCalendarProperty::RecurrenceOverrides)
@@ -196,13 +200,35 @@ impl ICalendar {
                                 recurrence.into_object(),
                             );
                     }
+
+                    if let Some(privacy) = privacy {
+                        component.raise_privacy(privacy);
+                    }
+                } else if component.uid.is_some() {
+                    while let Some(instance) =
+                        group_components.next_if(|next| next.uid == component.uid)
+                    {
+                        instances.push(instance);
+                    }
+
+                    if let Some(privacy) = instances
+                        .iter()
+                        .filter_map(State::privacy)
+                        .max()
+                        .max(component.privacy())
+                    {
+                        component.raise_privacy(privacy);
+                        for instance in &mut instances {
+                            instance.raise_privacy(privacy);
+                        }
+                    }
                 }
 
-                if !options.return_first {
-                    group_objects.push(component.into_object());
-                } else {
+                if options.return_first {
                     return component;
                 }
+                group_objects.push(component.into_object());
+                group_objects.extend(instances.into_iter().map(State::into_object));
             }
         }
 
@@ -657,14 +683,11 @@ impl ICalendar {
                     Some(ICalendarValue::Classification(value)),
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
                 ) => {
-                    state.entries.insert(
-                        Key::Property(JSCalendarProperty::Privacy),
-                        Value::Element(JSCalendarValue::Privacy(match value {
-                            ICalendarClassification::Public => JSCalendarPrivacy::Public,
-                            ICalendarClassification::Private => JSCalendarPrivacy::Private,
-                            ICalendarClassification::Confidential => JSCalendarPrivacy::Secret,
-                        })),
-                    );
+                    state.merge_privacy(match value {
+                        ICalendarClassification::Public => JSCalendarPrivacy::Public,
+                        ICalendarClassification::Private => JSCalendarPrivacy::Private,
+                        ICalendarClassification::Confidential => JSCalendarPrivacy::Secret,
+                    });
                     entry.set_converted_to::<I>(&[JSCalendarProperty::Privacy::<I>
                         .to_string()
                         .as_ref()]);
@@ -674,13 +697,11 @@ impl ICalendar {
                     Some(ICalendarValue::Text(value)),
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
                 ) => {
-                    state.entries.insert(
-                        Key::Property(JSCalendarProperty::Privacy),
-                        Value::Str(value.into()),
-                    );
-                    entry.set_converted_to::<I>(&[JSCalendarProperty::Privacy::<I>
-                        .to_string()
-                        .as_ref()]);
+                    state.merge_privacy(JSCalendarPrivacy::Private);
+                    entry.entry.values = [ICalendarValue::Text(value)]
+                        .into_iter()
+                        .chain(values)
+                        .collect();
                 }
                 (
                     ICalendarProperty::Color,

@@ -5,6 +5,7 @@
  */
 
 use crate::jscalendar::*;
+use jmap_tools::{JsonPointer, JsonPointerItem, Key};
 use std::str::FromStr;
 
 impl<I: JSCalendarId> FromStr for JSCalendarProperty<I> {
@@ -263,6 +264,48 @@ impl<I: JSCalendarId> JSCalendarProperty<I> {
             JSCalendarProperty::IdReference(s) => return format!("#{}", s).into(),
         }
         .into()
+    }
+
+    pub(crate) fn is_forbidden_override_patch(&self) -> bool {
+        matches!(
+            self,
+            JSCalendarProperty::Type
+                | JSCalendarProperty::Method
+                | JSCalendarProperty::OrganizerCalendarAddress
+                | JSCalendarProperty::Privacy
+                | JSCalendarProperty::ProdId
+                | JSCalendarProperty::RecurrenceId
+                | JSCalendarProperty::RecurrenceIdTimeZone
+                | JSCalendarProperty::SentBy
+                | JSCalendarProperty::Uid
+                | JSCalendarProperty::RecurrenceOverrides
+                | JSCalendarProperty::RecurrenceRule
+        )
+    }
+
+    pub(crate) fn is_forbidden_override_pointer(pointer: &JsonPointer<Self>) -> bool {
+        let mut items = pointer
+            .iter()
+            .filter(|item| !matches!(item, JsonPointerItem::Root));
+
+        match (items.next(), items.next(), items.next(), items.next()) {
+            (
+                Some(JsonPointerItem::Key(Key::Property(
+                    JSCalendarProperty::RecurrenceOverrides | JSCalendarProperty::RecurrenceRule,
+                ))),
+                ..,
+            ) => true,
+            (Some(JsonPointerItem::Key(Key::Property(property))), None, ..) => {
+                property.is_forbidden_override_patch()
+            }
+            (
+                Some(JsonPointerItem::Key(Key::Property(JSCalendarProperty::Participants))),
+                Some(_),
+                Some(JsonPointerItem::Key(Key::Property(JSCalendarProperty::CalendarAddress))),
+                None,
+            ) => true,
+            _ => false,
+        }
     }
 }
 

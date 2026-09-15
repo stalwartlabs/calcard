@@ -1,3 +1,13 @@
+calcard 0.3.14
+================================
+- Updated JSCalendar conversion rules according to `draft-ietf-calext-jscalendar-icalendar-26` and `draft-ietf-calext-jscalendarbis-20`.
+- Recurrence overrides converted from iCalendar no longer contain patches forbidden by `jscalendarbis` (`privacy`, `organizerCalendarAddress`, `sentBy`, `recurrenceRule`, nested `recurrenceOverrides`, ...), and such patches are ignored when converting to iCalendar; an override holding only forbidden patches is dropped, and a more restrictive `privacy` patch raises the privacy of the whole object.
+- All recurrences of a calendar object now convert to a single `privacy` value, taken from the most restrictive `CLASS` among the main component, its recurrence overrides, or its recurrence instances (or among repeated `CLASS` properties in one component).
+- Unknown `CLASS` values now convert to the `private` privacy, preserving the original property in `iCalendar/properties`.
+- The `privacy` property now converts to the `CLASS` property of the main component and every recurrence override component, and a preserved `CLASS` with an unknown value is restored instead of `PRIVATE`, never emitting more than one `CLASS` per component.
+- Recurrence override components exported from JSCalendar now keep the `ORGANIZER` property of the main component when the override's participants include the organizer.
+- Bump `mail-builder` dependency to 1.0.0 and `uuid` to 1.26.
+
 calcard 0.3.13
 ================================
 - Fix: serialized lines exceeded the 75 octet fold (#25).
