@@ -1,5 +1,6 @@
 {
     "@type": "Group",
+    "version": "2.0",
     "entries": [
         {
             "@type": "Event",

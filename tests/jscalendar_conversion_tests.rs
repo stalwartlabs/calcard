@@ -11,14 +11,16 @@ use calcard::{
         ICalendarValue, Uri,
     },
     jscalendar::{
-        JSCalendar, JSCalendarProperty, export::ExportOptions, import::ImportOptions, uuid5,
+        JSCALENDAR_VERSION, JSCalendar, JSCalendarProperty, export::ExportOptions,
+        import::ImportOptions, uuid5,
     },
 };
 use jmap_tools::{JsonPointer, JsonPointerHandler, Key, Value};
-use serde_json::Value as JsonValue;
+use serde_json::{Value as JsonValue, json};
 use std::collections::HashMap;
 
 const DRAFT: &str = "draft-ietf-calext-jscalendar-icalendar-28";
+const JSCALENDAR: &str = "draft-ietf-calext-jscalendarbis-22";
 
 fn event_json(members: &str) -> String {
     format!(
@@ -895,11 +897,12 @@ fn r11_6_show_without_time_is_only_written_as_true() {
 
     let task = r#"{"@type": "Group", "entries": [{"@type": "Task", "uid": "task", "title": "Chores", "showWithoutTime": true}]}"#;
     let exported = export(task);
-    assert_eq!(
-        entry(&import(&exported.to_string()))["showWithoutTime"],
-        true,
-        "a task without start or due keeps showWithoutTime\n{exported}"
+    let reimported = entry(&import(&exported.to_string()));
+    assert!(
+        reimported.get("showWithoutTime").is_none(),
+        "{JSCALENDAR} 4.2: a task without start or due cannot show without time\n{exported}"
     );
+    assert_eq!(ical_properties(&reimported), ["jsprop"], "{reimported}");
 }
 
 #[test]
@@ -1438,4 +1441,432 @@ fn rfc5545_3_6_1_only_date_events_without_an_end_last_one_day() {
             "{converted}"
         );
     }
+}
+
+fn calendar(components: &str) -> String {
+    format!(
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Example//EN\r\n{components}END:VCALENDAR\r\n"
+    )
+}
+
+fn task(lines: &str) -> String {
+    calendar(&format!("BEGIN:VTODO\r\nUID:task\r\n{lines}END:VTODO\r\n"))
+}
+
+fn import_first(ical: &str) -> JsonValue {
+    json(
+        &ICalendar::parse(ical)
+            .expect("valid iCalendar")
+            .into_jscalendar_with::<String, String, _>(ImportOptions::new().return_first(true))
+            .expect("converts"),
+    )
+}
+
+fn roundtrip(ical: &str) -> String {
+    unfolded(&import(ical).into_icalendar().expect("exports"))
+}
+
+fn lines_named<'x>(ical: &'x str, name: &str) -> Vec<&'x str> {
+    ical.split("\r\n")
+        .filter(|line| {
+            line.strip_prefix(name)
+                .is_some_and(|rest| rest.starts_with([':', ';']))
+        })
+        .collect()
+}
+
+fn ical_properties(object: &JsonValue) -> Vec<&str> {
+    object["iCalendar"]["properties"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|property| property[0].as_str())
+        .collect()
+}
+
+fn ical_components(object: &JsonValue) -> Vec<&str> {
+    object["iCalendar"]["components"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|component| component[0].as_str())
+        .collect()
+}
+
+#[test]
+fn version_is_set_on_the_group_and_not_on_its_entries() {
+    let group = json(&import(&calendar(
+        "BEGIN:VEVENT\r\nUID:a\r\nDTSTART:20250110T100000Z\r\nEND:VEVENT\r\nBEGIN:VTODO\r\nUID:b\r\nEND:VTODO\r\n",
+    )));
+    assert_eq!(group["version"], JSCALENDAR_VERSION, "{JSCALENDAR} 3.1.2");
+    assert!(group["iCalendar"].is_null(), "{JSCALENDAR} 3.1.2: {group}");
+    let entries = group["entries"].as_array().expect("entries");
+    assert_eq!(entries.len(), 2);
+    assert!(
+        entries.iter().all(|entry| entry.get("version").is_none()),
+        "{JSCALENDAR} 3.1.2: {group}"
+    );
+}
+
+#[test]
+fn version_is_set_on_an_entry_returned_without_its_group() {
+    let event = import_first(&calendar(
+        "BEGIN:VEVENT\r\nUID:a\r\nDTSTART:20250110T100000Z\r\nEND:VEVENT\r\n",
+    ));
+    assert_eq!(event["@type"], "Event");
+    assert_eq!(event["version"], JSCALENDAR_VERSION, "{JSCALENDAR} 3.1.2");
+}
+
+#[test]
+fn version_is_set_on_a_lone_recurrence_instance_returned_without_its_group() {
+    let event = import_first(&calendar(
+        "BEGIN:VEVENT\r\nUID:a\r\nRECURRENCE-ID:20250110T100000Z\r\nDTSTART:20250110T110000Z\r\nEND:VEVENT\r\n",
+    ));
+    assert_eq!(event["recurrenceId"], "2025-01-10T10:00:00");
+    assert_eq!(event["version"], JSCALENDAR_VERSION, "{JSCALENDAR} 3.1.2");
+}
+
+#[test]
+fn unknown_icalendar_version_is_preserved() {
+    let ical = calendar("BEGIN:VEVENT\r\nUID:a\r\nDTSTART:20250110T100000Z\r\nEND:VEVENT\r\n")
+        .replace("VERSION:2.0", "VERSION:3.0");
+    let group = json(&import(&ical));
+    assert_eq!(group["version"], JSCALENDAR_VERSION);
+    assert_eq!(ical_properties(&group), ["version"]);
+    assert_eq!(lines_named(&roundtrip(&ical), "VERSION"), ["VERSION:3.0"]);
+}
+
+#[test]
+fn icalendar_version_is_regenerated_on_export() {
+    let ical = calendar("BEGIN:VEVENT\r\nUID:a\r\nDTSTART:20250110T100000Z\r\nEND:VEVENT\r\n");
+    assert_eq!(lines_named(&roundtrip(&ical), "VERSION"), ["VERSION:2.0"]);
+}
+
+#[test]
+fn jsprop_version_and_excluded_are_not_imported() {
+    let group = json(&import(&calendar(
+        "BEGIN:VEVENT\r\nUID:a\r\nDTSTART:20250110T100000Z\r\nJSPROP;JSPTR=version:\"1.0\"\r\nJSPROP;JSPTR=excluded:true\r\nEND:VEVENT\r\n",
+    )));
+    let entry = &group["entries"][0];
+    assert!(
+        entry.get("version").is_none(),
+        "{JSCALENDAR} 3.1.2: {entry}"
+    );
+    assert!(
+        entry.get("excluded").is_none(),
+        "{JSCALENDAR} 1.7.3: {entry}"
+    );
+}
+
+#[test]
+fn excluded_outside_recurrence_overrides_is_not_exported() {
+    let ical = unfolded(&export(
+        r#"{"@type": "Group", "version": "2.0", "entries": [{"@type": "Event", "uid": "a",
+            "start": "2025-01-10T10:00:00", "timeZone": "Etc/UTC", "excluded": true,
+            "recurrenceRule": {"@type": "RecurrenceRule", "frequency": "daily", "count": 3},
+            "recurrenceOverrides": {"2025-01-11T10:00:00": {"excluded": true}}}]}"#,
+    ));
+    assert!(
+        lines_named(&ical, "JSPROP").is_empty(),
+        "{JSCALENDAR} 1.7.3: {ical}"
+    );
+    assert_eq!(lines_named(&ical, "EXDATE"), ["EXDATE:20250111T100000Z"]);
+}
+
+#[test]
+fn participant_roles_never_import_as_attendee() {
+    let group = json(&import(&calendar(
+        "BEGIN:VEVENT\r\nUID:a\r\nDTSTART:20250110T100000Z\r\nORGANIZER:mailto:o@example.com\r\nATTENDEE;ROLE=REQ-PARTICIPANT;JSID=r:mailto:r@example.com\r\nATTENDEE;JSID=n:mailto:n@example.com\r\nEND:VEVENT\r\n",
+    )));
+    let participants = &group["entries"][0]["participants"];
+    assert_eq!(
+        participants["r"]["roles"],
+        json!({"required": true}),
+        "{JSCALENDAR} Appendix A.2.3"
+    );
+    assert!(participants["n"].get("roles").is_none(), "{participants}");
+}
+
+#[test]
+fn task_without_start_keeps_its_recurrence_as_icalendar_properties() {
+    let ical = task(
+        "DUE;TZID=Europe/Berlin:20250110T100000\r\nRRULE:FREQ=WEEKLY;COUNT=3\r\nRDATE;TZID=Europe/Berlin:20250201T100000\r\nEXDATE;TZID=Europe/Berlin:20250117T100000\r\n",
+    );
+    let converted = entry(&import(&ical));
+    assert!(
+        converted.get("recurrenceRule").is_none(),
+        "{JSCALENDAR} 3.3.3: {converted}"
+    );
+    assert!(
+        converted.get("recurrenceOverrides").is_none(),
+        "{JSCALENDAR} 3.3.4: {converted}"
+    );
+    assert_eq!(converted["due"], "2025-01-10T10:00:00");
+    assert_eq!(ical_properties(&converted), ["rrule", "rdate", "exdate"]);
+    let exported = roundtrip(&ical);
+    assert_eq!(
+        lines_named(&exported, "RRULE"),
+        ["RRULE:FREQ=WEEKLY;COUNT=3"]
+    );
+    assert_eq!(
+        lines_named(&exported, "RDATE"),
+        ["RDATE;TZID=Europe/Berlin:20250201T100000"]
+    );
+    assert_eq!(
+        lines_named(&exported, "EXDATE"),
+        ["EXDATE;TZID=Europe/Berlin:20250117T100000"]
+    );
+}
+
+#[test]
+fn task_with_start_converts_its_recurrence_rule() {
+    let converted = entry(&import(&task(
+        "DTSTART;TZID=Europe/Berlin:20250110T090000\r\nDUE;TZID=Europe/Berlin:20250110T100000\r\nRRULE:FREQ=WEEKLY;COUNT=3\r\n",
+    )));
+    assert_eq!(
+        converted["recurrenceRule"],
+        json!({"frequency": "weekly", "count": 3})
+    );
+    assert!(ical_properties(&converted).is_empty(), "{converted}");
+}
+
+#[test]
+fn task_alarm_relative_to_a_missing_due_is_kept_as_a_component() {
+    let ical = task(
+        "DTSTART;TZID=Europe/Berlin:20250110T090000\r\nDURATION:PT1H\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Soon\r\nTRIGGER;RELATED=END:-PT5M\r\nEND:VALARM\r\n",
+    );
+    let converted = entry(&import(&ical));
+    assert!(
+        converted.get("alerts").is_none(),
+        "{JSCALENDAR} 3.5.1: a Task without \"due\" cannot have an alert relative to the end, \
+         even when DTSTART and DURATION give the iCalendar alarm a trigger time, \
+         so the VALARM is preserved instead of guessing a due time: {converted}"
+    );
+    assert_eq!(ical_components(&converted), ["valarm"]);
+    assert_eq!(
+        lines_named(&roundtrip(&ical), "TRIGGER"),
+        ["TRIGGER;RELATED=END:-PT5M"]
+    );
+}
+
+#[test]
+fn task_alarm_relative_to_a_missing_start_is_kept_as_a_component() {
+    let ical = task(
+        "DUE;TZID=Europe/Berlin:20250110T100000\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Soon\r\nTRIGGER:-PT15M\r\nEND:VALARM\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Due\r\nTRIGGER;RELATED=END:-PT5M\r\nEND:VALARM\r\n",
+    );
+    let converted = entry(&import(&ical));
+    let alerts = converted["alerts"].as_object().expect("alerts");
+    assert_eq!(alerts.len(), 1);
+    assert!(
+        alerts
+            .values()
+            .all(|alert| alert["trigger"]["relativeTo"] == "end"),
+        "{JSCALENDAR} 3.5.1: {converted}"
+    );
+    assert_eq!(ical_components(&converted), ["valarm"]);
+    let exported = roundtrip(&ical);
+    let mut triggers = lines_named(&exported, "TRIGGER");
+    triggers.sort_unstable();
+    assert_eq!(triggers, ["TRIGGER:-PT15M", "TRIGGER;RELATED=END:-PT5M"]);
+}
+
+#[test]
+fn task_alarms_convert_when_their_anchor_exists() {
+    let converted = entry(&import(&task(
+        "DTSTART;TZID=Europe/Berlin:20250110T090000\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Soon\r\nTRIGGER:-PT15M\r\nEND:VALARM\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:At\r\nTRIGGER;VALUE=DATE-TIME:20250110T080000Z\r\nEND:VALARM\r\n",
+    )));
+    assert_eq!(converted["alerts"].as_object().expect("alerts").len(), 2);
+    assert!(converted["iCalendar"].is_null(), "{converted}");
+}
+
+#[test]
+fn event_alarm_relative_to_the_end_converts() {
+    let converted = entry(&import(&calendar(
+        "BEGIN:VEVENT\r\nUID:a\r\nDTSTART:20250110T090000Z\r\nDURATION:PT1H\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Soon\r\nTRIGGER;RELATED=END:-PT5M\r\nEND:VALARM\r\nEND:VEVENT\r\n",
+    )));
+    assert_eq!(converted["alerts"]["k1"]["trigger"]["relativeTo"], "end");
+}
+
+#[test]
+fn task_without_start_or_due_has_no_time_zone_or_show_without_time() {
+    let ical = task("RDATE;TZID=Europe/Berlin:20250110T100000\r\nSHOW-WITHOUT-TIME:TRUE\r\n");
+    let converted = entry(&import(&ical));
+    assert!(
+        converted.get("timeZone").is_none(),
+        "{JSCALENDAR} 4.2: {converted}"
+    );
+    assert!(
+        converted.get("showWithoutTime").is_none(),
+        "{JSCALENDAR} 4.2: {converted}"
+    );
+    let exported = roundtrip(&ical);
+    assert_eq!(
+        lines_named(&exported, "RDATE"),
+        ["RDATE;TZID=Europe/Berlin:20250110T100000"]
+    );
+    assert_eq!(
+        lines_named(&exported, "SHOW-WITHOUT-TIME"),
+        ["SHOW-WITHOUT-TIME:TRUE"]
+    );
+}
+
+#[test]
+fn task_date_recurrence_instance_starts_at_its_recurrence_id() {
+    let converted = entry(&import(&task("RECURRENCE-ID;VALUE=DATE:20250110\r\n")));
+    assert_eq!(
+        converted["start"], "2025-01-10T00:00:00",
+        "{JSCALENDAR} 4.2: {converted}"
+    );
+    assert_eq!(converted["showWithoutTime"], true);
+}
+
+#[test]
+fn icalendar_version_with_parameters_is_preserved() {
+    let ical = calendar("BEGIN:VEVENT\r\nUID:a\r\nDTSTART:20250110T100000Z\r\nEND:VEVENT\r\n")
+        .replace("VERSION:2.0", "VERSION;X-FOO=bar:2.0");
+    let group = json(&import(&ical));
+    assert_eq!(group["version"], JSCALENDAR_VERSION);
+    assert_eq!(ical_properties(&group), ["version"]);
+    assert_eq!(
+        lines_named(&roundtrip(&ical), "VERSION"),
+        ["VERSION;X-FOO=bar:2.0"]
+    );
+}
+
+#[test]
+fn version_is_set_on_a_task_returned_without_its_group() {
+    let task = import_first(&task("DUE:20250110T100000Z\r\n"));
+    assert_eq!(task["@type"], "Task");
+    assert_eq!(task["version"], JSCALENDAR_VERSION, "{JSCALENDAR} 3.1.2");
+}
+
+#[test]
+fn jsprop_version_and_excluded_in_overrides_are_not_imported() {
+    let converted = entry(&import(&calendar(
+        "BEGIN:VEVENT\r\nUID:a\r\nDTSTART:20250110T100000Z\r\nRRULE:FREQ=DAILY;COUNT=3\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:a\r\nRECURRENCE-ID:20250111T100000Z\r\nDTSTART:20250111T100000Z\r\nSUMMARY:Moved\r\nJSPROP;JSPTR=version:\"1.0\"\r\nJSPROP;JSPTR=excluded:true\r\nEND:VEVENT\r\n",
+    )));
+    assert_eq!(
+        converted["recurrenceOverrides"],
+        json!({"2025-01-11T10:00:00": {"title": "Moved"}}),
+        "{JSCALENDAR} 1.7.3 and 3.1.2: {converted}"
+    );
+}
+
+#[test]
+fn excluded_inside_calendar_objects_is_not_converted() {
+    let ical = unfolded(&export(
+        r#"{"@type": "Group", "entries": [{"@type": "Event", "uid": "a",
+            "start": "2025-01-10T10:00:00", "timeZone": "Etc/UTC",
+            "organizerCalendarAddress": "mailto:o@example.com",
+            "participants": {"p": {"@type": "Participant", "calendarAddress": "mailto:p@example.com", "excluded": true}},
+            "locations": {"l": {"@type": "Location", "name": "Room", "excluded": true}},
+            "example.com:x": {"excluded": true}}]}"#,
+    ));
+    assert_eq!(
+        lines_named(&ical, "JSPROP"),
+        [r#"JSPROP;JSPTR="example.com:x":{"excluded":true}"#],
+        "{JSCALENDAR} 1.7.3: {ical}"
+    );
+
+    let converted = entry(&import(&calendar(
+        "BEGIN:VEVENT\r\nUID:a\r\nDTSTART:20250110T100000Z\r\nORGANIZER:mailto:o@example.com\r\nATTENDEE;JSID=p:mailto:p@example.com\r\nJSPROP;JSPTR=participants/p/excluded:true\r\nJSPROP;JSPTR=\"example.com:x\":{}\r\nJSPROP;JSPTR=\"example.com:x/excluded\":true\r\nEND:VEVENT\r\n",
+    )));
+    assert!(
+        converted["participants"]["p"].get("excluded").is_none(),
+        "{JSCALENDAR} 1.7.3: {converted}"
+    );
+    assert_eq!(converted["example.com:x"], json!({"excluded": true}));
+}
+
+#[test]
+fn task_without_start_or_due_keeps_jsprop_show_without_time_and_time_zone() {
+    let ical =
+        task("JSPROP;JSPTR=showWithoutTime:true\r\nJSPROP;JSPTR=timeZone:\"Europe/Berlin\"\r\n");
+    let converted = entry(&import(&ical));
+    assert!(
+        converted.get("showWithoutTime").is_none() && converted.get("timeZone").is_none(),
+        "{JSCALENDAR} 4.2: {converted}"
+    );
+    assert_eq!(ical_properties(&converted), ["jsprop", "jsprop"]);
+    assert_eq!(lines_named(&roundtrip(&ical), "JSPROP").len(), 2);
+}
+
+#[test]
+fn task_recurrence_instance_alarm_anchors() {
+    // A lone instance starts at its recurrence id, unless it has a due time
+    let alarm =
+        "BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Soon\r\nTRIGGER:-PT15M\r\nEND:VALARM\r\n";
+    let converted = entry(&import(&task(&format!(
+        "RECURRENCE-ID:20250110T100000Z\r\n{alarm}"
+    ))));
+    assert_eq!(converted["start"], "2025-01-10T10:00:00");
+    assert_eq!(
+        converted["alerts"].as_object().map(|alerts| alerts.len()),
+        Some(1)
+    );
+
+    let converted = entry(&import(&task(&format!(
+        "RECURRENCE-ID:20250110T100000Z\r\nDUE:20250110T120000Z\r\n{alarm}"
+    ))));
+    assert!(
+        converted.get("alerts").is_none(),
+        "{JSCALENDAR} 3.5.1: {converted}"
+    );
+    assert_eq!(ical_components(&converted), ["valarm"]);
+}
+
+#[test]
+fn task_override_alarm_anchors_follow_the_series() {
+    // An override without DTSTART or DUE inherits the start and due of the series
+    let alarm = |related: &str| {
+        format!(
+            "BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Soon\r\nTRIGGER{related}:-PT5M\r\nEND:VALARM\r\n"
+        )
+    };
+    let converted = entry(&import(&calendar(&format!(
+        "BEGIN:VTODO\r\nUID:t\r\nDTSTART:20250110T090000Z\r\nDUE:20250110T100000Z\r\nRRULE:FREQ=DAILY;COUNT=3\r\nEND:VTODO\r\nBEGIN:VTODO\r\nUID:t\r\nRECURRENCE-ID:20250111T090000Z\r\nSUMMARY:Moved\r\n{}END:VTODO\r\n",
+        alarm(";RELATED=END")
+    ))));
+    let patch = &converted["recurrenceOverrides"]["2025-01-11T09:00:00"];
+    assert_eq!(
+        patch["alerts"]["k1"]["trigger"]["relativeTo"], "end",
+        "{converted}"
+    );
+
+    let ical = calendar(&format!(
+        "BEGIN:VTODO\r\nUID:t\r\nDUE:20250110T100000Z\r\nRDATE:20250111T100000Z\r\nEND:VTODO\r\nBEGIN:VTODO\r\nUID:t\r\nRECURRENCE-ID:20250111T100000Z\r\n{}END:VTODO\r\n",
+        alarm("")
+    ));
+    let converted = entry(&import(&ical));
+    let patch = &converted["recurrenceOverrides"]["2025-01-11T10:00:00"];
+    assert!(
+        patch.get("alerts").is_none(),
+        "{JSCALENDAR} 3.5.1: {converted}"
+    );
+    assert_eq!(ical_components(patch), ["valarm"]);
+    assert_eq!(
+        entry(&import(&roundtrip(&ical)))["recurrenceOverrides"],
+        converted["recurrenceOverrides"]
+    );
+}
+
+#[test]
+fn task_without_start_keeps_an_exported_recurrence_rule_in_icalendar() {
+    // A Task without start cannot recur, so its rule only survives as an iCalendar property
+    let ical = unfolded(&export(
+        r#"{"@type": "Group", "entries": [{"@type": "Task", "uid": "task",
+            "due": "2025-01-10T10:00:00", "timeZone": "Europe/Berlin",
+            "recurrenceRule": {"@type": "RecurrenceRule", "frequency": "daily", "count": 3}}]}"#,
+    ));
+    assert_eq!(lines_named(&ical, "RRULE"), ["RRULE:FREQ=DAILY;COUNT=3"]);
+    let converted = entry(&import(&ical));
+    assert!(
+        converted.get("recurrenceRule").is_none(),
+        "{JSCALENDAR} 3.3.3: {converted}"
+    );
+    assert_eq!(ical_properties(&converted), ["rrule"]);
+    assert_eq!(
+        lines_named(&roundtrip(&ical), "RRULE"),
+        ["RRULE:FREQ=DAILY;COUNT=3"]
+    );
 }

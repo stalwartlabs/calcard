@@ -29,6 +29,8 @@ use sha1::{Digest, Sha1};
 use std::{borrow::Cow, fmt::Debug, fmt::Display, hash::Hash, str::FromStr};
 use uuid::{Builder, fmt::Hyphenated};
 
+pub const JSCALENDAR_VERSION: &str = "2.0";
+
 pub(crate) const MAX_ICAL_COMPONENT_DEPTH: usize = 32;
 const RFC3339_CAPACITY: usize = 21;
 
@@ -378,7 +380,6 @@ pub enum JSCalendarParticipantRole {
     Informational,
     Chair,
     Required,
-    Attendee,
 }
 
 // JSCalendar Enum Values for scheduleAgent (Context: Participant)
@@ -512,11 +513,11 @@ mod tests {
     use crate::{
         icalendar::{ICalendar, ICalendarComponent, ICalendarProperty},
         jscalendar::{
-            JSCalendar, JSCalendarProperty, JSCalendarValue, export::ExportOptions,
-            import::ImportOptions,
+            JSCALENDAR_VERSION, JSCalendar, JSCalendarProperty, JSCalendarValue,
+            export::ExportOptions, import::ImportOptions,
         },
     };
-    use jmap_tools::Value;
+    use jmap_tools::{Key, Value};
 
     #[derive(Debug, Default)]
     struct Test {
@@ -636,13 +637,17 @@ mod tests {
                     sanitize_icalendar(parse_icalendar(&self.comment, self.line_num, &self.expect));
                 let roundtrip = if !self.roundtrip.is_empty() {
                     fix_jscalendar(&mut self.roundtrip);
-                    sanitize_jscalendar(parse_jscalendar(
+                    sanitize_jscalendar(imply_version(parse_jscalendar(
                         &self.comment,
                         self.line_num,
                         &self.roundtrip,
-                    ))
+                    )))
                 } else {
-                    sanitize_jscalendar(parse_jscalendar(&self.comment, self.line_num, &group))
+                    sanitize_jscalendar(imply_version(parse_jscalendar(
+                        &self.comment,
+                        self.line_num,
+                        &group,
+                    )))
                 };
 
                 let first_convert = sanitize_icalendar(
@@ -687,11 +692,11 @@ mod tests {
                 fix_jscalendar(&mut self.expect);
                 let source =
                     sanitize_icalendar(parse_icalendar(&self.comment, self.line_num, &self.test));
-                let expect = sanitize_jscalendar(parse_jscalendar(
+                let expect = sanitize_jscalendar(imply_version(parse_jscalendar(
                     &self.comment,
                     self.line_num,
                     &self.expect,
-                ));
+                )));
                 let roundtrip = if !self.roundtrip.is_empty() {
                     fix_icalendar(&mut self.roundtrip);
                     sanitize_icalendar(parse_icalendar(
@@ -817,6 +822,20 @@ mod tests {
                 s, line_num, test_name
             )
         })
+    }
+
+    fn imply_version(
+        mut jscalendar: JSCalendar<'_, String, String>,
+    ) -> JSCalendar<'_, String, String> {
+        if let Some(group) = jscalendar.0.as_object_mut()
+            && !group.contains_key(&Key::Property(JSCalendarProperty::Version))
+        {
+            group.insert_unchecked(
+                Key::Property(JSCalendarProperty::Version),
+                Value::Str(JSCALENDAR_VERSION.into()),
+            );
+        }
+        jscalendar
     }
 
     fn sanitize_icalendar(mut icalendar: ICalendar) -> ICalendar {

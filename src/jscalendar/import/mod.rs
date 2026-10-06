@@ -190,6 +190,7 @@ pub(super) struct ImportContext<'a, B> {
     include_ical_components: bool,
     return_first: bool,
     blob_ids: Option<BlobIds<'a, B>>,
+    task_series: Vec<(String, convert::TaskAnchors)>,
 }
 
 impl Default for ImportOptions {
@@ -242,6 +243,7 @@ impl<G> ImportOptions<G> {
             include_ical_components: self.include_ical_components,
             return_first: self.return_first,
             blob_ids: self.blobs.blob_ids(),
+            task_series: Vec::new(),
         }
     }
 }

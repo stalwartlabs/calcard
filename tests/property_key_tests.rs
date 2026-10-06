@@ -31,14 +31,7 @@ const FEATURES: &[&str] = &[
     "screen",
     "video",
 ];
-const ROLES: &[&str] = &[
-    "owner",
-    "optional",
-    "informational",
-    "chair",
-    "required",
-    "attendee",
-];
+const ROLES: &[&str] = &["owner", "optional", "informational", "chair", "required"];
 const RELATIONS: &[&str] = &["first", "next", "child", "parent", "snooze"];
 const CONTEXTS: &[&str] = &["billing", "delivery", "private", "work"];
 const CONTACT_FEATURES: &[&str] = &[

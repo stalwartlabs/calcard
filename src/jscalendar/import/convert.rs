@@ -55,7 +55,7 @@ impl ICalendar {
         }
         let js_calendar = JSCalendar(
             self.to_jscalendar(&tz_resolver, 0, &mut context)
-                .into_object(),
+                .into_root_object(),
         );
         let has_failed = context
             .blob_ids
@@ -93,8 +93,13 @@ impl ICalendar {
         let mut unsupported_component_ids = Vec::new();
         let mut uid_jsid_mappings = Vec::new();
         let mut has_locations = false;
+        let mut task_anchors = None;
+        let component_ids = std::mem::take(&mut component.component_ids);
+        if state.component_type == ICalendarComponentType::VCalendar {
+            options.task_series = self.task_series(&component_ids);
+        }
 
-        for component_id in std::mem::take(&mut component.component_ids) {
+        for component_id in component_ids {
             let Some(component) = self.components.get_mut(component_id as usize) else {
                 continue;
             };
@@ -128,6 +133,14 @@ impl ICalendar {
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
                     ICalendarComponentType::VAlarm,
                 ) => {
+                    if state.component_type == ICalendarComponentType::VTodo
+                        && !task_anchors
+                            .get_or_insert_with(|| TaskAnchors::new(&entries, &options.task_series))
+                            .cover(component)
+                    {
+                        unsupported_component_ids.push(component_id);
+                        continue;
+                    }
                     let mut jsid = None;
 
                     for entry in &mut component.entries {
@@ -1385,7 +1398,7 @@ impl ICalendar {
                     ICalendarProperty::Rdate,
                     Some(value @ ICalendarValue::Period(_)),
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
-                ) => {
+                ) if !is_todo || start_date.is_some() => {
                     /*
                      The property value converts to the key in the "recurrenceOverrides"
                      property value, for values of type PERIOD this only applies to the
@@ -1466,7 +1479,7 @@ impl ICalendar {
                     ICalendarProperty::Rdate | ICalendarProperty::Exdate,
                     Some(ICalendarValue::PartialDateTime(value)),
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
-                ) if value.has_date() => {
+                ) if value.has_date() && (!is_todo || start_date.is_some()) => {
                     let tzid = entry.entry.tz_id();
                     let tz = tzid.and_then(|v| tz_resolver.resolve(v)).or(state.tz_start);
 
@@ -1543,7 +1556,7 @@ impl ICalendar {
                     ICalendarProperty::Rrule,
                     Some(ICalendarValue::RecurrenceRule(value)),
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
-                ) => {
+                ) if !is_todo || start_date.is_some() => {
                     let mut rrule = Map::from(Vec::with_capacity(4));
 
                     rrule.insert_unchecked(
@@ -1772,6 +1785,13 @@ impl ICalendar {
                     entry.set_converted_to_property(&JSCalendarProperty::<I>::Sequence);
                 }
                 (
+                    ICalendarProperty::Version,
+                    Some(ICalendarValue::Text(value)),
+                    ICalendarComponentType::VCalendar,
+                ) if value == JSCALENDAR_VERSION && entry.entry.params.is_empty() => {
+                    continue;
+                }
+                (
                     ICalendarProperty::Prodid,
                     Some(ICalendarValue::Text(value)),
                     ICalendarComponentType::VCalendar,
@@ -1870,7 +1890,7 @@ impl ICalendar {
                     ICalendarProperty::ShowWithoutTime,
                     Some(ICalendarValue::Boolean(value)),
                     ICalendarComponentType::VEvent | ICalendarComponentType::VTodo,
-                ) => {
+                ) if !is_todo || state.recurrence_id.is_some() || state.has_start_or_due() => {
                     state.entries.insert(
                         Key::Property(JSCalendarProperty::ShowWithoutTime),
                         Value::Bool(value),
@@ -2060,21 +2080,38 @@ impl ICalendar {
                         } => Some(JsonPointer::<JSCalendarProperty<I>>::parse(ptr)),
                         _ => None,
                     });
-                    if matches!(
+                    let is_calendar_object = matches!(
                         component_type,
                         ICalendarComponentType::VCalendar
                             | ICalendarComponentType::VEvent
                             | ICalendarComponentType::VTodo
-                    ) && ptr
-                        .as_ref()
-                        .is_some_and(JSCalendarProperty::is_metadata_pointer)
-                    {
+                    );
+                    if ptr.as_ref().is_some_and(|ptr| {
+                        JSCalendarProperty::sets_misplaced_excluded(ptr)
+                            || (is_calendar_object
+                                && (JSCalendarProperty::is_metadata_pointer(ptr)
+                                    || matches!(
+                                        ptr.first(),
+                                        Some(JsonPointerItem::Key(Key::Property(
+                                            JSCalendarProperty::Version
+                                        )))
+                                    )))
+                    }) {
                         continue;
                     }
+                    let is_dateless_task =
+                        is_todo && state.recurrence_id.is_none() && !state.has_start_or_due();
                     if let Some(ptr) = ptr.filter(|ptr| {
                         ptr.as_slice().iter().all(|item| {
                             matches!(item, JsonPointerItem::Key(_) | JsonPointerItem::Number(_))
-                        })
+                        }) && !(is_dateless_task
+                            && matches!(
+                                ptr.first(),
+                                Some(JsonPointerItem::Key(Key::Property(
+                                    JSCalendarProperty::ShowWithoutTime
+                                        | JSCalendarProperty::TimeZone
+                                )))
+                            ))
                     }) && let Some(patch) = ptr.parse_jsprop_value(&value)
                     {
                         state.patch_objects.push((ptr, patch));
@@ -2126,6 +2163,113 @@ impl ICalendar {
         }
 
         state
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+pub(super) struct TaskAnchors {
+    start: bool,
+    due: bool,
+}
+
+impl TaskAnchors {
+    fn new(entries: &[ICalendarEntry], series: &[(String, TaskAnchors)]) -> Self {
+        let mut has_start = false;
+        let mut has_due = false;
+        let mut has_duration = false;
+        let mut has_recurrence_id = false;
+        let mut uid = None;
+        for entry in entries {
+            let converts = || {
+                matches!(
+                    entry.values.first(),
+                    Some(ICalendarValue::PartialDateTime(value))
+                        if value.has_date() && value.to_date_time().is_some()
+                )
+            };
+            match entry.name {
+                ICalendarProperty::Dtstart => has_start |= converts(),
+                ICalendarProperty::Due => has_due |= converts(),
+                ICalendarProperty::RecurrenceId => has_recurrence_id |= converts(),
+                ICalendarProperty::Duration => {
+                    has_duration |=
+                        matches!(entry.values.first(), Some(ICalendarValue::Duration(_)));
+                }
+                ICalendarProperty::Uid => {
+                    uid = entry.values.first().and_then(ICalendarValue::as_text);
+                }
+                _ => {}
+            }
+        }
+        if !has_recurrence_id {
+            return Self {
+                start: has_start,
+                due: has_due,
+            };
+        }
+        match uid.and_then(|uid| {
+            series
+                .binary_search_by(|(series_uid, _)| series_uid.as_str().cmp(uid))
+                .ok()
+                .and_then(|position| series.get(position))
+        }) {
+            Some((_, master)) => Self {
+                start: has_start || master.start,
+                due: has_due || (master.due && !has_start && !has_duration),
+            },
+            None => Self {
+                start: has_start || !has_due,
+                due: has_due,
+            },
+        }
+    }
+
+    fn cover(self, alarm: &ICalendarComponent) -> bool {
+        alarm
+            .entries
+            .iter()
+            .filter(|entry| {
+                entry.name == ICalendarProperty::Trigger
+                    && matches!(entry.values.first(), Some(ICalendarValue::Duration(_)))
+            })
+            .all(|trigger| {
+                let related = trigger.params.iter().rev().find_map(|param| match param {
+                    ICalendarParameter {
+                        name: ICalendarParameterName::Related,
+                        value: ICalendarParameterValue::Related(related),
+                    } => Some(related),
+                    _ => None,
+                });
+                match related {
+                    Some(ICalendarRelated::End) => self.due,
+                    _ => self.start,
+                }
+            })
+    }
+}
+
+impl ICalendar {
+    fn task_series(&self, component_ids: &[u32]) -> Vec<(String, TaskAnchors)> {
+        let tasks = || {
+            component_ids
+                .iter()
+                .filter_map(|id| self.components.get(*id as usize))
+                .filter(|component| component.component_type == ICalendarComponentType::VTodo)
+        };
+        if !tasks().any(|task| task.has_property(&ICalendarProperty::RecurrenceId)) {
+            return Vec::new();
+        }
+        let mut series = tasks()
+            .filter(|task| !task.has_property(&ICalendarProperty::RecurrenceId))
+            .filter_map(|task| {
+                Some((
+                    task.uid()?.to_string(),
+                    TaskAnchors::new(&task.entries, &[]),
+                ))
+            })
+            .collect::<Vec<_>>();
+        series.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
+        series
     }
 }
 

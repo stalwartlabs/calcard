@@ -158,6 +158,7 @@ impl<I: JSCalendarId, B: JSCalendarId> State<'_, I, B> {
                         | JSCalendarProperty::DescriptionContentType
                         | JSCalendarProperty::SentBy
                         | JSCalendarProperty::Version
+                        | JSCalendarProperty::Excluded
                         | JSCalendarProperty::Method
                         | JSCalendarProperty::Metadata
                         | JSCalendarProperty::PrivateMetadata,

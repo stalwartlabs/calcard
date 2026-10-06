@@ -21,11 +21,11 @@
 
 use super::error::ValidationError;
 use crate::common::timezone::{Tz, ZonedDateTime};
-use crate::datecalc::weekdate::{WeekDate, first_of_week, last_of_week};
+use crate::datecalc::weekdate::{WeekDate, first_of_week, last_of_week, weeks_in_year};
 use crate::icalendar::ICalendarFrequency;
 use jiff::{
     SignedDuration, Span, Timestamp, ToSpan,
-    civil::{Date, DateTime, Time, Weekday},
+    civil::{DateTime, Time, Weekday},
 };
 use std::{
     cmp::Ordering,
@@ -47,6 +47,8 @@ pub const MAX_PERIOD_CANDIDATES: usize = 100_000;
 pub const MAX_EXPANSION_WORK: usize = 10_000_000;
 
 pub const MAX_UNPRODUCTIVE_WORK: usize = 1_000_000;
+
+const ALL_WEEKDAYS: u8 = 0b111_1111;
 
 /// The RFC 5545 recurrence rule implementation.
 #[derive(Clone, Debug)]
@@ -178,7 +180,6 @@ impl<'a> Expander<'a> {
         if self.has_by_week_day() {
             if self.has_by_week() {
                 self.expand_by_week(set);
-                self.expand_by_week_day_weekly(set);
                 self.limit_by_month(set);
             } else if self.has_by_month() {
                 self.expand_by_month(set);
@@ -203,7 +204,6 @@ impl<'a> Expander<'a> {
             // Python's `dateutil` does. So we do the same.
             //
             // [1]: https://stackoverflow.com/questions/48064349
-            set.expand(|dt| (0..=6).filter_map(move |n| dt.checked_add(n.days()).ok()));
             self.limit_by_month(set);
             self.limit_by_year_day(set);
             self.limit_by_month_day(set);
@@ -658,34 +658,54 @@ impl<'a> Expander<'a> {
 
     /// Returns an iterator over the BYWEEKNO values in this recurrence rule.
     ///
-    /// The values returned are datetimes with each of the corresponding to a
-    /// date that is the start of a week. The other parts of the datetime are
-    /// copied from `dt`.
+    /// The values returned are the days of the year of `dt` whose week number,
+    /// in the week year the day belongs to, matches a BYWEEKNO value, limited
+    /// to the BYDAY weekdays when there are any. The time is copied from `dt`.
     ///
     /// If there are no week number values, then this iterator does not yield
     /// any items.
     fn iter_by_week(&self, dt: DateTime) -> impl Iterator<Item = DateTime> {
-        let weeks_in_year = Date::new(dt.year(), 1, 4)
-            .ok()
-            .and_then(|date| WeekDate::from_date(self.rule().week_start, date))
-            .map(|wd| wd.weeks_in_year());
-        self.rule()
-            .by_week
-            .iter()
-            .copied()
-            .filter_map(move |mut week| {
-                if week.is_negative() {
-                    // Add 1 because -1 is the last week of the year, and the weeks
-                    // of the year are 1-indexed.
-                    week = weeks_in_year?.checked_add(week + 1)?;
-                }
-                let start = WeekDate::new(
-                    self.rule().week_start,
-                    dt.year(),
-                    week,
-                    self.rule().week_start,
-                )?;
-                dt.with().date(start.date()?).build().ok()
+        let rule = self.rule();
+        let week_start = rule.week_start;
+        let year = dt.year();
+        let time = dt.time();
+        let offsets = match rule.by_week_day.iter().fold(0u8, |mask, weekday| {
+            mask | (1 << weekday.weekday().since(week_start))
+        }) {
+            0 => ALL_WEEKDAYS,
+            mask => mask,
+        };
+        let first_offset = i64::from(offsets.trailing_zeros());
+        let last_offset = i64::from(u8::BITS - 1 - offsets.leading_zeros());
+        [year.saturating_sub(1), year, year.saturating_add(1)]
+            .into_iter()
+            .flat_map(move |week_year| {
+                let weeks_in_year = weeks_in_year(week_start, week_year);
+                rule.by_week.iter().filter_map(move |&week| {
+                    let week = if week.is_negative() {
+                        weeks_in_year.checked_add(week + 1)?
+                    } else {
+                        week
+                    };
+                    if (week_year < year && week != weeks_in_year)
+                        || (week_year > year && week != 1)
+                    {
+                        return None;
+                    }
+                    WeekDate::new(week_start, week_year, week, week_start)?.date()
+                })
+            })
+            .filter_map(move |first_day| match first_offset {
+                0 => Some(first_day),
+                offset => first_day.checked_add(offset.days()).ok(),
+            })
+            .flat_map(move |first_match| {
+                (first_offset..=last_offset)
+                    .zip(std::iter::successors(Some(first_match), |day| {
+                        day.tomorrow().ok()
+                    }))
+                    .filter(move |(offset, day)| offsets & (1 << offset) != 0 && day.year() == year)
+                    .map(move |(_, day)| day.to_datetime(time))
             })
     }
 
@@ -906,9 +926,7 @@ impl<'r> RecurrenceIter<'r> {
     fn period_start(&self, dt: DateTime) -> Option<DateTime> {
         let rule = &self.rule.inner;
         match rule.freq {
-            ICalendarFrequency::Yearly => {
-                dt.first_of_year().start_of_day().checked_sub(1.week()).ok()
-            }
+            ICalendarFrequency::Yearly => Some(dt.first_of_year().start_of_day()),
             ICalendarFrequency::Monthly => Some(dt.first_of_month().start_of_day()),
             ICalendarFrequency::Weekly => {
                 first_of_week(rule.week_start, dt.date()).map(|date| date.to_datetime(Time::MIN))
@@ -1981,6 +1999,12 @@ pub enum ByWeekday {
 }
 
 impl ByWeekday {
+    fn weekday(&self) -> Weekday {
+        match *self {
+            ByWeekday::Any(weekday) | ByWeekday::Numbered { weekday, .. } => weekday,
+        }
+    }
+
     /// Returns true if and only if the given weekday matches this one.
     ///
     /// # Panics
@@ -2195,6 +2219,7 @@ fn iter_weekdays_between(
 mod tests {
     use super::*;
     use crate::common::timezone::Tz;
+    use jiff::civil::Date;
 
     // These tests come directly from the RFC 5545 definition of the RRULE
     // property[1]. I tried to use inline snapshots where possible, but some
@@ -6179,6 +6204,330 @@ mod tests {
             @"2025-01-06T23:59:59+00:00[UTC]",
         );
         assert_eq!(instances.unproductive_budget(), 100_000 - 86_399);
+    }
+
+    fn week_dates(rrule: &RecurrenceRule, count: usize) -> Vec<String> {
+        rrule
+            .iter()
+            .take(count)
+            .map(|zdt| zdt.date().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn yearly_week_one_includes_days_at_the_end_of_the_previous_year() {
+        // 2025-12-31 is in week 1 of 2026, so it belongs to the 2025 period
+        let rrule = RecurrenceRule::builder(
+            ICalendarFrequency::Yearly,
+            zoned("20250101T090000[Europe/Berlin]"),
+        )
+        .interval(2)
+        .by_week(1)
+        .by_week_day(Weekday::Wednesday)
+        .count(4)
+        .build()
+        .unwrap();
+        assert_eq!(
+            week_dates(&rrule, 10),
+            ["2025-01-01", "2025-12-31", "2027-01-06", "2029-01-03"]
+        );
+    }
+
+    #[test]
+    fn yearly_last_week_resolves_against_its_own_week_year() {
+        // 2027-01-01 is in week 53 of 2026, which is the last week of its week year
+        let rrule = RecurrenceRule::builder(
+            ICalendarFrequency::Yearly,
+            zoned("20260101T090000[Europe/Berlin]"),
+        )
+        .by_week(-1)
+        .by_week_day(Weekday::Monday..=Weekday::Sunday)
+        .by_set_position(1)
+        .count(4)
+        .build()
+        .unwrap();
+        assert_eq!(
+            week_dates(&rrule, 10),
+            ["2026-12-28", "2027-01-01", "2028-01-01", "2029-12-24"]
+        );
+    }
+
+    #[test]
+    fn yearly_set_position_counts_week_days_of_the_period_year() {
+        let rrule = RecurrenceRule::builder(
+            ICalendarFrequency::Yearly,
+            zoned("20250101T090000[Europe/Berlin]"),
+        )
+        .by_week(1)
+        .by_week_day(Weekday::Monday..=Weekday::Sunday)
+        .by_set_position(-1)
+        .build()
+        .unwrap();
+        assert_eq!(
+            week_dates(&rrule, 3),
+            ["2025-12-31", "2026-01-04", "2027-01-10"]
+        );
+    }
+
+    #[test]
+    fn yearly_last_week_matches_the_first_days_of_the_next_year() {
+        let rrule = RecurrenceRule::builder(
+            ICalendarFrequency::Yearly,
+            zoned("20200101T090000[Europe/Berlin]"),
+        )
+        .by_week(53)
+        .by_week_day(Weekday::Friday)
+        .build()
+        .unwrap();
+        assert_eq!(
+            week_dates(&rrule, 3),
+            ["2021-01-01", "2027-01-01", "2032-12-31"]
+        );
+    }
+
+    #[test]
+    fn yearly_week_one_does_not_match_the_last_week_of_the_previous_year() {
+        // 2027-01-01 matches 53 or -1 but not 1
+        let start = zoned("20260601T090000[Europe/Berlin]");
+        let first = RecurrenceRule::builder(ICalendarFrequency::Yearly, start)
+            .by_week(1)
+            .by_week_day(Weekday::Friday)
+            .build()
+            .unwrap();
+        assert_eq!(week_dates(&first, 2), ["2027-01-08", "2028-01-07"]);
+        let last = RecurrenceRule::builder(ICalendarFrequency::Yearly, start)
+            .by_week(-1)
+            .by_week_day(Weekday::Friday)
+            .build()
+            .unwrap();
+        assert_eq!(week_dates(&last, 2), ["2027-01-01", "2027-12-31"]);
+    }
+
+    #[test]
+    fn yearly_week_numbers_follow_the_week_start() {
+        // With weeks starting on Sunday, 2025-12-28 to 2026-01-03 is week 53 of 2025
+        let rrule = RecurrenceRule::builder(
+            ICalendarFrequency::Yearly,
+            zoned("20250101T090000[Europe/Berlin]"),
+        )
+        .week_start(Weekday::Sunday)
+        .by_week([1, 53])
+        .by_week_day([Weekday::Saturday, Weekday::Sunday])
+        .build()
+        .unwrap();
+        assert_eq!(
+            week_dates(&rrule, 5),
+            [
+                "2025-01-04",
+                "2025-12-28",
+                "2026-01-03",
+                "2026-01-04",
+                "2026-01-10"
+            ]
+        );
+    }
+
+    #[test]
+    fn yearly_week_one_days_before_until_end_the_series() {
+        let rrule = RecurrenceRule::builder(
+            ICalendarFrequency::Yearly,
+            zoned("20250101T090000[Europe/Berlin]"),
+        )
+        .by_week(1)
+        .by_week_day(Weekday::Monday..=Weekday::Sunday)
+        .until(zoned("20251230T235959[Europe/Berlin]"))
+        .build()
+        .unwrap();
+        assert_eq!(
+            week_dates(&rrule, 20),
+            [
+                "2025-01-01",
+                "2025-01-02",
+                "2025-01-03",
+                "2025-01-04",
+                "2025-01-05",
+                "2025-12-29",
+                "2025-12-30"
+            ]
+        );
+    }
+
+    #[test]
+    fn by_week_matches_a_per_day_reference() {
+        // Differential test of yearly BYWEEKNO rules against a brute force day by day expansion
+        const WEEKDAYS: [Weekday; 7] = [
+            Weekday::Monday,
+            Weekday::Tuesday,
+            Weekday::Wednesday,
+            Weekday::Thursday,
+            Weekday::Friday,
+            Weekday::Saturday,
+            Weekday::Sunday,
+        ];
+        fn week_year_start(week_start: Weekday, year: i16) -> Date {
+            let jan4 = Date::new(year, 1, 4).unwrap();
+            jan4.checked_sub(i64::from(jan4.weekday().since(week_start)).days())
+                .unwrap()
+        }
+        fn pick<T: Copy>(rng: &mut crate::common::xorshift::XorShift, items: &[T]) -> T {
+            items[rng.below(items.len())]
+        }
+        fn some_of<T: Copy>(
+            rng: &mut crate::common::xorshift::XorShift,
+            one_in: usize,
+            items: &[T],
+        ) -> Vec<T> {
+            if rng.below(one_in) != 0 {
+                return Vec::new();
+            }
+            (0..=rng.below(2)).map(|_| pick(rng, items)).collect()
+        }
+
+        let mut rng = crate::common::xorshift::XorShift::new(0x5eed_2027);
+        for _ in 0..300 {
+            let week_start = pick(&mut rng, &WEEKDAYS);
+            let weeks = (0..=rng.below(3))
+                .map(|_| match rng.below(4) {
+                    0 => pick(&mut rng, &[1, -1, 52, 53, -52, -53]),
+                    1 => i8::try_from(rng.below(53) + 1).unwrap(),
+                    _ => -i8::try_from(rng.below(53) + 1).unwrap(),
+                })
+                .collect::<Vec<i8>>();
+            let weekdays = if rng.below(4) == 0 {
+                Vec::new()
+            } else {
+                WEEKDAYS
+                    .iter()
+                    .copied()
+                    .filter(|_| rng.below(2) == 0)
+                    .collect::<Vec<_>>()
+            };
+            let months = some_of(&mut rng, 4, &[1i8, 2, 6, 12]);
+            let year_days = some_of(&mut rng, 6, &[1i16, 2, 3, 365, 366, -1, -2, -366]);
+            let month_days = some_of(&mut rng, 6, &[1i8, 2, 3, 28, 29, 30, 31, -1, -31]);
+            let set_positions = some_of(&mut rng, 4, &[1i32, 2, -1, -2, 5, -5]);
+            let interval = rng.below(3) + 1;
+            let start = Date::new(2015, 1, 1)
+                .unwrap()
+                .checked_add(i64::try_from(rng.below(1500)).unwrap().days())
+                .unwrap();
+            let horizon = Date::new(start.year() + 12, 12, 31).unwrap();
+            let until = (rng.below(3) == 0).then(|| {
+                let (month, day) = pick(&mut rng, &[(12, 28), (12, 31), (1, 1), (1, 3), (1, 4)]);
+                Date::new(
+                    start.year() + i16::try_from(rng.below(6)).unwrap(),
+                    month,
+                    day,
+                )
+                .unwrap()
+            });
+            let count = (rng.below(4) == 0).then(|| u32::try_from(rng.below(20) + 1).unwrap());
+
+            let mut expected = Vec::new();
+            'periods: for year in (start.year()..=horizon.year()).step_by(interval) {
+                let starts = [year - 1, year, year + 1, year + 2]
+                    .map(|week_year| week_year_start(week_start, week_year));
+                let mut candidates = Vec::new();
+                let mut day = Date::new(year, 1, 1).unwrap();
+                while day.year() == year {
+                    let index = usize::from(day >= starts[1]) + usize::from(day >= starts[2]);
+                    let week = starts[index].until(day).unwrap().get_days() / 7 + 1;
+                    let weeks_in_week_year =
+                        starts[index].until(starts[index + 1]).unwrap().get_days() / 7;
+                    let year_day = day.day_of_year();
+                    let month_day = day.day();
+                    if weeks.iter().any(|value| {
+                        let value = i32::from(*value);
+                        value == week || value == week - weeks_in_week_year - 1
+                    }) && (weekdays.is_empty() || weekdays.contains(&day.weekday()))
+                        && (months.is_empty() || months.contains(&day.month()))
+                        && (year_days.is_empty()
+                            || year_days.iter().any(|value| {
+                                *value == year_day || *value == year_day - 1 - day.days_in_year()
+                            }))
+                        && (month_days.is_empty()
+                            || month_days.iter().any(|value| {
+                                *value == month_day || *value == month_day - 1 - day.days_in_month()
+                            }))
+                    {
+                        candidates.push(day);
+                    }
+                    day = day.tomorrow().unwrap();
+                }
+                if !set_positions.is_empty() {
+                    let len = i32::try_from(candidates.len()).unwrap();
+                    let mut selected = set_positions
+                        .iter()
+                        .filter_map(|position| {
+                            let index = if *position > 0 {
+                                position - 1
+                            } else {
+                                len + position
+                            };
+                            usize::try_from(index)
+                                .ok()
+                                .and_then(|index| candidates.get(index).copied())
+                        })
+                        .collect::<Vec<_>>();
+                    selected.sort_unstable();
+                    selected.dedup();
+                    candidates = selected;
+                }
+                for day in candidates {
+                    if day < start {
+                        continue;
+                    }
+                    if day > horizon || until.is_some_and(|until| day > until) {
+                        break 'periods;
+                    }
+                    expected.push(day);
+                    if count.is_some_and(|count| expected.len() == count as usize) {
+                        break 'periods;
+                    }
+                }
+            }
+
+            let at_nine = |day: Date| {
+                Tz::UTC
+                    .from_local(day.to_datetime(Time::constant(9, 0, 0, 0)))
+                    .unwrap()
+            };
+            let mut builder = RecurrenceRule::builder(ICalendarFrequency::Yearly, at_nine(start));
+            builder
+                .week_start(week_start)
+                .interval(i32::try_from(interval).unwrap())
+                .by_week(weeks.clone())
+                .by_week_day(
+                    weekdays
+                        .iter()
+                        .copied()
+                        .map(ByWeekday::Any)
+                        .collect::<Vec<_>>(),
+                )
+                .by_month(months.clone())
+                .by_month_day(month_days.clone())
+                .by_year_day(year_days.as_slice())
+                .by_set_position(set_positions.as_slice());
+            if let Some(until) = until {
+                builder.until(at_nine(until));
+            }
+            if let Some(count) = count {
+                builder.count(count);
+            }
+            let got = builder
+                .build()
+                .unwrap()
+                .iter()
+                .map(|zdt| zdt.date())
+                .take_while(|day| *day <= horizon)
+                .collect::<Vec<_>>();
+            assert_eq!(
+                got, expected,
+                "WKST={week_start:?} BYWEEKNO={weeks:?} BYDAY={weekdays:?} BYMONTH={months:?} \
+                 BYYEARDAY={year_days:?} BYMONTHDAY={month_days:?} BYSETPOS={set_positions:?} \
+                 INTERVAL={interval} UNTIL={until:?} COUNT={count:?} start={start}"
+            );
+        }
     }
 
     /// A fixed starting point for rules whose start does not matter.

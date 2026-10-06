@@ -8,8 +8,8 @@ use calcard::{
     common::timezone::Tz,
     icalendar::{ICalendar, ICalendarComponent, ICalendarParameterName, ICalendarProperty},
     jscalendar::{
-        JSCalendar, JSCalendarDateTime, JSCalendarParticipantRole, JSCalendarProperty,
-        JSCalendarValue,
+        JSCALENDAR_VERSION, JSCalendar, JSCalendarDateTime, JSCalendarParticipantRole,
+        JSCalendarProperty, JSCalendarValue,
         export::ExportOptions,
         ext::JSCalendarPatch,
         import::ImportOptions,
@@ -18,7 +18,10 @@ use calcard::{
 };
 use jmap_tools::{JsonPointer, JsonPointerHandler, Key, Value};
 use serde_json::Value as JsonValue;
-use std::time::{Duration, Instant};
+use std::{
+    str::FromStr,
+    time::{Duration, Instant},
+};
 
 fn normalize(jscal: &JSCalendar<'_, String, String>) -> JsonValue {
     let mut value: JsonValue = serde_json::from_str(&jscal.to_string_pretty()).unwrap();
@@ -45,12 +48,21 @@ fn export(json: &str) -> ICalendar {
     ICalendar::parse(exported.to_string()).unwrap()
 }
 
+fn with_implied_version(mut value: JsonValue) -> JsonValue {
+    if let Some(group) = value.as_object_mut() {
+        group
+            .entry("version")
+            .or_insert_with(|| JSCALENDAR_VERSION.into());
+    }
+    value
+}
+
 fn assert_json_roundtrip(json: &str) -> ICalendar {
     let ical = export(json);
     let reimported = ical.clone().into_jscalendar::<String, String>();
     assert_eq!(
         normalize(&reimported),
-        normalize(&JSCalendar::parse(json).unwrap()),
+        with_implied_version(normalize(&JSCalendar::parse(json).unwrap())),
         "{ical}"
     );
     ical
@@ -515,7 +527,7 @@ fn import_first(ical: &str) -> JsonValue {
 
 #[test]
 fn owner_attendee_participants_roundtrip() {
-    let expected: JsonValue = serde_json::from_str(HIDDEN_ATTENDEES).unwrap();
+    let expected = with_implied_version(serde_json::from_str(HIDDEN_ATTENDEES).unwrap());
     let ical = assert_json_roundtrip(&hidden_attendees_group()).to_string();
     assert_eq!(import_first(&ical), expected, "{ical}");
 
@@ -584,11 +596,12 @@ fn member_maps_roundtrip_with_override() {
     );
     let ical = assert_json_roundtrip(&json);
     let rendered = ical.to_string();
-    let expected = &normalize(&JSCalendar::parse(&json).unwrap())["entries"][0];
-    assert_eq!(import_first(&rendered), *expected, "{rendered}");
+    let expected =
+        with_implied_version(normalize(&JSCalendar::parse(&json).unwrap())["entries"][0].clone());
+    assert_eq!(import_first(&rendered), expected, "{rendered}");
 }
 
-const ATTENDEE_ROLE_REFERENCE: &str = "draft-ietf-jmap-calendars-29 Sections 4 (mayRSVP) and 5.1.2; RFC 8984 Section 4.4.6; draft-ietf-calext-jscalendarbis-20 Section 7.6.15 and Appendix A.2.3 (no iCalendar ROLE equivalent)";
+const ATTENDEE_ROLE_REFERENCE: &str = "draft-ietf-calext-jscalendarbis-22 Section 3.4.6 (unknown roles MUST be preserved), Section 7.6.15 and Appendix A.2.3 (obsolete \"attendee\" role, no iCalendar ROLE equivalent)";
 
 fn attendee_role_event(roles: &str) -> String {
     format!(
@@ -607,7 +620,7 @@ fn sorted_lines(ical: &str) -> Vec<&str> {
     lines
 }
 
-fn participant_roles(jscal: &JSCalendar<'_, String, String>) -> Vec<JSCalendarParticipantRole> {
+fn participant_roles(jscal: &JSCalendar<'_, String, String>) -> Vec<String> {
     jscal
         .0
         .as_object_and_get(&Key::Property(JSCalendarProperty::Entries))
@@ -622,8 +635,10 @@ fn participant_roles(jscal: &JSCalendar<'_, String, String>) -> Vec<JSCalendarPa
         .unwrap()
         .keys()
         .map(|key| match key {
-            Key::Property(JSCalendarProperty::ParticipantRole(role)) => *role,
-            key => panic!("{ATTENDEE_ROLE_REFERENCE}: unparsed role key {key:?}"),
+            Key::Property(JSCalendarProperty::ParticipantRole(role)) => role.as_str().to_string(),
+            Key::Borrowed(role) => role.to_string(),
+            Key::Owned(role) => role.clone(),
+            key => panic!("{ATTENDEE_ROLE_REFERENCE}: unexpected role key {key:?}"),
         })
         .collect()
 }
@@ -631,7 +646,7 @@ fn participant_roles(jscal: &JSCalendar<'_, String, String>) -> Vec<JSCalendarPa
 fn assert_attendee_role_conversion(
     roles: &str,
     expected_ical: &[&str],
-    expected_roles: &[JSCalendarParticipantRole],
+    expected_roles: &[&str],
     expected_json: JsonValue,
 ) {
     let exported = JSCalendar::<String, String>::parse(&attendee_role_event(roles))
@@ -687,7 +702,7 @@ fn attendee_only_role_is_exported_as_jsprop_object() {
             "UID:attendee-role",
             "VERSION:2.0",
         ],
-        &[JSCalendarParticipantRole::Attendee],
+        &["attendee"],
         serde_json::json!({
             "@type": "Event", "uid": "attendee-role", "title": "Review",
             "start": "2026-05-04T09:00:00", "timeZone": "Europe/Madrid", "duration": "PT1H",
@@ -719,10 +734,7 @@ fn owner_and_attendee_roles_export_attendee_as_jsprop_member() {
             "UID:attendee-role",
             "VERSION:2.0",
         ],
-        &[
-            JSCalendarParticipantRole::Owner,
-            JSCalendarParticipantRole::Attendee,
-        ],
+        &["owner", "attendee"],
         serde_json::json!({
             "@type": "Event", "uid": "attendee-role", "title": "Review",
             "start": "2026-05-04T09:00:00", "timeZone": "Europe/Madrid", "duration": "PT1H",
@@ -735,15 +747,16 @@ fn owner_and_attendee_roles_export_attendee_as_jsprop_member() {
 }
 
 #[test]
-fn attendee_role_parses_as_participant_role() {
+fn obsolete_attendee_role_parses_as_unknown_role() {
     let json = attendee_role_event(r#"{"owner": true, "attendee": true}"#);
     let jscal = JSCalendar::<String, String>::parse(&json).unwrap();
     assert_eq!(
         participant_roles(&jscal),
-        [
-            JSCalendarParticipantRole::Owner,
-            JSCalendarParticipantRole::Attendee
-        ],
+        ["owner", "attendee"],
+        "{ATTENDEE_ROLE_REFERENCE}"
+    );
+    assert!(
+        JSCalendarParticipantRole::from_str("attendee").is_err(),
         "{ATTENDEE_ROLE_REFERENCE}"
     );
     assert_eq!(
@@ -2251,5 +2264,56 @@ fn an_override_without_dtstart_inherits_the_day_of_a_date_series() {
     assert_eq!(
         instance_lengths(&export(&jscal.to_string_pretty())),
         [86400; 3]
+    );
+}
+
+#[test]
+fn task_override_without_start_keeps_the_series_due() {
+    let ical = export(
+        r#"{"@type": "Group", "version": "2.0", "entries": [{"@type": "Task", "uid": "task",
+            "due": "2025-01-10T10:00:00", "timeZone": "Europe/Berlin",
+            "recurrenceOverrides": {"2025-01-17T10:00:00": {"title": "Moved"}}}]}"#,
+    )
+    .to_string();
+    let lines = sorted_lines(&ical);
+    assert_eq!(
+        lines
+            .iter()
+            .copied()
+            .filter(|line| line.starts_with("DUE"))
+            .collect::<Vec<_>>(),
+        [
+            "DUE;TZID=Europe/Berlin:20250110T100000",
+            "DUE;TZID=Europe/Berlin:20250110T100000"
+        ],
+        "draft-ietf-calext-jscalendarbis-22 Section 3.3.4: only the start is shifted\n{ical}"
+    );
+    assert!(
+        lines.contains(&"RECURRENCE-ID;TZID=Europe/Berlin:20250117T100000"),
+        "{ical}"
+    );
+}
+
+#[test]
+fn task_override_without_start_patches_its_own_due() {
+    let jscal = import(
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:task\r\nDUE;TZID=Europe/Berlin:20250110T100000\r\nEND:VTODO\r\nBEGIN:VTODO\r\nUID:task\r\nRECURRENCE-ID;TZID=Europe/Berlin:20250117T100000\r\nDUE;TZID=Europe/Berlin:20250117T100000\r\nSUMMARY:Moved\r\nEND:VTODO\r\nEND:VCALENDAR\r\n",
+    );
+    assert_eq!(
+        normalize(&jscal)["entries"][0]["recurrenceOverrides"],
+        serde_json::json!({"2025-01-17T10:00:00": {"title": "Moved", "due": "2025-01-17T10:00:00"}}),
+        "draft-ietf-calext-jscalendarbis-22 Section 3.3.4: only the start is shifted"
+    );
+}
+
+#[test]
+fn task_override_without_start_inherits_the_series_due() {
+    let jscal = import(
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:task\r\nDUE;TZID=Europe/Berlin:20250110T100000\r\nEND:VTODO\r\nBEGIN:VTODO\r\nUID:task\r\nRECURRENCE-ID;TZID=Europe/Berlin:20250117T100000\r\nDUE;TZID=Europe/Berlin:20250110T100000\r\nSUMMARY:Moved\r\nEND:VTODO\r\nEND:VCALENDAR\r\n",
+    );
+    assert_eq!(
+        normalize(&jscal)["entries"][0]["recurrenceOverrides"],
+        serde_json::json!({"2025-01-17T10:00:00": {"title": "Moved"}}),
+        "draft-ietf-calext-jscalendarbis-22 Section 3.3.4: an occurrence inherits everything but the start"
     );
 }

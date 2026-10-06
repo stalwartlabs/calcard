@@ -283,7 +283,6 @@ fn random_property(rng: &mut XorShift, depth: usize) -> Prop {
         11 => JSCalendarParticipantRole::from_str(rng.pick(&[
             "owner",
             "chair",
-            "attendee",
             "optional",
             "informational",
             "required",

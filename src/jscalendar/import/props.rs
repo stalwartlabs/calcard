@@ -17,8 +17,8 @@ use crate::{
         ICalendarValueType, Uri,
     },
     jscalendar::{
-        JSCalendarDateTime, JSCalendarId, JSCalendarPrivacy, JSCalendarProperty, JSCalendarType,
-        JSCalendarValue,
+        JSCALENDAR_VERSION, JSCalendarDateTime, JSCalendarId, JSCalendarPrivacy,
+        JSCalendarProperty, JSCalendarType, JSCalendarValue,
         ext::{JSCalendarKeyExt, JSCalendarObjectExt, JSCalendarValueExt},
         import::{
             ConvertedTo, EntryState, ICalendarConvertedProperty, ICalendarParams, LinkId, LinkIds,
@@ -484,6 +484,25 @@ impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
         obj
     }
 
+    pub(super) fn into_root_object(
+        self,
+    ) -> Value<'static, JSCalendarProperty<I>, JSCalendarValue<I, B>> {
+        let has_version = matches!(
+            self.component_type,
+            ICalendarComponentType::VCalendar
+                | ICalendarComponentType::VEvent
+                | ICalendarComponentType::VTodo
+        );
+        let mut obj = self.into_object();
+        if has_version && let Value::Object(map) = &mut obj {
+            map.upsert(
+                Key::Property(JSCalendarProperty::Version),
+                Value::Str(JSCALENDAR_VERSION.into()),
+            );
+        }
+        obj
+    }
+
     pub(super) fn set_map_component(&mut self) {
         self.map_component = true;
     }
@@ -505,7 +524,7 @@ impl<I: JSCalendarId, B: JSCalendarId> State<I, B> {
         }
     }
 
-    fn has_start_or_due(&self) -> bool {
+    pub(super) fn has_start_or_due(&self) -> bool {
         self.entries
             .contains_key(&Key::Property(JSCalendarProperty::Start))
             || self

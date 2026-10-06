@@ -55,20 +55,19 @@ impl SeriesDates {
         &self,
         recurrence_id: JSCalendarDateTime,
     ) -> (Option<JSCalendarDateTime>, Option<JSCalendarDateTime>) {
+        let Some(start) = self.start else {
+            return (None, self.due);
+        };
         let rid = JSCalendarDateTime::new(recurrence_id.timestamp, true);
-        match (self.start, self.due) {
-            (Some(start), due) => (
-                Some(rid),
-                due.map(|due| {
-                    JSCalendarDateTime::new(
-                        due.timestamp + (rid.timestamp - start.timestamp),
-                        due.is_local,
-                    )
-                }),
-            ),
-            (None, Some(_)) => (None, Some(rid)),
-            (None, None) => (None, None),
-        }
+        (
+            Some(rid),
+            self.due.map(|due| {
+                JSCalendarDateTime::new(
+                    due.timestamp + (rid.timestamp - start.timestamp),
+                    due.is_local,
+                )
+            }),
+        )
     }
 }
 

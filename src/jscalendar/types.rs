@@ -168,6 +168,41 @@ impl<I: JSCalendarId> JSCalendarProperty<I> {
         }
     }
 
+    pub(crate) fn sets_misplaced_excluded(pointer: &JsonPointer<Self>) -> bool {
+        let items = match pointer.as_slice() {
+            [JsonPointerItem::Root, items @ ..] => items,
+            items => items,
+        };
+        let Some((JsonPointerItem::Key(Key::Property(JSCalendarProperty::Excluded)), parents)) =
+            items.split_last()
+        else {
+            return false;
+        };
+        if matches!(
+            parents,
+            [
+                JsonPointerItem::Key(Key::Property(JSCalendarProperty::RecurrenceOverrides)),
+                JsonPointerItem::Key(Key::Property(JSCalendarProperty::DateTime(_)))
+            ]
+        ) {
+            return false;
+        }
+        let mut is_member_key = false;
+        parents.iter().all(|item| {
+            let is_structural = is_member_key
+                || matches!(
+                    item,
+                    JsonPointerItem::Key(Key::Property(_)) | JsonPointerItem::Number(_)
+                );
+            is_member_key = matches!(
+                item,
+                JsonPointerItem::Key(Key::Property(property))
+                    if property.is_member_map() || *property == JSCalendarProperty::RelatedTo
+            );
+            is_structural
+        })
+    }
+
     pub(crate) fn is_metadata_pointer(pointer: &JsonPointer<Self>) -> bool {
         pointer
             .first()
@@ -840,7 +875,6 @@ impl FromStr for JSCalendarParticipantRole {
             "informational" => JSCalendarParticipantRole::Informational,
             "chair" => JSCalendarParticipantRole::Chair,
             "required" => JSCalendarParticipantRole::Required,
-            "attendee" => JSCalendarParticipantRole::Attendee,
         )
         .copied()
         .ok_or(())
@@ -855,7 +889,6 @@ impl JSCalendarParticipantRole {
             JSCalendarParticipantRole::Informational => "informational",
             JSCalendarParticipantRole::Chair => "chair",
             JSCalendarParticipantRole::Required => "required",
-            JSCalendarParticipantRole::Attendee => "attendee",
         }
     }
 }

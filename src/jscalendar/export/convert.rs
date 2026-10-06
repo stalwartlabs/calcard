@@ -527,24 +527,23 @@ impl ICalendar {
                                         let ical_role = match &key {
                                             Key::Property(JSCalendarProperty::ParticipantRole(
                                                 role,
-                                            )) => match role {
+                                            )) => Some(match role {
                                                 JSCalendarParticipantRole::Optional => {
-                                                    Some(ICalendarParticipationRole::OptParticipant)
+                                                    ICalendarParticipationRole::OptParticipant
                                                 }
                                                 JSCalendarParticipantRole::Informational => {
-                                                    Some(ICalendarParticipationRole::NonParticipant)
+                                                    ICalendarParticipationRole::NonParticipant
                                                 }
                                                 JSCalendarParticipantRole::Chair => {
-                                                    Some(ICalendarParticipationRole::Chair)
+                                                    ICalendarParticipationRole::Chair
                                                 }
                                                 JSCalendarParticipantRole::Required => {
-                                                    Some(ICalendarParticipationRole::ReqParticipant)
+                                                    ICalendarParticipationRole::ReqParticipant
                                                 }
                                                 JSCalendarParticipantRole::Owner => {
-                                                    Some(ICalendarParticipationRole::Owner)
+                                                    ICalendarParticipationRole::Owner
                                                 }
-                                                JSCalendarParticipantRole::Attendee => None,
-                                            },
+                                            }),
                                             _ => None,
                                         };
                                         if let Some(role) = ical_role {
@@ -2172,6 +2171,7 @@ impl ICalendar {
                     | JSCalendarProperty::SentBy
                     | JSCalendarProperty::DescriptionContentType
                     | JSCalendarProperty::Version
+                    | JSCalendarProperty::Excluded
                     | JSCalendarProperty::RecurrenceOverrides,
                     _,
                     _,
@@ -3059,6 +3059,9 @@ impl ICalendarComponent {
         path: &[&str],
         value: Value<'_, JSCalendarProperty<I>, JSCalendarValue<I, B>>,
     ) -> bool {
+        if path.last().copied() == Some(JSCalendarProperty::<I>::Excluded.to_string().as_ref()) {
+            return false;
+        }
         self.insert_encoded_jsprop(String::from_pointer(path.iter().copied()), value)
     }
 

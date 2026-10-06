@@ -1,5 +1,6 @@
 {
     "@type": "Group",
+    "version": "2.0",
     "entries": [
         {
             "@type": "Event",
@@ -23,10 +24,7 @@
                     "name": "Tom Tool",
                     "email": "tom@foobar.example.com",
                     "calendarAddress": "mailto:tom@calendar.example.com",
-                    "participationStatus": "accepted",
-                    "roles": {
-                        "attendee": true
-                    }
+                    "participationStatus": "accepted"
                 },
                 "em9lQGZvb2GFtcGxlLmNvbQ": {
                     "name": "Zoe Zelda",
@@ -34,7 +32,6 @@
                     "participationStatus": "accepted",
                     "roles": {
                         "owner": true,
-                        "attendee": true,
                         "chair": true
                     }
                 }

@@ -63,6 +63,7 @@ impl WeekDate {
     /// is the first day in the week. That is, the first week date of a year
     /// starts on the given weekday and is the first week whose majority of
     /// days (>= 4) falls in the same Gregorian year.
+    #[cfg(test)]
     pub(crate) fn from_date(start: Weekday, date: Date) -> Option<WeekDate> {
         let mut start_of_year = week_start_of_year(start, date.year())?;
         if date < start_of_year {
@@ -104,15 +105,10 @@ impl WeekDate {
         days += i32::from(self.weekday.since(self.start));
         start_of_year.checked_add(days.days()).ok()
     }
+}
 
-    /// Returns the number of weeks in the year containing this week date.
-    pub(crate) fn weeks_in_year(self) -> i8 {
-        if is_long_year(self.start, self.year) {
-            53
-        } else {
-            52
-        }
-    }
+pub(crate) fn weeks_in_year(start: Weekday, year: i16) -> i8 {
+    if is_long_year(start, year) { 53 } else { 52 }
 }
 
 /// Returns the start of the week that the given date resides in.
